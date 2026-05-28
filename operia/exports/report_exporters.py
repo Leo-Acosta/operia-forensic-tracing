@@ -17,7 +17,12 @@ from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, S
 
 from operia.reports.models import Presentation, Report
 from operia.legal_report.services.text_service import normalize_spanish
-from operia.legal_report.services.report_service import NO_ATTRIBUTION_TEXT, attribution_assessment, build_attribution_conclusion
+from operia.legal_report.services.report_service import (
+    NO_ATTRIBUTION_TEXT,
+    attribution_assessment,
+    build_attribution_conclusion,
+    build_matrix_based_conclusion,
+)
 from operia.core.config import settings
 from operia.shared.time import utcnow
 
@@ -444,6 +449,14 @@ def export_pdf(report: Report) -> Path:
             )
     if legal_content:
         _append_markdown_content(story, legal_content, styles)
+    sufficiency_content = _extract_named_sections(
+        report.markdown_content,
+        ["Matriz legal-probatoria aplicada", "Sem\u00e1foro de suficiencia legal"],
+    )
+    if sufficiency_content:
+        story.append(Spacer(1, 8))
+        story.append(Paragraph("Matriz legal-probatoria aplicada y sem\u00e1foro de suficiencia legal", styles["subheading"]))
+        _append_markdown_content(story, sufficiency_content, styles)
 
     analysis_content = _extract_named_sections(
         report.markdown_content,
@@ -473,6 +486,8 @@ def export_pdf(report: Report) -> Path:
     if conclusion_content:
         _append_markdown_content(story, conclusion_content, styles)
     else:
+        story.append(Paragraph(_html(build_matrix_based_conclusion(case)), styles["body"]))
+        story.append(Spacer(1, 6))
         story.append(Paragraph(_html(build_attribution_conclusion(case)), styles["body"]))
 
     _section(story, "9. Anexo de exportaci\u00f3n", styles)

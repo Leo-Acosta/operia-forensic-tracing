@@ -35,6 +35,8 @@ REPORT_SECTIONS = [
     "Evaluación de hipótesis alternativas",
     "Conclusiones técnicas",
     "Encuadre jurídico argentino",
+    "Matriz legal-probatoria aplicada",
+    "SemÃ¡foro de suficiencia legal",
     "Responsabilidad penal preliminar",
     "Responsabilidad civil preliminar",
     "Protección de datos personales",
@@ -95,6 +97,9 @@ def build_integral_markdown(case: Case, legal_recommendations: list[Any] | None 
         f"| Dato #{f.technical_data_id or '-'} | Evidencia #{f.evidence_id or '-'} | {f.title} | {f.confidence_level} | {f.preliminary_legal_relevance or 'pendiente'} |"
         for f in case.findings
     ) or "| - | - | Pendiente | bajo | pendiente |"
+    legal_probatory = legal_probatory_assessment(case)
+    legal_probatory_lines = _legal_probatory_matrix_markdown(legal_probatory)
+    legal_sufficiency_lines = _legal_sufficiency_markdown(legal_probatory)
 
     responsible_text = case.responsible or NO_ATTRIBUTION_TEXT
     client_or_victim = case.client_or_victim or ""
@@ -200,9 +205,19 @@ Con el alcance y limitaciones indicadas, los hallazgos permiten sostener prelimi
 
 {legal_lines}
 
-### Metodo de aplicacion normativa
+## Matriz legal-probatoria aplicada
 
-La aplicacion juridica se realiza con una secuencia controlada: hecho investigado, evidencia disponible, elemento objetivo de la norma, elemento subjetivo a verificar, evidencia faltante y conclusion prudente. Si una norma aparece como posible, no implica calificacion definitiva ni atribucion personal.
+| Norma | Elemento legal | Evidencia | Estado | Fuerza | Riesgo | Medida recomendada |
+| --- | --- | --- | --- | --- | --- | --- |
+{legal_probatory_lines}
+
+## SemÃ¡foro de suficiencia legal
+
+{legal_sufficiency_lines}
+
+### MÃ©todo de aplicaciÃ³n normativa
+
+{_normative_application_method(legal_probatory)}
 
 ## Responsabilidad penal preliminar
 
@@ -233,6 +248,8 @@ Debe evaluarse si existe relación de consumo, plataformas, bancos, fintech, exc
 La evidencia resulta compatible con los hallazgos indicados, con las limitaciones explicitadas. La conclusión requiere validación humana técnica y jurídica.
 
 ### Sintesis aplicada al caso
+
+{build_matrix_based_conclusion(case)}
 
 {_incident_specific_conclusion(case)}
 
@@ -329,9 +346,142 @@ def _legal_mapping_evidence_suffix(mapping: Any) -> str:
     return " Evidencia vinculada: " + " ".join(pieces)
 
 
+def legal_probatory_assessment(case: Case) -> dict[str, Any]:
+    approved_mappings = [
+        mapping for mapping in case.legal_mappings if getattr(mapping, "decision_status", "sugerido") != "descartado"
+    ]
+    rows: list[dict[str, Any]] = []
+    missing = weak = proved = contested = high_risk = 0
+    for mapping in approved_mappings:
+        links = list(getattr(mapping, "evidence_links", []) or [])
+        if not links:
+            missing += 1
+            rows.append(
+                {
+                    "norm_reference": mapping.norm_reference,
+                    "legal_element": mapping.legal_role or "Elemento legal no vinculado",
+                    "evidence": "",
+                    "evidence_hash": "",
+                    "element_status": "faltante",
+                    "probatory_strength": "sin evidencia",
+                    "contradiction_risk": "medio",
+                    "recommended_measure": "Vincular evidencia concreta antes de sostener esta norma en la conclusion.",
+                }
+            )
+            continue
+        for link in links:
+            evidence = getattr(link, "evidence", None)
+            status = getattr(link, "element_status", "") or "pendiente"
+            strength = getattr(link, "probatory_strength", "") or "medio"
+            risk = getattr(link, "contradiction_risk", "") or "bajo"
+            if status == "probado":
+                proved += 1
+            elif status in {"debil", "pendiente"} or strength == "bajo":
+                weak += 1
+            elif status == "controvertido":
+                contested += 1
+            elif status == "faltante":
+                missing += 1
+            if risk in {"alto", "critico"}:
+                high_risk += 1
+            rows.append(
+                {
+                    "norm_reference": mapping.norm_reference,
+                    "legal_element": getattr(link, "legal_element", "") or mapping.legal_role or "Elemento legal",
+                    "evidence": f"#{evidence.id} {evidence.description}" if evidence else "",
+                    "evidence_hash": getattr(evidence, "sha256_hash", "") if evidence else "",
+                    "element_status": status,
+                    "probatory_strength": strength,
+                    "contradiction_risk": risk,
+                    "recommended_measure": getattr(link, "recommended_measure", "") or getattr(link, "missing_evidence", "") or "Mantener trazabilidad y corroboracion.",
+                }
+            )
+    score = max(0, 100 - missing * 18 - weak * 9 - contested * 14 - high_risk * 18)
+    level = "bajo" if score >= 80 else "medio" if score >= 55 else "alto"
+    conclusion_mode = "fortalecida" if score >= 80 else "prudente" if score >= 55 else "insuficiente"
+    return {
+        "rows": rows,
+        "summary": {
+            "approved_mappings": len(approved_mappings),
+            "proved": proved,
+            "weak": weak,
+            "missing": missing,
+            "contested": contested,
+            "high_risk": high_risk,
+            "score": score,
+            "risk_level": level,
+            "conclusion_mode": conclusion_mode,
+        },
+    }
+
+
+def _legal_probatory_matrix_markdown(assessment: dict[str, Any]) -> str:
+    rows = assessment["rows"]
+    if not rows:
+        return "| - | - | - | faltante | sin evidencia | medio | Aprobar normas y vincular evidencia concreta. |"
+    return "\n".join(
+        "| {norm_reference} | {legal_element} | {evidence} {hash_text} | {element_status} | {probatory_strength} | {contradiction_risk} | {recommended_measure} |".format(
+            hash_text=f"SHA-256 {row['evidence_hash']}" if row.get("evidence_hash") else "",
+            **row,
+        )
+        for row in rows
+    )
+
+
+def _legal_sufficiency_markdown(assessment: dict[str, Any]) -> str:
+    summary = assessment["summary"]
+    return normalize_spanish(
+        "\n".join(
+            [
+                f"- Semaforo de suficiencia legal: **{summary['risk_level']}**.",
+                f"- Score de control: **{summary['score']} / 100**.",
+                f"- Elementos probados: {summary['proved']}.",
+                f"- Elementos debiles o pendientes: {summary['weak']}.",
+                f"- Elementos faltantes: {summary['missing']}.",
+                f"- Elementos controvertidos: {summary['contested']}.",
+                f"- Riesgos altos de contradiccion: {summary['high_risk']}.",
+                f"- Impacto en conclusion: {summary['conclusion_mode']}.",
+            ]
+        )
+    )
+
+
+def _normative_application_method(assessment: dict[str, Any]) -> str:
+    summary = assessment["summary"]
+    if summary["approved_mappings"] == 0:
+        return "No existe encuadre legal aprobado por analista. El informe no debe formular una calificacion juridica cerrada."
+    if summary["missing"] or summary["high_risk"]:
+        return "La aplicacion normativa debe formularse en modo prudente: existen normas aprobadas, pero hay elementos faltantes, debiles o riesgos de contradiccion que impiden sostener una atribucion o calificacion definitiva."
+    if summary["weak"] or summary["contested"]:
+        return "La aplicacion normativa cuenta con soporte inicial, aunque requiere corroboracion externa antes de elevar el grado conclusivo."
+    return "La aplicacion normativa cuenta con soporte legal-probatorio consistente para una conclusion tecnica fortalecida, siempre sujeta a revision profesional y control jurisdiccional."
+
+
+def build_matrix_based_conclusion(case: Case) -> str:
+    assessment = legal_probatory_assessment(case)
+    summary = assessment["summary"]
+    attribution = attribution_assessment(case)
+    if summary["approved_mappings"] == 0:
+        return normalize_spanish(
+            "No se incorporó un encuadre legal aprobado por analista. En consecuencia, el informe solo puede sostener una descripción técnico-forense preliminar y no una conclusión jurídico-penal estructurada."
+        )
+    if summary["conclusion_mode"] == "insuficiente":
+        return normalize_spanish(
+            f"La matriz legal-probatoria registra {summary['missing']} elemento(s) faltante(s), {summary['weak']} elemento(s) débiles o pendientes y {summary['high_risk']} riesgo(s) alto(s) de contradicción. Por ello, la conclusión jurídicamente defendible debe limitarse a afirmar compatibilidad preliminar entre los hechos investigados y las normas aprobadas, sin atribución personal ni calificación definitiva."
+        )
+    if attribution["sufficient"] and summary["conclusion_mode"] == "fortalecida":
+        return normalize_spanish(
+            "La matriz legal-probatoria muestra un soporte consistente entre normas aprobadas, evidencia vinculada y elementos legales relevantes. Sumado a los indicadores de atribución técnica disponibles, el caso admite una conclusión técnico-jurídica fortalecida, sin perjuicio de la valoración judicial, la contradicción de partes y la revisión profesional."
+        )
+    return normalize_spanish(
+        f"La matriz legal-probatoria permite sostener una conclusión prudente: existen normas aprobadas y evidencia vinculada, pero el score de suficiencia es {summary['score']} / 100 y todavía deben corroborarse elementos faltantes, débiles o externos antes de avanzar hacia atribución personal o calificación definitiva."
+    )
+
+
 def build_ai_enrichment_markdown(case: Case, legal_recommendations: list[Any], ai_response: str = "") -> str:
     legal_block = _legal_recommendation_markdown(legal_recommendations)
     hypotheses = _default_hypotheses_markdown(case)
+    legal_probatory = legal_probatory_assessment(case)
     evidence_summary = "\n".join(
         f"- Evidencia #{item.id}: {item.description}. Hash: {item.sha256_hash or 'pendiente'}. Integridad: {item.integrity_status}."
         for item in case.evidence[:8]
@@ -350,7 +500,19 @@ def build_ai_enrichment_markdown(case: Case, legal_recommendations: list[Any], a
 
 {legal_block}
 
+## Matriz legal-probatoria aplicada
+
+| Norma | Elemento legal | Evidencia | Estado | Fuerza | Riesgo | Medida recomendada |
+| --- | --- | --- | --- | --- | --- | --- |
+{_legal_probatory_matrix_markdown(legal_probatory)}
+
+## SemÃ¡foro de suficiencia legal
+
+{_legal_sufficiency_markdown(legal_probatory)}
+
 ## Conclusión técnico-jurídica
+
+{build_matrix_based_conclusion(case)}
 
 {build_attribution_conclusion(case)}
 """

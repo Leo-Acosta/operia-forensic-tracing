@@ -16,6 +16,8 @@ Responsibilities:
 - Case evaluation
 - Presentation generation
 - DOCX/PDF/HTML/Markdown export compatibility
+- Matrix-based final report conclusions from approved legal mappings and linked evidence
+- Legal sufficiency traffic light for report impact
 
 Current API prefix:
 

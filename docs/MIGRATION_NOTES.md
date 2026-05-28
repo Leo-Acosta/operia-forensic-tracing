@@ -346,3 +346,21 @@ Verification:
 - `python -m compileall operia apps\api tests` passed;
 - `python -m pytest -q -p no:cacheprovider` passed with `11 passed`;
 - `npm run build` passed.
+
+## Fase Operativa 7
+
+Completed:
+
+- added a matrix-based report conclusion engine;
+- added `Matriz legal-probatoria aplicada` to generated and enriched reports;
+- added `Semaforo de suficiencia legal` with score, risk level and conclusion impact;
+- replaced the generic normative method with a method derived from approved mappings, evidence links, missing elements and contradiction risk;
+- included matrix and sufficiency content in the professional PDF export;
+- preserved the attribution engine as a separate technical-legal conclusion after the matrix-based conclusion;
+- added regression coverage for markdown and PDF output.
+
+Verification:
+
+- `python -m compileall operia apps\api tests` passed;
+- `python -m pytest -q -p no:cacheprovider` passed with `11 passed`;
+- `npm run build` passed.
