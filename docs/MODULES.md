@@ -124,6 +124,8 @@ Responsibilities:
 - Hypotheses
 - Damage items
 - Case closure readiness and controlled closure
+- Advanced case detail view: participants, evidence, custody, reports, manifests and audit trail
+- Controlled edit/delete operations for participants, evidence and custody records
 
 Current API prefix:
 
@@ -153,3 +155,38 @@ Closure requirements:
 - at least one report;
 - reviewed report score/status;
 - PDF export manifest.
+
+## Fase Operativa 2 - Advanced Case Management
+
+The frontend includes a professional case detail view under `Detalle del Caso`.
+
+It provides:
+
+- active case overview;
+- participants and entities list;
+- evidence list with hashes;
+- custody action timeline;
+- reports and PDF export links;
+- export manifests;
+- case audit logs;
+- edit/delete actions for participants, evidence and custody records.
+
+Closed cases are shown as closed and should be treated as read-only operationally unless a future reopening workflow is implemented.
+
+## Fase Operativa 3 - Professional Forensic Report
+
+Canonical report PDF export now uses `operia/exports/report_exporters.py`.
+
+The professional report includes:
+
+- cover page and case metadata;
+- human review warning for AI-assisted material;
+- case metrics;
+- participants and entities;
+- evidence integrity table with hashes;
+- chain-of-custody table;
+- findings, hypotheses and limitations;
+- Argentine legal mapping section;
+- generated report content;
+- prudent conclusions;
+- export annex explaining manifest/hash traceability.

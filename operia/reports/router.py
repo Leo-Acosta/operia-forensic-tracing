@@ -9,7 +9,16 @@ from operia.core.database import get_db
 from operia.identity.dependencies import CurrentUser, get_optional_user
 from operia.reports.schemas import ReportRead, ReportUpdate, ReviewResult
 from operia.exports.service import export_docx, export_html, export_markdown, export_pdf
-from operia.legal_report.services.report_service import build_integral_markdown, populate_report_sections, snapshot_report
+from operia.ai_assistant.ollama_client import OllamaUnavailable, generate_with_ollama
+from operia.ai_assistant.prompts import build_forensic_prompt
+from operia.ai_assistant.service import case_context_for_prompt, legal_context_for_prompt
+from operia.legal_knowledge.service import ensure_legal_articles, recommend_articles_for_incident
+from operia.legal_report.services.report_service import (
+    build_ai_enrichment_markdown,
+    build_integral_markdown,
+    populate_report_sections,
+    snapshot_report,
+)
 from operia.legal_report.services.review_service import review_report
 from operia.reports.models import Report, ReportReview, ReportSection, ReportVersion
 from operia.shared.crud import get_or_404
@@ -34,7 +43,10 @@ def generate_report(
     current_user: CurrentUser | None = Depends(get_optional_user),
 ):
     case = get_or_404(db, Case, case_id)
-    markdown = build_integral_markdown(case)
+    ensure_legal_articles(db)
+    incident_text = " ".join([case.incident_type or "", case.description or "", case.general_observations or ""])
+    legal_recommendations = recommend_articles_for_incident(db, incident_text, limit=8)
+    markdown = build_integral_markdown(case, legal_recommendations=legal_recommendations)
     report = Report(case=case, title=f"Informe integral - {case.title}", author=author, markdown_content=markdown)
     report.organization_id = current_user.organization_id if current_user and current_user.organization_id else case.organization_id
     db.add(report)
@@ -42,6 +54,59 @@ def generate_report(
     report.sections = populate_report_sections(report, markdown)
     report.versions.append(snapshot_report(report, author, "Generacion inicial automatica"))
     write_audit(db, "generate_report", "reports", current_user, case_id=case_id, entity_type="report", entity_id=str(report.id), details=report.title)
+    db.commit()
+    db.refresh(report)
+    return report
+
+
+@router.post("/{report_id}/ai-enrich", response_model=ReportRead)
+def enrich_report_with_ai(
+    report_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser | None = Depends(get_optional_user),
+):
+    report = get_or_404(db, Report, report_id)
+    case = report.case
+    model_name = str(payload.get("model_name") or "mistral")
+    user_prompt = str(payload.get("prompt") or "Enriquecer informe con hipotesis, conclusiones prudentes y fundamentacion legal argentina.")
+    ensure_legal_articles(db)
+    incident_text = " ".join(
+        [
+            case.incident_type or "",
+            case.description or "",
+            case.general_observations or "",
+            " ".join(item.description for item in case.evidence[:8]),
+            " ".join(item.title for item in case.findings[:8]),
+        ]
+    )
+    legal_recommendations = recommend_articles_for_incident(db, incident_text, limit=8)
+    legal_context = legal_context_for_prompt(db, incident_text)
+    case_context = case_context_for_prompt(case)
+    guarded_prompt = build_forensic_prompt(
+        f"{user_prompt}\n\nObjetivo: devolver hipotesis reales, conclusiones profundas pero prudentes, y fundamentacion legal argentina citando solo fuentes registradas.",
+        legal_context=legal_context,
+        case_context=case_context,
+    )
+    status = "completed"
+    try:
+        ai_response = generate_with_ollama(guarded_prompt, model=model_name)
+    except OllamaUnavailable as exc:
+        ai_response = str(exc)
+        status = "ollama_unavailable_fallback"
+
+    enrichment = build_ai_enrichment_markdown(case, legal_recommendations, ai_response)
+    marker = "## Analisis ampliado asistido por IA local"
+    current_markdown = report.markdown_content or ""
+    if marker in current_markdown:
+        report.markdown_content = current_markdown.split(marker, 1)[0].rstrip() + "\n\n" + enrichment.strip() + "\n"
+    else:
+        report.markdown_content = (report.markdown_content or "").rstrip() + "\n\n" + enrichment.strip() + "\n"
+    report.status = "enriquecido_con_ia"
+    report.observations = f"Informe enriquecido con {model_name}. Estado IA: {status}. Requiere revision humana."
+    report.sections = populate_report_sections(report, report.markdown_content)
+    report.versions.append(snapshot_report(report, current_user.email if current_user else "OPERIA", f"Enriquecimiento IA local: {status}"))
+    write_audit(db, "ai_enrich_report", "reports", current_user, case_id=case.id, entity_type="report", entity_id=str(report.id), details=status)
     db.commit()
     db.refresh(report)
     return report

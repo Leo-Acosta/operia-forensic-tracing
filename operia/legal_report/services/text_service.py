@@ -90,12 +90,41 @@ SPANISH_REPLACEMENTS = [
     (r"\bInformaticos\b", "InformÃ¡ticos"),
 ]
 
+MOJIBAKE_REPLACEMENTS = {
+    "Ã¡": "\u00e1",
+    "Ã©": "\u00e9",
+    "Ã­": "\u00ed",
+    "Ã³": "\u00f3",
+    "Ãº": "\u00fa",
+    "Ã±": "\u00f1",
+    "Ã": "\u00c1",
+    "Ã‰": "\u00c9",
+    "Ã": "\u00cd",
+    "Ã“": "\u00d3",
+    "Ãš": "\u00da",
+    "Ã‘": "\u00d1",
+    "Â¿": "\u00bf",
+    "Â¡": "\u00a1",
+    "Â°": "\u00b0",
+    "â€¢": "-",
+    "â€“": "-",
+    "â€”": "-",
+    "â€˜": "'",
+    "â€™": "'",
+    "â€œ": '"',
+    "â€": '"',
+}
+
 
 def normalize_spanish(text: str | None) -> str:
     if not text:
         return ""
     normalized = str(text)
+    for source, target in MOJIBAKE_REPLACEMENTS.items():
+        normalized = normalized.replace(source, target)
     for pattern, replacement in SPANISH_REPLACEMENTS:
         normalized = re.sub(pattern, replacement, normalized)
+    for source, target in MOJIBAKE_REPLACEMENTS.items():
+        normalized = normalized.replace(source, target)
     return normalized
 

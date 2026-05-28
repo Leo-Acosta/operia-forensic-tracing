@@ -147,6 +147,34 @@ def create_action(
     return item
 
 
+@router.put("/custody-actions/{action_id}", response_model=CustodyActionRead)
+def update_action(
+    action_id: int,
+    payload: CustodyActionCreate,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser | None = Depends(get_optional_user),
+):
+    item = update_from_payload(get_or_404(db, ChainOfCustodyAction, action_id), payload)
+    write_audit(db, "update_custody_action", "evidence", current_user, case_id=item.case_id, entity_type="custody_action", entity_id=str(item.id), details=item.action_type)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.delete("/custody-actions/{action_id}")
+def delete_action(
+    action_id: int,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser | None = Depends(get_optional_user),
+):
+    item = get_or_404(db, ChainOfCustodyAction, action_id)
+    case_id = item.case_id
+    write_audit(db, "delete_custody_action", "evidence", current_user, case_id=case_id, entity_type="custody_action", entity_id=str(item.id), severity="warning", details=item.action_type)
+    db.delete(item)
+    db.commit()
+    return {"ok": True}
+
+
 @router.get("/case/{case_id}/custody-actions", response_model=list[CustodyActionRead])
 def list_actions(case_id: int, evidence_id: int | None = None, db: Session = Depends(get_db)):
     query = db.query(ChainOfCustodyAction).filter_by(case_id=case_id)

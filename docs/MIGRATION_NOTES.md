@@ -184,3 +184,55 @@ Final verification:
 
 - `python -m pytest -q -p no:cacheprovider` passed with `7 passed`;
 - `npm run build` passed.
+
+## Fase Operativa 2
+
+Completed:
+
+- added `Detalle del Caso` frontend module;
+- added case overview metrics for selected case;
+- added editable participant records;
+- added editable evidence records;
+- added editable chain-of-custody records;
+- added delete actions for participants, evidence and custody records;
+- added visible reports and PDF export links;
+- added visible export manifests for the selected case;
+- added visible audit log for the selected case;
+- added custody update/delete canonical endpoints;
+- added audit events for custody updates/deletions;
+- added automated test coverage for advanced case management.
+
+Verification:
+
+- `python -m pytest -q -p no:cacheprovider` passed with `8 passed`;
+- `npm run build` passed.
+
+Remaining:
+
+- implement a formal case reopening workflow for closed cases;
+- enforce closed-case write restrictions server-side;
+- add richer evidence detail screens with attachment preview and participant/evidence linking;
+- add signed export manifests and immutable audit policies.
+
+## Fase Operativa 3
+
+Completed:
+
+- replaced canonical report PDF generation with a professional forensic report template;
+- fixed Spanish text normalization for common mojibake/encoding artifacts in exports;
+- added cover metadata, human-review warning, case metrics, participants, evidence, chain of custody, findings, hypotheses, legal mappings, conclusions and export annex sections;
+- connected `GET /api/exports/reports/{report_id}/pdf` to the professional report exporter instead of the generic text PDF exporter;
+- marked report PDF manifests with `template=forensic_professional`;
+- extended automated coverage so the case/evidence/report flow verifies report PDF generation, manifest hash and audit event.
+
+Verification:
+
+- `python -m compileall operia apps\api tests` passed;
+- `python -m pytest -q -p no:cacheprovider` passed with `8 passed`.
+
+Remaining:
+
+- add signed manifests;
+- add richer legal citation annexes with source snapshots;
+- add visual evidence annex previews;
+- add report template selection and editable section ordering from the frontend.

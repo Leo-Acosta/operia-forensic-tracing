@@ -67,6 +67,21 @@ Case participants:
 - `PUT /api/cases/participants/{participant_id}`
 - `DELETE /api/cases/participants/{participant_id}`
 
+Evidence and custody management:
+
+- `GET /api/evidence/case/{case_id}`
+- `PUT /api/evidence/{evidence_id}`
+- `DELETE /api/evidence/{evidence_id}`
+- `GET /api/evidence/case/{case_id}/custody-actions`
+- `POST /api/evidence/custody-actions`
+- `PUT /api/evidence/custody-actions/{action_id}`
+- `DELETE /api/evidence/custody-actions/{action_id}`
+
+Case audit and export visibility:
+
+- `GET /api/audit/logs?case_id={case_id}`
+- `GET /api/exports/manifests?case_id={case_id}`
+
 Case closure:
 
 - `GET /api/cases/{case_id}/closure-status`
@@ -79,3 +94,5 @@ Cybercrime indicator analysis:
 Operational PDF export:
 
 - `GET /api/exports/reports/{report_id}/pdf`
+
+This route generates the professional forensic report template and returns export-manifest headers with SHA-256 traceability.

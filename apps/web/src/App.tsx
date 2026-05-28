@@ -16,18 +16,21 @@ import {
   Map,
   Navigation,
   RefreshCcw,
+  Save,
   Search,
   Settings,
   Shield,
+  Trash2,
   Upload,
   Users,
   Wrench
 } from "lucide-react";
-import { API_BASE, apiGet, apiPost, apiPostForm } from "./api";
+import { API_BASE, apiDelete, apiGet, apiPost, apiPostForm, apiPut } from "./api";
 
 type ModuleKey =
   | "workflow"
   | "dashboard"
+  | "caseDetail"
   | "cases"
   | "evidence"
   | "reports"
@@ -60,6 +63,12 @@ type EvidenceItem = {
   md5_hash?: string;
   integrity_status: string;
   file_location?: string;
+  source?: string;
+  responsible?: string;
+  custodian?: string;
+  preservation_method?: string;
+  tool_used?: string;
+  confidence_level?: string;
 };
 
 type CustodyAction = {
@@ -69,6 +78,11 @@ type CustodyAction = {
   action_type: string;
   detailed_description: string;
   hash_after?: string;
+  user_responsible?: string;
+  tool_used?: string;
+  command_or_procedure?: string;
+  result_obtained?: string;
+  legal_observations?: string;
   status: string;
 };
 
@@ -83,8 +97,10 @@ type CaseParticipant = {
   tax_id: string;
   email: string;
   phone: string;
+  address?: string;
   role_description: string;
   relationship_to_case: string;
+  notes?: string;
   sensitivity_level: string;
 };
 
@@ -95,6 +111,7 @@ type ReportItem = {
   status: string;
   author: string;
   review_score: number;
+  observations?: string;
 };
 
 type LegalArticle = {
@@ -124,9 +141,32 @@ type ClosureStatus = {
   message?: string;
 };
 
+type AuditLog = {
+  id: number;
+  case_id?: number;
+  action: string;
+  module: string;
+  entity_type: string;
+  entity_id: string;
+  severity: string;
+  details: string;
+  created_at: string;
+};
+
+type ExportManifest = {
+  id: number;
+  case_id?: number;
+  report_id?: number;
+  export_type: string;
+  filename: string;
+  sha256_hash: string;
+  created_at: string;
+};
+
 const modules: Array<{ key: ModuleKey; label: string; icon: typeof BarChart3 }> = [
   { key: "workflow", label: "Flujo Operativo", icon: CheckCircle2 },
   { key: "dashboard", label: "Dashboard", icon: BarChart3 },
+  { key: "caseDetail", label: "Detalle del Caso", icon: FileCheck2 },
   { key: "cases", label: "Casos", icon: Briefcase },
   { key: "evidence", label: "Evidencia", icon: Fingerprint },
   { key: "reports", label: "Informes", icon: FileText },
@@ -211,6 +251,8 @@ export function App() {
   const [participants, setParticipants] = useState<CaseParticipant[]>([]);
   const [custody, setCustody] = useState<CustodyAction[]>([]);
   const [reports, setReports] = useState<ReportItem[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [manifests, setManifests] = useState<ExportManifest[]>([]);
   const [articles, setArticles] = useState<LegalArticle[]>([]);
   const [modulePayload, setModulePayload] = useState<unknown>(null);
   const [caseForm, setCaseForm] = useState(emptyCase);
@@ -229,9 +271,12 @@ export function App() {
     notes: "",
     sensitivity_level: "reservado"
   });
+  const [editingParticipant, setEditingParticipant] = useState<CaseParticipant | null>(null);
   const [evidenceForm, setEvidenceForm] = useState({ description: "", responsible: "", custodian: "" });
+  const [editingEvidence, setEditingEvidence] = useState<EvidenceItem | null>(null);
   const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
   const [custodyForm, setCustodyForm] = useState({ action_type: "revision", detailed_description: "", user_responsible: "" });
+  const [editingCustody, setEditingCustody] = useState<CustodyAction | null>(null);
   const [indicator, setIndicator] = useState("https://secure-login.example.com/verify");
   const [indicatorResult, setIndicatorResult] = useState<unknown>(null);
   const [legalQuery, setLegalQuery] = useState("phishing fraude acceso datos");
@@ -255,19 +300,25 @@ export function App() {
       setParticipants([]);
       setReports([]);
       setCustody([]);
+      setAuditLogs([]);
+      setManifests([]);
       setClosureStatus(null);
       return;
     }
-    const [participantData, evidenceData, reportData, custodyData] = await Promise.all([
+    const [participantData, evidenceData, reportData, custodyData, auditData, manifestData] = await Promise.all([
       apiGet<CaseParticipant[]>(`/cases/${caseId}/participants`),
       apiGet<EvidenceItem[]>(`/evidence/case/${caseId}`),
       apiGet<ReportItem[]>(`/reports/case/${caseId}`),
-      apiGet<CustodyAction[]>(`/evidence/case/${caseId}/custody-actions`)
+      apiGet<CustodyAction[]>(`/evidence/case/${caseId}/custody-actions`),
+      apiGet<AuditLog[]>(`/audit/logs?case_id=${caseId}`),
+      apiGet<ExportManifest[]>(`/exports/manifests?case_id=${caseId}`)
     ]);
     setParticipants(participantData);
     setEvidence(evidenceData);
     setReports(reportData);
     setCustody(custodyData);
+    setAuditLogs(auditData);
+    setManifests(manifestData);
     setClosureStatus(await apiGet<ClosureStatus>(`/cases/${caseId}/closure-status`));
   }
 
@@ -373,6 +424,52 @@ export function App() {
     await refreshCaseCollections(selectedCaseId);
   }
 
+  async function saveParticipant(event: FormEvent) {
+    event.preventDefault();
+    if (!editingParticipant) return;
+    await apiPut<CaseParticipant>(`/cases/participants/${editingParticipant.id}`, editingParticipant);
+    setEditingParticipant(null);
+    await refreshCaseCollections(selectedCaseId);
+  }
+
+  async function deleteParticipant(id: number) {
+    if (!confirm("Eliminar participante del caso?")) return;
+    await apiDelete(`/cases/participants/${id}`);
+    await refreshCaseCollections(selectedCaseId);
+  }
+
+  async function saveEvidence(event: FormEvent) {
+    event.preventDefault();
+    if (!editingEvidence) return;
+    await apiPut<EvidenceItem>(`/evidence/${editingEvidence.id}`, {
+      case_id: editingEvidence.case_id,
+      evidence_type: editingEvidence.evidence_type,
+      description: editingEvidence.description,
+      source: editingEvidence.source || "",
+      responsible: editingEvidence.responsible || "",
+      custodian: editingEvidence.custodian || "",
+      sha256_hash: editingEvidence.sha256_hash || "",
+      md5_hash: editingEvidence.md5_hash || null,
+      file_location: editingEvidence.file_location || null,
+      preservation_method: editingEvidence.preservation_method || "",
+      tool_used: editingEvidence.tool_used || "",
+      evidence_nature: "copia forense",
+      was_altered: false,
+      alteration_justification: "",
+      custody_observations: "",
+      integrity_status: editingEvidence.integrity_status || "pendiente de validacion",
+      confidence_level: editingEvidence.confidence_level || "medio"
+    });
+    setEditingEvidence(null);
+    await refreshCaseCollections(selectedCaseId);
+  }
+
+  async function deleteEvidence(id: number) {
+    if (!confirm("Eliminar evidencia? Esta accion debe quedar reservada a correcciones controladas.")) return;
+    await apiDelete(`/evidence/${id}`);
+    await refreshCaseCollections(selectedCaseId);
+  }
+
   async function createCustodyAction(event: FormEvent) {
     event.preventDefault();
     if (!selectedCaseId) return;
@@ -383,6 +480,35 @@ export function App() {
       hash_after: latestEvidence?.sha256_hash || ""
     });
     setCustodyForm({ action_type: "revision", detailed_description: "", user_responsible: "" });
+    await refreshCaseCollections(selectedCaseId);
+  }
+
+  async function saveCustodyAction(event: FormEvent) {
+    event.preventDefault();
+    if (!editingCustody) return;
+    await apiPut<CustodyAction>(`/evidence/custody-actions/${editingCustody.id}`, {
+      case_id: editingCustody.case_id,
+      evidence_id: editingCustody.evidence_id || null,
+      user_responsible: editingCustody.user_responsible || "",
+      action_type: editingCustody.action_type,
+      detailed_description: editingCustody.detailed_description,
+      tool_used: editingCustody.tool_used || "",
+      command_or_procedure: editingCustody.command_or_procedure || "",
+      result_obtained: editingCustody.result_obtained || "",
+      altered_evidence: false,
+      hash_before: "",
+      hash_after: editingCustody.hash_after || "",
+      validated_by: "",
+      legal_observations: editingCustody.legal_observations || "",
+      status: editingCustody.status || "registrada"
+    });
+    setEditingCustody(null);
+    await refreshCaseCollections(selectedCaseId);
+  }
+
+  async function deleteCustodyAction(id: number) {
+    if (!confirm("Eliminar accion de custodia? Usar solo para correcciones controladas.")) return;
+    await apiDelete(`/evidence/custody-actions/${id}`);
     await refreshCaseCollections(selectedCaseId);
   }
 
@@ -401,6 +527,21 @@ export function App() {
   }
 
   async function runAiAssist() {
+    if (latestReport) {
+      const enriched = await apiPost<ReportItem>(`/reports/${latestReport.id}/ai-enrich`, {
+        case_id: selectedCaseId || undefined,
+        model_name: "mistral",
+        prompt: aiPrompt
+      });
+      setAiResult({
+        status: enriched.status,
+        report_id: enriched.id,
+        message: "Informe enriquecido con asistencia IA local/fallback forense. Revisa y vuelve a exportar PDF.",
+        observations: enriched.observations
+      });
+      if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+      return;
+    }
     setAiResult(await apiPost("/ai/assist", { case_id: selectedCaseId || undefined, model_name: "mistral", prompt: aiPrompt }));
   }
 
@@ -566,8 +707,9 @@ export function App() {
           <StepCard number={7} title="Pedir asistencia IA local con Mistral" done={Boolean(aiResult)}>
             <div className="compact-form">
               <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} />
-              <button onClick={runAiAssist}><Bot size={17} /> Consultar Mistral local</button>
+              <button onClick={runAiAssist}><Bot size={17} /> {latestReport ? "Enriquecer informe con Mistral" : "Consultar Mistral local"}</button>
             </div>
+            {latestReport && <p className="notice">Con informe generado, esta accion agrega hipotesis, conclusiones y fundamentacion legal al reporte.</p>}
             <JsonPanel data={aiResult} />
           </StepCard>
 
@@ -659,6 +801,186 @@ export function App() {
           ))}
         </div>
       </section>
+    );
+  }
+
+  function renderCaseDetail() {
+    const locked = selectedCase?.status === "cerrado";
+    return (
+      <div className="case-detail">
+        <section className="work-surface">
+          <div className="section-head">
+            <div>
+              <h2>Detalle Profesional del Caso</h2>
+              <p>{selectedCase ? `${selectedCase.case_code} - ${selectedCase.title}` : "Selecciona un caso para ver su expediente completo."}</p>
+            </div>
+            <select value={selectedCaseId} onChange={(event) => setSelectedCaseId(Number(event.target.value) || "")}>
+              <option value="">Seleccionar caso</option>
+              {cases.map((item) => <option value={item.id} key={item.id}>{item.case_code}</option>)}
+            </select>
+          </div>
+          {selectedCase ? (
+            <div className="case-overview">
+              <div><span>Estado</span><strong>{selectedCase.status}</strong></div>
+              <div><span>Incidente</span><strong>{selectedCase.incident_type}</strong></div>
+              <div><span>Participantes</span><strong>{participants.length}</strong></div>
+              <div><span>Evidencia</span><strong>{evidence.length}</strong></div>
+              <div><span>Custodia</span><strong>{custody.length}</strong></div>
+              <div><span>Informes</span><strong>{reports.length}</strong></div>
+            </div>
+          ) : <EmptyState text="No hay caso seleccionado." />}
+          {locked && <p className="notice success">Caso cerrado: las modificaciones futuras deberian tratarse como reapertura o correccion auditada.</p>}
+        </section>
+
+        <section className="detail-grid">
+          <div className="detail-panel">
+            <div className="panel-head">
+              <h3>Personas y entidades</h3>
+            </div>
+            {participants.map((item) => (
+              <div className="editable-record" key={item.id}>
+                <div>
+                  <strong>{item.display_name}</strong>
+                  <span>{item.participant_type} | {item.person_type} | {item.sensitivity_level}</span>
+                  <small>{item.relationship_to_case || item.role_description || "Relacion pendiente"}</small>
+                </div>
+                <div className="record-actions">
+                  <button className="icon-button" onClick={() => setEditingParticipant(item)} title="Editar"><Save size={15} /></button>
+                  <button className="icon-button danger" onClick={() => deleteParticipant(item.id)} title="Eliminar"><Trash2 size={15} /></button>
+                </div>
+              </div>
+            ))}
+            {!participants.length && <EmptyState text="Sin participantes cargados." />}
+          </div>
+
+          <div className="detail-panel">
+            <div className="panel-head">
+              <h3>Evidencia</h3>
+            </div>
+            {evidence.map((item) => (
+              <div className="editable-record" key={item.id}>
+                <div>
+                  <strong>{item.evidence_type}</strong>
+                  <span>{item.description}</span>
+                  <code>{item.sha256_hash || "hash pendiente"}</code>
+                </div>
+                <div className="record-actions">
+                  <button className="icon-button" onClick={() => setEditingEvidence(item)} title="Editar"><Save size={15} /></button>
+                  <button className="icon-button danger" onClick={() => deleteEvidence(item.id)} title="Eliminar"><Trash2 size={15} /></button>
+                </div>
+              </div>
+            ))}
+            {!evidence.length && <EmptyState text="Sin evidencia cargada." />}
+          </div>
+
+          <div className="detail-panel">
+            <div className="panel-head">
+              <h3>Cadena de custodia</h3>
+            </div>
+            {custody.map((item) => (
+              <div className="editable-record" key={item.id}>
+                <div>
+                  <strong>{item.action_type}</strong>
+                  <span>{item.detailed_description}</span>
+                  <small>{item.user_responsible || "Responsable pendiente"} | {item.status}</small>
+                </div>
+                <div className="record-actions">
+                  <button className="icon-button" onClick={() => setEditingCustody(item)} title="Editar"><Save size={15} /></button>
+                  <button className="icon-button danger" onClick={() => deleteCustodyAction(item.id)} title="Eliminar"><Trash2 size={15} /></button>
+                </div>
+              </div>
+            ))}
+            {!custody.length && <EmptyState text="Sin acciones de custodia." />}
+          </div>
+
+          <div className="detail-panel">
+            <div className="panel-head">
+              <h3>Informes y exportaciones</h3>
+            </div>
+            {reports.map((item) => (
+              <div className="editable-record" key={item.id}>
+                <div>
+                  <strong>{item.title}</strong>
+                  <span>{item.status} | Score {item.review_score}</span>
+                </div>
+                <a className="text-link" href={`${API_BASE}/exports/reports/${item.id}/pdf`} target="_blank">Exportar PDF</a>
+              </div>
+            ))}
+            <div className="mini-list">
+              {manifests.slice(0, 6).map((item) => (
+                <span key={item.id}>{item.export_type}: {item.filename} | {item.sha256_hash.slice(0, 16)}...</span>
+              ))}
+            </div>
+          </div>
+
+          <div className="detail-panel wide">
+            <div className="panel-head">
+              <h3>Auditoria del caso</h3>
+            </div>
+            <div className="audit-list">
+              {auditLogs.slice(0, 20).map((item) => (
+                <div key={item.id}>
+                  <strong>{item.action}</strong>
+                  <span>{item.module} | {item.severity} | {new Date(item.created_at).toLocaleString()}</span>
+                  <small>{item.details || `${item.entity_type} ${item.entity_id}`}</small>
+                </div>
+              ))}
+              {!auditLogs.length && <EmptyState text="Sin auditoria visible para este caso." />}
+            </div>
+          </div>
+        </section>
+
+        {editingParticipant && (
+          <form className="edit-drawer" onSubmit={saveParticipant}>
+            <h3>Editar participante</h3>
+            <div className="inline-grid">
+              <input value={editingParticipant.display_name} onChange={(e) => setEditingParticipant({ ...editingParticipant, display_name: e.target.value })} />
+              <input value={editingParticipant.participant_type} onChange={(e) => setEditingParticipant({ ...editingParticipant, participant_type: e.target.value })} />
+            </div>
+            <div className="inline-grid">
+              <input value={editingParticipant.document_type || ""} onChange={(e) => setEditingParticipant({ ...editingParticipant, document_type: e.target.value })} />
+              <input value={editingParticipant.document_number || ""} onChange={(e) => setEditingParticipant({ ...editingParticipant, document_number: e.target.value })} />
+            </div>
+            <textarea value={editingParticipant.relationship_to_case || ""} onChange={(e) => setEditingParticipant({ ...editingParticipant, relationship_to_case: e.target.value })} />
+            <div className="actions-line">
+              <button><Save size={16} /> Guardar</button>
+              <button type="button" className="secondary" onClick={() => setEditingParticipant(null)}>Cancelar</button>
+            </div>
+          </form>
+        )}
+
+        {editingEvidence && (
+          <form className="edit-drawer" onSubmit={saveEvidence}>
+            <h3>Editar evidencia</h3>
+            <div className="inline-grid">
+              <input value={editingEvidence.evidence_type} onChange={(e) => setEditingEvidence({ ...editingEvidence, evidence_type: e.target.value })} />
+              <input value={editingEvidence.integrity_status} onChange={(e) => setEditingEvidence({ ...editingEvidence, integrity_status: e.target.value })} />
+            </div>
+            <textarea value={editingEvidence.description} onChange={(e) => setEditingEvidence({ ...editingEvidence, description: e.target.value })} />
+            <input value={editingEvidence.sha256_hash || ""} onChange={(e) => setEditingEvidence({ ...editingEvidence, sha256_hash: e.target.value })} />
+            <div className="actions-line">
+              <button><Save size={16} /> Guardar</button>
+              <button type="button" className="secondary" onClick={() => setEditingEvidence(null)}>Cancelar</button>
+            </div>
+          </form>
+        )}
+
+        {editingCustody && (
+          <form className="edit-drawer" onSubmit={saveCustodyAction}>
+            <h3>Editar custodia</h3>
+            <div className="inline-grid">
+              <input value={editingCustody.action_type} onChange={(e) => setEditingCustody({ ...editingCustody, action_type: e.target.value })} />
+              <input value={editingCustody.user_responsible || ""} onChange={(e) => setEditingCustody({ ...editingCustody, user_responsible: e.target.value })} />
+            </div>
+            <textarea value={editingCustody.detailed_description} onChange={(e) => setEditingCustody({ ...editingCustody, detailed_description: e.target.value })} />
+            <input value={editingCustody.status || ""} onChange={(e) => setEditingCustody({ ...editingCustody, status: e.target.value })} />
+            <div className="actions-line">
+              <button><Save size={16} /> Guardar</button>
+              <button type="button" className="secondary" onClick={() => setEditingCustody(null)}>Cancelar</button>
+            </div>
+          </form>
+        )}
+      </div>
     );
   }
 
@@ -791,6 +1113,7 @@ export function App() {
   function renderActive() {
     if (active === "workflow") return renderWorkflow();
     if (active === "dashboard") return renderDashboard();
+    if (active === "caseDetail") return renderCaseDetail();
     if (active === "cases") return renderCases();
     if (active === "evidence") return renderEvidence();
     if (active === "reports") return renderReports();

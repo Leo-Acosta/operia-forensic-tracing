@@ -1,3 +1,5 @@
+from typing import Any
+
 from operia.cases.models import Case
 from operia.reports.models import Report, ReportSection, ReportVersion
 from operia.legal_report.services.text_service import normalize_spanish
@@ -35,7 +37,7 @@ REPORT_SECTIONS = [
 ]
 
 
-def build_integral_markdown(case: Case) -> str:
+def build_integral_markdown(case: Case, legal_recommendations: list[Any] | None = None) -> str:
     total_damage = sum(item.amount for item in case.damage_items)
     participant_lines = "\n".join(
         (
@@ -65,6 +67,10 @@ def build_integral_markdown(case: Case) -> str:
         f"- {m.legal_area}: {m.norm_reference}. {m.analysis}. Estado: {m.verification_status}."
         for m in case.legal_mappings
     ) or "- Sin encuadre legal cargado. Fuente pendiente de verificación."
+    if not case.hypotheses:
+        hypothesis_lines = _default_hypotheses_markdown(case)
+    if not case.legal_mappings:
+        legal_lines = _legal_recommendation_markdown(legal_recommendations or [])
     damage_lines = "\n".join(
         f"| {d.concept} | {d.amount:.2f} {d.currency} | {d.formula_used or 'pendiente'} | {d.value_source or 'pendiente'} | {d.certainty_level} |"
         for d in case.damage_items
@@ -175,6 +181,10 @@ Con el alcance y limitaciones indicadas, los hallazgos permiten sostener prelimi
 
 {legal_lines}
 
+### Metodo de aplicacion normativa
+
+La aplicacion juridica se realiza con una secuencia controlada: hecho investigado, evidencia disponible, elemento objetivo de la norma, elemento subjetivo a verificar, evidencia faltante y conclusion prudente. Si una norma aparece como posible, no implica calificacion definitiva ni atribucion personal.
+
 ## Responsabilidad penal preliminar
 
 Debe ser revisada por abogado matriculado. No se atribuye autoría penal sin evidencia suficiente.
@@ -224,6 +234,98 @@ Anexos pendientes de selección y exportación.
 **Respuesta sugerida:** Permite verificar integridad del archivo analizado, pero no demuestra por sí solo autoría personal.
 """
     return normalize_spanish(markdown)
+
+
+def _default_hypotheses_markdown(case: Case) -> str:
+    evidence_count = len(case.evidence)
+    custody_count = len(case.actions)
+    incident = normalize_spanish(case.incident_type or "incidente digital")
+    return normalize_spanish(
+        "\n".join(
+            [
+                f"- Hipotesis principal: el relato y la evidencia cargada son compatibles con un {incident}; soporte actual: {evidence_count} evidencia(s) y {custody_count} accion(es) de custodia. Requiere validar origen, integridad, titularidad y nexo causal.",
+                "- Hipotesis alternativa 1: el evento puede responder a error operativo, compromiso de credenciales, suplantacion o intermediacion de una plataforma; requiere contrastar logs, titulares, sesiones, dispositivos y comunicaciones.",
+                "- Hipotesis alternativa 2: si hay perjuicio economico, la trazabilidad financiera puede demostrar recorrido o compatibilidad temporal, pero no identifica por si sola al autor.",
+                "- Riesgo de error: no formular atribucion personal ni calificacion penal definitiva sin evidencia externa, oficios, pericia complementaria y revision profesional.",
+            ]
+        )
+    )
+
+
+def _legal_recommendation_markdown(recommendations: list[Any]) -> str:
+    if not recommendations:
+        return normalize_spanish(
+            "- Sin encuadre legal cargado. Debe consultarse la biblioteca legal argentina y citar fuente, articulo, texto resumido, elementos objetivos, elementos subjetivos y evidencia requerida."
+        )
+    lines = []
+    for item in recommendations:
+        if isinstance(item, dict):
+            reference = item.get("reference", "Norma pendiente")
+            title = item.get("title", "")
+            why = item.get("why", "")
+            evidence_needed = item.get("evidence_needed", "")
+            source_url = item.get("source_url", "")
+            text = item.get("text", "")
+            subjective = item.get("subjective_elements", "")
+        else:
+            reference = f"{item.code} art. {item.article_number}{' inc. ' + item.subsection if item.subsection else ''}"
+            title = item.title
+            why = item.objective_elements
+            evidence_needed = item.evidentiary_requirements
+            source_url = item.official_url
+            text = item.text
+            subjective = item.subjective_elements
+        lines.extend(
+            [
+                f"- **{reference} - {title}.**",
+                f"  - Texto legal resumido registrado: {text or 'pendiente de carga textual completa'}.",
+                f"  - Elementos objetivos a verificar: {why or 'pendiente'}.",
+                f"  - Elementos subjetivos o recaudos: {subjective or 'pendiente'}.",
+                f"  - Evidencia necesaria: {evidence_needed or 'pendiente'}.",
+                f"  - Fuente oficial registrada: {source_url or 'pendiente de verificacion'}.",
+                "  - Aplicacion prudente al caso: posible relevancia preliminar, sujeta a verificacion de hechos, evidencia preservada y revision humana.",
+            ]
+        )
+    return normalize_spanish("\n".join(lines))
+
+
+def build_ai_enrichment_markdown(case: Case, legal_recommendations: list[Any], ai_response: str = "") -> str:
+    legal_block = _legal_recommendation_markdown(legal_recommendations)
+    hypotheses = _default_hypotheses_markdown(case)
+    evidence_summary = "\n".join(
+        f"- Evidencia #{item.id}: {item.description}. Hash: {item.sha256_hash or 'pendiente'}. Integridad: {item.integrity_status}."
+        for item in case.evidence[:8]
+    ) or "- No hay evidencia suficiente cargada para sostener una conclusion fuerte."
+    ai_section = ai_response.strip() or "Ollama/Mistral no produjo respuesta disponible; se aplico enriquecimiento deterministico local con reglas forenses prudentes."
+    return normalize_spanish(
+        f"""
+## Analisis ampliado asistido por IA local
+
+### Respuesta de Mistral/Ollama o fallback local
+
+{ai_section}
+
+### Hipotesis investigativas reforzadas
+
+{hypotheses}
+
+### Evidencia que sostiene o limita la teoria del caso
+
+{evidence_summary}
+
+### Fundamentacion legal argentina con articulos citados
+
+{legal_block}
+
+### Conclusiones profundas y prudentes
+
+1. La evidencia disponible permite construir una teoria preliminar, pero no una atribucion personal definitiva.
+2. El valor probatorio depende de la integridad tecnica, la cadena de custodia, la trazabilidad temporal y la relacion entre cada dato y el hecho investigado.
+3. La normativa citada opera como hipotesis juridica de trabajo: cada articulo exige verificar elementos objetivos, subjetivos y evidencia especifica.
+4. Si falta fuente oficial, texto normativo completo o prueba de nexo causal, el informe debe declararlo expresamente.
+5. La conclusion final debe quedar sometida a revision humana tecnica y juridica antes de uso judicial, administrativo o institucional.
+"""
+    )
 
 
 def populate_report_sections(report: Report, markdown: str) -> list[ReportSection]:

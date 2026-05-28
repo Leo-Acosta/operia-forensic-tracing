@@ -1,5 +1,6 @@
 from pathlib import Path
 import re
+from html import escape
 from textwrap import wrap
 
 import markdown as md
@@ -8,11 +9,11 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches, Pt, RGBColor
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from operia.reports.models import Presentation, Report
 from operia.legal_report.services.text_service import normalize_spanish
@@ -216,6 +217,486 @@ def export_pdf(report: Report) -> Path:
 
     c.save()
     return path
+
+
+def export_pdf(report: Report) -> Path:
+    path = EXPORT_DIR / f"report-{report.id}.pdf"
+    case = report.case
+    styles = _report_styles()
+    story: list = []
+    total_damage = sum(item.amount for item in case.damage_items)
+
+    logo = _logo_path()
+    if logo:
+        image = Image(str(logo), width=170, height=62)
+        image.hAlign = "LEFT"
+        story.append(image)
+        story.append(Spacer(1, 14))
+
+    story.append(Paragraph("INFORME FORENSE PROFESIONAL", styles["label"]))
+    story.append(Paragraph(_html(report.title), styles["cover_title"]))
+    story.append(Spacer(1, 10))
+    story.append(Paragraph(_html(f"Caso {case.case_code} | {case.incident_type}"), styles["subtitle"]))
+    story.append(Spacer(1, 12))
+    story.append(
+        _warning_box(
+            "Documento asistido por IA y herramientas automatizadas. No sustituye revisi\u00f3n humana profesional, "
+            "control de legalidad, validaci\u00f3n probatoria ni criterio pericial."
+        )
+    )
+    story.append(Spacer(1, 20))
+    story.append(
+        _key_value_table(
+            [
+                ("Estado del caso", case.status),
+                ("Jurisdicci\u00f3n", case.jurisdiction),
+                ("Responsable", case.responsible or "pendiente"),
+                ("Cliente / damnificado", case.client_or_victim or "pendiente"),
+                ("Autor del informe", report.author or "OPERIA"),
+                ("Versi\u00f3n", report.version),
+                ("Estado del informe", report.status),
+                ("Puntaje de revisi\u00f3n", str(report.review_score or 0)),
+            ],
+            styles,
+        )
+    )
+    story.append(Spacer(1, 16))
+    story.append(
+        _metrics_table(
+            [
+                ("Participantes", len(case.participants)),
+                ("Evidencias", len(case.evidence)),
+                ("Custodia", len(case.actions)),
+                ("Hallazgos", len(case.findings)),
+                ("Mapeos legales", len(case.legal_mappings)),
+                ("Da\u00f1o estimado", f"{total_damage:,.2f} ARS"),
+            ],
+            styles,
+        )
+    )
+    story.append(PageBreak())
+
+    _section(story, "1. Resumen ejecutivo", styles)
+    story.append(
+        Paragraph(
+            _html(
+                case.description
+                or "El caso requiere completar una narrativa ejecutiva con alcance, antecedentes, impacto y objetivo de investigaci\u00f3n."
+            ),
+            styles["body"],
+        )
+    )
+    story.append(Spacer(1, 10))
+    story.append(
+        Paragraph(
+            _html(
+                "Alcance: preservaci\u00f3n de evidencia, an\u00e1lisis t\u00e9cnico, trazabilidad, apoyo legal argentino, "
+                "generaci\u00f3n de informe y revisi\u00f3n humana previa a cualquier uso externo."
+            ),
+            styles["body"],
+        )
+    )
+
+    _section(story, "2. Personas y entidades involucradas", styles)
+    if case.participants:
+        story.append(
+            _data_table(
+                ["Rol", "Tipo", "Nombre", "Documento / CUIT", "Relaci\u00f3n", "Sensibilidad"],
+                [
+                    [
+                        item.participant_type,
+                        item.person_type,
+                        item.display_name,
+                        item.document_number or item.tax_id or "-",
+                        item.relationship_to_case or item.role_description or "-",
+                        item.sensitivity_level,
+                    ]
+                    for item in case.participants
+                ],
+                styles,
+                [70, 62, 110, 84, 126, 72],
+            )
+        )
+    else:
+        story.append(Paragraph("No hay participantes cargados en el caso.", styles["muted"]))
+
+    _section(story, "3. Evidencia digital y control de integridad", styles)
+    if case.evidence:
+        story.append(
+            _data_table(
+                ["ID", "Tipo", "Descripci\u00f3n", "SHA-256", "MD5", "Integridad"],
+                [
+                    [
+                        str(item.id),
+                        item.evidence_type,
+                        item.description,
+                        _short_hash(item.sha256_hash),
+                        _short_hash(item.md5_hash or ""),
+                        item.integrity_status,
+                    ]
+                    for item in case.evidence
+                ],
+                styles,
+                [28, 82, 160, 118, 70, 66],
+            )
+        )
+    else:
+        story.append(Paragraph("No hay evidencia digital cargada.", styles["muted"]))
+
+    _section(story, "4. Cadena de custodia", styles)
+    if case.actions:
+        story.append(
+            _data_table(
+                ["Fecha", "Acci\u00f3n", "Evidencia", "Responsable", "Detalle", "Hash posterior"],
+                [
+                    [
+                        _format_date(item.action_at),
+                        item.action_type,
+                        str(item.evidence_id or "-"),
+                        item.user_responsible or "-",
+                        item.detailed_description,
+                        _short_hash(item.hash_after or item.hash_before or ""),
+                    ]
+                    for item in case.actions
+                ],
+                styles,
+                [68, 62, 50, 86, 182, 76],
+            )
+        )
+    else:
+        story.append(Paragraph("No se registraron acciones de cadena de custodia.", styles["muted"]))
+
+    _section(story, "5. Hallazgos, hip\u00f3tesis y limitaciones", styles)
+    if case.findings:
+        story.append(
+            _data_table(
+                ["Hallazgo", "Confianza", "Soporte", "Limitaciones"],
+                [
+                    [
+                        item.title,
+                        item.confidence_level,
+                        item.supporting_evidence or item.technical_finding,
+                        item.weaknesses_or_limitations or "-",
+                    ]
+                    for item in case.findings
+                ],
+                styles,
+                [128, 68, 176, 152],
+            )
+        )
+    else:
+        story.append(Paragraph("No hay hallazgos estructurados cargados.", styles["muted"]))
+    if case.hypotheses:
+        story.append(Spacer(1, 8))
+        story.append(
+            _data_table(
+                ["Hip\u00f3tesis", "Soporte", "Conclusi\u00f3n provisional"],
+                [[item.title, item.support_degree, item.provisional_conclusion or item.description] for item in case.hypotheses],
+                styles,
+                [150, 80, 294],
+            )
+        )
+
+    _section(story, "6. Encuadre legal argentino", styles)
+    if case.legal_mappings:
+        story.append(
+            _data_table(
+                ["\u00c1rea", "Norma / art\u00edculo", "An\u00e1lisis", "Estado", "Confianza"],
+                [
+                    [
+                        item.legal_area,
+                        item.norm_reference,
+                        item.analysis,
+                        item.verification_status,
+                        item.confidence_level,
+                    ]
+                    for item in case.legal_mappings
+                ],
+                styles,
+                [78, 116, 190, 90, 50],
+            )
+        )
+    else:
+        story.append(
+            _warning_box(
+                "No hay encuadre legal validado cargado en el caso. La IA no debe inventar normas, art\u00edculos ni jurisprudencia; "
+                "toda recomendaci\u00f3n legal debe provenir de la biblioteca legal registrada."
+            )
+        )
+
+    _section(story, "7. Contenido del informe generado", styles)
+    for title, content in _markdown_sections(report.markdown_content):
+        if not content.strip():
+            continue
+        story.append(Paragraph(_html(title), styles["subheading"]))
+        _append_markdown_content(story, content, styles)
+
+    _section(story, "8. Conclusiones prudentes", styles)
+    story.append(
+        Paragraph(
+            _html(
+                "Las conclusiones deben interpretarse como asistidas y sujetas a verificaci\u00f3n humana. "
+                "La atribuci\u00f3n personal, la calificaci\u00f3n legal definitiva y la cuantificaci\u00f3n de da\u00f1o requieren evidencia adicional, "
+                "fuentes verificadas y revisi\u00f3n profesional."
+            ),
+            styles["body"],
+        )
+    )
+    story.append(Spacer(1, 8))
+    story.append(
+        _data_table(
+            ["Control", "Estado recomendado"],
+            [
+                ["Integridad", "Verificar hashes y correspondencia con archivos fuente."],
+                ["Cadena de custodia", "Validar responsables, fechas y procedimientos."],
+                ["Base legal", "Confirmar art\u00edculos y fuentes oficiales vigentes."],
+                ["IA", "Usar como asistencia, no como autoridad final."],
+            ],
+            styles,
+            [120, 404],
+        )
+    )
+
+    _section(story, "9. Anexo de exportaci\u00f3n", styles)
+    story.append(
+        Paragraph(
+            _html(
+                "El manifiesto de exportaci\u00f3n OPERIA se genera junto con el archivo y registra hash SHA-256, MD5, usuario, caso, "
+                "fecha de generaci\u00f3n y metadatos forenses para trazabilidad documental."
+            ),
+            styles["body"],
+        )
+    )
+
+    doc = SimpleDocTemplate(
+        str(path),
+        pagesize=A4,
+        rightMargin=36,
+        leftMargin=36,
+        topMargin=54,
+        bottomMargin=48,
+        title=normalize_spanish(report.title),
+        author=normalize_spanish(report.author or "OPERIA"),
+    )
+    doc.build(story, onFirstPage=_report_page_footer, onLaterPages=_report_page_footer)
+    return path
+
+
+def _report_styles() -> dict[str, ParagraphStyle]:
+    base = getSampleStyleSheet()
+    return {
+        "cover_title": ParagraphStyle(
+            "OperiaCoverTitle",
+            parent=base["Title"],
+            fontName="Helvetica-Bold",
+            fontSize=24,
+            leading=29,
+            textColor=colors.HexColor("#0f172a"),
+            spaceAfter=8,
+        ),
+        "label": ParagraphStyle(
+            "OperiaLabel",
+            parent=base["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=8,
+            leading=10,
+            textColor=colors.HexColor("#0f766e"),
+            spaceAfter=8,
+        ),
+        "subtitle": ParagraphStyle(
+            "OperiaSubtitle",
+            parent=base["Normal"],
+            fontName="Helvetica",
+            fontSize=11,
+            leading=15,
+            textColor=colors.HexColor("#475569"),
+        ),
+        "heading": ParagraphStyle(
+            "OperiaHeading",
+            parent=base["Heading2"],
+            fontName="Helvetica-Bold",
+            fontSize=15,
+            leading=19,
+            textColor=colors.HexColor("#0f172a"),
+            spaceBefore=16,
+            spaceAfter=8,
+        ),
+        "subheading": ParagraphStyle(
+            "OperiaSubheading",
+            parent=base["Heading3"],
+            fontName="Helvetica-Bold",
+            fontSize=11,
+            leading=14,
+            textColor=colors.HexColor("#155e75"),
+            spaceBefore=8,
+            spaceAfter=5,
+        ),
+        "body": ParagraphStyle(
+            "OperiaBody",
+            parent=base["BodyText"],
+            fontName="Helvetica",
+            fontSize=9,
+            leading=13,
+            textColor=colors.HexColor("#25324a"),
+            spaceAfter=6,
+        ),
+        "muted": ParagraphStyle(
+            "OperiaMuted",
+            parent=base["BodyText"],
+            fontName="Helvetica-Oblique",
+            fontSize=8.5,
+            leading=12,
+            textColor=colors.HexColor("#64748b"),
+        ),
+        "table": ParagraphStyle(
+            "OperiaTable",
+            parent=base["BodyText"],
+            fontName="Helvetica",
+            fontSize=7.4,
+            leading=9.2,
+            textColor=colors.HexColor("#243041"),
+        ),
+        "table_header": ParagraphStyle(
+            "OperiaTableHeader",
+            parent=base["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=7.2,
+            leading=8.8,
+            textColor=colors.white,
+        ),
+    }
+
+
+def _html(value: object) -> str:
+    return escape(normalize_spanish("" if value is None else str(value))).replace("\n", "<br/>")
+
+
+def _paragraph(value: object, style: ParagraphStyle) -> Paragraph:
+    return Paragraph(_html(value), style)
+
+
+def _section(story: list, title: str, styles: dict[str, ParagraphStyle]) -> None:
+    story.append(Paragraph(_html(title), styles["heading"]))
+
+
+def _warning_box(text: str):
+    style = _report_styles()["table"]
+    table = Table([[Paragraph(_html(text), style)]], colWidths=[524])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#fff7ed")),
+                ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#fed7aa")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ]
+        )
+    )
+    return table
+
+
+def _key_value_table(rows: list[tuple[str, object]], styles: dict[str, ParagraphStyle]):
+    data = [[_paragraph(label, styles["table_header"]), _paragraph(value, styles["table"])] for label, value in rows]
+    table = Table(data, colWidths=[150, 374])
+    table.setStyle(_base_table_style(header_column=True))
+    return table
+
+
+def _metrics_table(metrics: list[tuple[str, object]], styles: dict[str, ParagraphStyle]):
+    cells = []
+    for label, value in metrics:
+        cells.append(Paragraph(f"<b>{_html(value)}</b><br/><font color='#64748b'>{_html(label)}</font>", styles["table"]))
+    data = [cells[:3], cells[3:]]
+    table = Table(data, colWidths=[174, 175, 175])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fbff")),
+                ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#d8e4ee")),
+                ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#d8e4ee")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 9),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+            ]
+        )
+    )
+    return table
+
+
+def _data_table(headers: list[str], rows: list[list[object]], styles: dict[str, ParagraphStyle], col_widths: list[int]):
+    data = [[_paragraph(header, styles["table_header"]) for header in headers]]
+    data.extend([[_paragraph(cell, styles["table"]) for cell in row] for row in rows])
+    table = Table(data, colWidths=col_widths, repeatRows=1)
+    table.setStyle(_base_table_style())
+    return table
+
+
+def _base_table_style(header_column: bool = False) -> TableStyle:
+    commands = [
+        ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#cbd5e1")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#d8e4ee")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]
+    if header_column:
+        commands.append(("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#0f766e")))
+        commands.append(("BACKGROUND", (1, 0), (1, -1), colors.HexColor("#f8fbff")))
+    else:
+        commands.append(("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0f766e")))
+        commands.append(("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8fbff")]))
+    return TableStyle(commands)
+
+
+def _append_markdown_content(story: list, content: str, styles: dict[str, ParagraphStyle]) -> None:
+    for raw_line in normalize_spanish(content).splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("| ---"):
+            continue
+        if line.startswith("### "):
+            story.append(Paragraph(_html(line[4:]), styles["subheading"]))
+        elif line.startswith("## "):
+            story.append(Paragraph(_html(line[3:]), styles["subheading"]))
+        elif line.startswith("- "):
+            story.append(Paragraph(f"\u2022 {_html(_clean_markdown_text(line[2:]))}", styles["body"]))
+        elif line.startswith("|"):
+            cells = [cell.strip() for cell in line.strip("|").split("|")]
+            if len(cells) > 1:
+                story.append(Paragraph(_html(" | ".join(cells)), styles["table"]))
+        else:
+            story.append(Paragraph(_html(_clean_markdown_text(line)), styles["body"]))
+
+
+def _short_hash(value: str) -> str:
+    value = normalize_spanish(value or "")
+    if not value:
+        return "-"
+    return value if len(value) <= 20 else f"{value[:10]}...{value[-8:]}"
+
+
+def _format_date(value) -> str:
+    if not value:
+        return "-"
+    if hasattr(value, "strftime"):
+        return value.strftime("%Y-%m-%d %H:%M")
+    return normalize_spanish(str(value))
+
+
+def _report_page_footer(c: canvas.Canvas, doc) -> None:
+    width, height = A4
+    c.saveState()
+    c.setStrokeColor(colors.HexColor("#d8e4ee"))
+    c.line(36, 36, width - 36, 36)
+    c.setFont("Helvetica", 7)
+    c.setFillColor(colors.HexColor("#64748b"))
+    c.drawString(36, 24, "OPERIA Forensic Tracing | Informe asistido por IA | Requiere revisi\u00f3n humana")
+    c.drawRightString(width - 36, 24, f"P\u00e1gina {doc.page}")
+    c.restoreState()
 
 
 def _logo_path() -> Path | None:

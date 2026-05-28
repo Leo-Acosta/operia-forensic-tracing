@@ -9,6 +9,7 @@ from operia.core.database import get_db
 from operia.exports.models import ExportManifest
 from operia.exports.service import (
     export_csv_rows,
+    export_pdf,
     export_json_payload,
     export_markdown_text,
     export_text_pdf,
@@ -163,7 +164,7 @@ def export_report(
             f"report-{report.id}.csv",
         )
     elif fmt == "pdf":
-        path = export_text_pdf(report.title, report.markdown_content, f"report-{report.id}-canonical.pdf")
+        path = export_pdf(report)
     elif fmt == "markdown":
         path = export_markdown_text(report.markdown_content, f"report-{report.id}-canonical.md")
     else:
@@ -175,9 +176,13 @@ def export_report(
         current_user,
         case_id=report.case_id,
         report_id=report.id,
-        extra={"report_title": report.title, "report_status": report.status},
+        extra={
+            "report_title": report.title,
+            "report_status": report.status,
+            "template": "forensic_professional",
+            "human_review_required": True,
+        },
     )
     write_audit(db, f"export_report_{fmt}", "exports", current_user, report.case_id, "export", str(manifest.id), details=path.name)
     db.commit()
     return response_with_manifest(path, manifest)
-
