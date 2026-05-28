@@ -193,6 +193,17 @@ const emptyCase = {
   general_observations: ""
 };
 
+const attackTypes = [
+  { value: "phishing / fraude digital", label: "Phishing / fraude digital", query: "phishing fraude acceso datos consumidor" },
+  { value: "ransomware", label: "Ransomware", query: "ransomware extorsion dano informatico preservacion" },
+  { value: "acceso ilegitimo", label: "Acceso ilegitimo", query: "acceso ilegitimo sistema dato informatico" },
+  { value: "fraude digital", label: "Fraude digital", query: "fraude estafa manipulacion informatica consumidor" },
+  { value: "dano informatico", label: "Dano informatico", query: "dano informatico sistemas datos" },
+  { value: "filtracion de datos", label: "Filtracion de datos", query: "filtracion datos personales confidencialidad" },
+  { value: "extorsion", label: "Extorsion", query: "extorsion intimidacion datos ransomware" },
+  { value: "otro", label: "Otro", query: "incidente informatico evidencia digital" }
+];
+
 function MetricGrid({ metrics }: { metrics: Record<string, number> }) {
   return (
     <div className="metric-grid">
@@ -283,6 +294,7 @@ export function App() {
   const [legalRecommendation, setLegalRecommendation] = useState<unknown>(null);
   const [aiPrompt, setAiPrompt] = useState("Analiza el caso, evidencia cargada, riesgos y proximos pasos. No inventes normas legales.");
   const [aiResult, setAiResult] = useState<unknown>(null);
+  const [analystName, setAnalystName] = useState(localStorage.getItem("operia_analyst_name") || "");
   const [reviewResult, setReviewResult] = useState<unknown>(null);
   const [closureStatus, setClosureStatus] = useState<ClosureStatus | null>(null);
   const [closureNote, setClosureNote] = useState("Cierre operativo con evidencia preservada, informe revisado y PDF exportado.");
@@ -530,13 +542,12 @@ export function App() {
     if (latestReport) {
       const enriched = await apiPost<ReportItem>(`/reports/${latestReport.id}/ai-enrich`, {
         case_id: selectedCaseId || undefined,
-        model_name: "mistral",
         prompt: aiPrompt
       });
       setAiResult({
         status: enriched.status,
         report_id: enriched.id,
-        message: "Informe enriquecido con asistencia IA local/fallback forense. Revisa y vuelve a exportar PDF.",
+        message: "Informe ampliado con analisis tecnico-juridico. Revisa y vuelve a exportar PDF.",
         observations: enriched.observations
       });
       if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
@@ -547,7 +558,9 @@ export function App() {
 
   async function generateReport() {
     if (!selectedCaseId) return;
-    const report = await apiPost<ReportItem>(`/reports/case/${selectedCaseId}/generate?author=OPERIA`);
+    localStorage.setItem("operia_analyst_name", analystName);
+    const author = encodeURIComponent(analystName.trim());
+    const report = await apiPost<ReportItem>(`/reports/case/${selectedCaseId}/generate?author=${author}`);
     await refreshCaseCollections(selectedCaseId);
     setReviewResult({ generated_report_id: report.id, status: "generated" });
   }
@@ -614,7 +627,16 @@ export function App() {
             <form className="compact-form" onSubmit={createCase}>
               <input placeholder="Codigo del caso" value={caseForm.case_code} onChange={(e) => setCaseForm({ ...caseForm, case_code: e.target.value })} required />
               <input placeholder="Titulo" value={caseForm.title} onChange={(e) => setCaseForm({ ...caseForm, title: e.target.value })} required />
-              <input placeholder="Tipo de incidente" value={caseForm.incident_type} onChange={(e) => setCaseForm({ ...caseForm, incident_type: e.target.value })} />
+              <select
+                value={caseForm.incident_type}
+                onChange={(e) => {
+                  const selected = attackTypes.find((item) => item.value === e.target.value);
+                  setCaseForm({ ...caseForm, incident_type: e.target.value });
+                  if (selected) setLegalQuery(selected.query);
+                }}
+              >
+                {attackTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+              </select>
               <textarea placeholder="Descripcion inicial" value={caseForm.description} onChange={(e) => setCaseForm({ ...caseForm, description: e.target.value })} />
               <button><Briefcase size={17} /> Crear caso</button>
             </form>
@@ -704,16 +726,19 @@ export function App() {
             <JsonPanel data={legalRecommendation} />
           </StepCard>
 
-          <StepCard number={7} title="Pedir asistencia IA local con Mistral" done={Boolean(aiResult)}>
+          <StepCard number={7} title="Ampliar análisis técnico-jurídico" done={Boolean(aiResult)}>
             <div className="compact-form">
               <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} />
-              <button onClick={runAiAssist}><Bot size={17} /> {latestReport ? "Enriquecer informe con Mistral" : "Consultar Mistral local"}</button>
+              <button onClick={runAiAssist}><Bot size={17} /> {latestReport ? "Ampliar informe" : "Analizar caso"}</button>
             </div>
             {latestReport && <p className="notice">Con informe generado, esta accion agrega hipotesis, conclusiones y fundamentacion legal al reporte.</p>}
             <JsonPanel data={aiResult} />
           </StepCard>
 
           <StepCard number={8} title="Generar informe" done={reports.length > 0}>
+            <div className="compact-form">
+              <input placeholder="Analista / operador interviniente" value={analystName} onChange={(e) => setAnalystName(e.target.value)} />
+            </div>
             <button onClick={generateReport} disabled={!selectedCaseId}><FileText size={17} /> Generar informe integral</button>
             {latestReport && <p className="notice">Ultimo informe: {latestReport.title}</p>}
           </StepCard>
@@ -1066,14 +1091,14 @@ export function App() {
       <section className="work-surface">
         <div className="section-head">
           <div>
-            <h2>Asistente IA Local</h2>
-            <p>Mistral via Ollama con guardrails, contexto legal y revision humana.</p>
+            <h2>Asistente de Analisis</h2>
+            <p>Apoyo tecnico-juridico interno para estructurar hipotesis, evidencia y normativa.</p>
           </div>
         </div>
         <div className="split">
           <div className="form">
             <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} />
-            <button onClick={runAiAssist}><Bot size={17} /> Analizar con IA</button>
+            <button onClick={runAiAssist}><Bot size={17} /> Analizar caso</button>
           </div>
           <JsonPanel data={aiResult} />
         </div>

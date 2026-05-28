@@ -33,3 +33,39 @@ class LegalMappingCreate(BaseModel):
 class LegalMappingRead(LegalMappingCreate, ORMModel):
     id: int
     created_at: datetime
+
+
+class LegalPrecedentCreate(BaseModel):
+    article_id: int | None = None
+    title: str
+    court_or_authority: str = ""
+    decision_date: str = ""
+    source: str = ""
+    url: str = ""
+    summary: str = ""
+    applicable_criterion: str = ""
+    related_crime_type: str = ""
+    verified: bool = False
+
+
+class LegalPrecedentRead(LegalPrecedentCreate, ORMModel):
+    id: int
+    created_at: datetime
+
+
+class LegalDoctrineCreate(BaseModel):
+    article_id: int | None = None
+    title: str
+    author: str = ""
+    publication_date: str = ""
+    source: str = ""
+    url: str = ""
+    summary: str = ""
+    applicable_criterion: str = ""
+    related_crime_type: str = ""
+    verified: bool = False
+
+
+class LegalDoctrineRead(LegalDoctrineCreate, ORMModel):
+    id: int
+    created_at: datetime

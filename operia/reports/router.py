@@ -47,7 +47,13 @@ def generate_report(
     incident_text = " ".join([case.incident_type or "", case.description or "", case.general_observations or ""])
     legal_recommendations = recommend_articles_for_incident(db, incident_text, limit=8)
     markdown = build_integral_markdown(case, legal_recommendations=legal_recommendations)
-    report = Report(case=case, title=f"Informe integral - {case.title}", author=author, markdown_content=markdown)
+    report = Report(
+        case=case,
+        title=f"Informe integral - {case.title}",
+        author=author,
+        markdown_content=markdown,
+        status="caso_en_proceso_de_inicio_de_investigacion",
+    )
     report.organization_id = current_user.organization_id if current_user and current_user.organization_id else case.organization_id
     db.add(report)
     db.flush()
@@ -96,17 +102,17 @@ def enrich_report_with_ai(
         status = "ollama_unavailable_fallback"
 
     enrichment = build_ai_enrichment_markdown(case, legal_recommendations, ai_response)
-    marker = "## Analisis ampliado asistido por IA local"
+    marker = "## Hipótesis y análisis del caso"
     current_markdown = report.markdown_content or ""
     if marker in current_markdown:
         report.markdown_content = current_markdown.split(marker, 1)[0].rstrip() + "\n\n" + enrichment.strip() + "\n"
     else:
         report.markdown_content = (report.markdown_content or "").rstrip() + "\n\n" + enrichment.strip() + "\n"
-    report.status = "enriquecido_con_ia"
-    report.observations = f"Informe enriquecido con {model_name}. Estado IA: {status}. Requiere revision humana."
+    report.status = "en_proceso_investigativo"
+    report.observations = "Informe ampliado con análisis técnico-jurídico y motor de atribución."
     report.sections = populate_report_sections(report, report.markdown_content)
-    report.versions.append(snapshot_report(report, current_user.email if current_user else "OPERIA", f"Enriquecimiento IA local: {status}"))
-    write_audit(db, "ai_enrich_report", "reports", current_user, case_id=case.id, entity_type="report", entity_id=str(report.id), details=status)
+    report.versions.append(snapshot_report(report, current_user.email if current_user else "Analista", f"Ampliación técnico-jurídica: {status}"))
+    write_audit(db, "enrich_report", "reports", current_user, case_id=case.id, entity_type="report", entity_id=str(report.id), details=status)
     db.commit()
     db.refresh(report)
     return report

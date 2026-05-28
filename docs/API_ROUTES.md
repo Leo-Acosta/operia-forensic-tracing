@@ -37,6 +37,16 @@ Legacy aliases are kept to avoid breaking existing migrated workflows while the 
 
 `/api/legal-knowledge/articles` supports `q` search over the initial Argentine legal article library.
 
+Additional legal knowledge routes:
+
+- `GET /api/legal-knowledge/attack-types`
+- `POST /api/legal-knowledge/precedents`
+- `GET /api/legal-knowledge/precedents`
+- `POST /api/legal-knowledge/doctrine`
+- `GET /api/legal-knowledge/doctrine`
+
+Precedent and doctrine list routes only expose verified registered records.
+
 `/api/ai-security/evaluations` supports `run_tests=true` for controlled local tests against the configured Ollama model.
 
 ## Phase 10 Export Routes

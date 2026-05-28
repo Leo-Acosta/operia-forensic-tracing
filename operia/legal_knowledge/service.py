@@ -432,13 +432,14 @@ def recommend_articles_for_incident(db: Session, incident_text: str, limit: int 
     for keyword, article_numbers in INCIDENT_KEYWORDS.items():
         if keyword in text:
             wanted_numbers.update(article_numbers)
-    candidates = search_articles(db, incident_text, limit=limit * 2)
+    candidates = []
     if wanted_numbers:
         candidates.extend(
             db.query(LegalArticle)
             .filter(LegalArticle.article_number.in_(wanted_numbers), LegalArticle.active.is_(True))
             .all()
         )
+    candidates.extend(search_articles(db, incident_text, limit=limit * 2))
     seen: set[int] = set()
     recommendations = []
     for article in candidates:

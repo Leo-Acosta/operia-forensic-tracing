@@ -4,6 +4,17 @@ from operia.cases.models import Case
 from operia.reports.models import Report, ReportSection, ReportVersion
 from operia.legal_report.services.text_service import normalize_spanish
 
+NO_ATTRIBUTION_TEXT = (
+    "Del análisis efectuado no surgen elementos técnicos suficientes que permitan atribuir el ataque informático "
+    "a una persona física, grupo organizado, entidad u organización determinada."
+)
+
+ATTRIBUTION_METHOD_NOTE = (
+    "La atribución técnica de un ciberataque no debe confundirse con la atribución penal de autoría: la primera "
+    "identifica patrones, infraestructura, indicadores y probabilidades; la segunda exige prueba jurídicamente "
+    "valorable, individualización subjetiva y control contradictorio en el proceso penal."
+)
+
 REPORT_SECTIONS = [
     "Carátula",
     "Datos del caso",
@@ -81,21 +92,25 @@ def build_integral_markdown(case: Case, legal_recommendations: list[Any] | None 
         for f in case.findings
     ) or "| - | - | Pendiente | bajo | pendiente |"
 
+    responsible_text = case.responsible or NO_ATTRIBUTION_TEXT
+    client_or_victim = case.client_or_victim or ""
+    description_text = case.description or ""
+
     markdown = f"""# Operia Forensic Legal Report
 
 ## Carátula
 
 **Caso:** {case.title}  
 **ID:** {case.case_code}  
-**Responsable:** {case.responsible or 'pendiente'}  
-**Cliente/Víctima:** {case.client_or_victim or 'pendiente'}  
+**Responsable:** {responsible_text}
+**Cliente/Víctima:** {client_or_victim}
 **Jurisdicción:** {case.jurisdiction}
 
 ## Datos del caso
 
 - Tipo de incidente: {case.incident_type}
 - Estado: {case.status}
-- Descripción: {case.description or 'pendiente'}
+- Descripción: {description_text}
 - Observaciones: {case.general_observations or 'sin observaciones'}
 
 ## Personas y entidades vinculadas
@@ -124,7 +139,7 @@ Se analiza un caso de {case.incident_type}. El daño económico total estimado a
 
 ## Descripción del incidente
 
-{case.description or 'Descripción pendiente de ampliación.'}
+{description_text}
 
 ## Evidencia recibida
 
@@ -244,6 +259,10 @@ def _default_hypotheses_markdown(case: Case) -> str:
     evidence_count = len(case.evidence)
     custody_count = len(case.actions)
     incident = normalize_spanish(case.incident_type or "incidente digital")
+    if evidence_count <= 1 and not case.findings:
+        return normalize_spanish(
+            f"- Hipótesis principal: el hecho investigado resulta compatible con una maniobra de {incident} mediante captación engañosa de la víctima a través de anuncio, enlace, perfil o comunicación falsa, orientada a obtener datos, credenciales o desplazamiento patrimonial. Con el estado actual de la evidencia no corresponde formular hipótesis alternativas autónomas."
+        )
     return normalize_spanish(
         "\n".join(
             [
@@ -298,36 +317,58 @@ def build_ai_enrichment_markdown(case: Case, legal_recommendations: list[Any], a
         f"- Evidencia #{item.id}: {item.description}. Hash: {item.sha256_hash or 'pendiente'}. Integridad: {item.integrity_status}."
         for item in case.evidence[:8]
     ) or "- No hay evidencia suficiente cargada para sostener una conclusion fuerte."
-    ai_section = ai_response.strip() or "Ollama/Mistral no produjo respuesta disponible; se aplico enriquecimiento deterministico local con reglas forenses prudentes."
     return normalize_spanish(
         f"""
-## Analisis ampliado asistido por IA local
-
-### Respuesta de Mistral/Ollama o fallback local
-
-{ai_section}
-
-### Hipotesis investigativas reforzadas
+## Hipótesis y análisis del caso
 
 {hypotheses}
 
-### Evidencia que sostiene o limita la teoria del caso
+## Evidencia que sostiene o limita la teoría del caso
 
 {evidence_summary}
 
-### Fundamentacion legal argentina con articulos citados
+## Encuadre legal argentino
 
 {legal_block}
 
-### Conclusiones profundas y prudentes
+## Conclusión técnico-jurídica
 
-1. La evidencia disponible permite construir una teoria preliminar, pero no una atribucion personal definitiva.
-2. El valor probatorio depende de la integridad tecnica, la cadena de custodia, la trazabilidad temporal y la relacion entre cada dato y el hecho investigado.
-3. La normativa citada opera como hipotesis juridica de trabajo: cada articulo exige verificar elementos objetivos, subjetivos y evidencia especifica.
-4. Si falta fuente oficial, texto normativo completo o prueba de nexo causal, el informe debe declararlo expresamente.
-5. La conclusion final debe quedar sometida a revision humana tecnica y juridica antes de uso judicial, administrativo o institucional.
+{build_attribution_conclusion(case)}
 """
     )
+
+
+def _attribution_subject(case: Case) -> str | None:
+    for participant in case.participants:
+        role = normalize_spanish(participant.participant_type).lower()
+        if role in {"sospechoso", "imputado", "atacante", "grupo_atribucion", "grupo organizado"}:
+            return participant.display_name
+    return None
+
+
+def attribution_assessment(case: Case) -> dict[str, object]:
+    subject = _attribution_subject(case)
+    evidence_text = " ".join(
+        [
+            " ".join(item.description for item in case.evidence),
+            " ".join(item.detailed_description for item in case.actions),
+            " ".join(item.technical_finding for item in case.findings),
+        ]
+    ).lower()
+    signals = {
+        "persona_o_grupo_identificado": bool(subject),
+        "ip_vinculada": "ip" in evidence_text or any("ip" in item.evidence_type.lower() for item in case.evidence),
+        "logs": "log" in evidence_text or any("log" in item.evidence_type.lower() for item in case.evidence),
+        "metadatos_sesion": "sesion" in evidence_text or "session" in evidence_text or "metadato" in evidence_text,
+        "artefactos_maliciosos": any(term in evidence_text for term in ["malware", "hash", "exe", "script", "artefacto"]),
+        "correlacion_temporal": any(term in evidence_text for term in ["correlacion", "timestamp", "horario", "fecha", "temporal"]),
+        "registros_proveedor": any(term in evidence_text for term in ["proveedor", "oficio", "abonado", "telecom", "plataforma"]),
+        "trazabilidad_pagos": any(term in evidence_text for term in ["pago", "transferencia", "wallet", "cbu", "alias", "mercado pago", "billetera"]),
+        "evidencia_externa": any(term in evidence_text for term in ["secuestro", "dispositivo", "notebook", "pericia", "domicilio"]),
+    }
+    score = sum(1 for value in signals.values() if value)
+    sufficient = bool(subject) and score >= 5 and len(case.evidence) >= 2 and len(case.actions) >= 1
+    return {"sufficient": sufficient, "subject": subject, "score": score, "signals": signals}
 
 
 def _incident_specific_conclusion(case: Case) -> str:
@@ -339,6 +380,44 @@ def _incident_specific_conclusion(case: Case) -> str:
         )
     return normalize_spanish(
         "La conclusion debe formularse como teoria preliminar: hechos, evidencia, hallazgos, normas aplicables y evidencia faltante. No corresponde cerrar autoria o responsabilidad definitiva sin preservacion, trazabilidad y revision profesional."
+    )
+
+
+def build_attribution_conclusion(case: Case) -> str:
+    assessment = attribution_assessment(case)
+    if assessment["sufficient"]:
+        subject = assessment["subject"] or "sujeto identificado"
+        return normalize_spanish(
+            f"""CONCLUSIÓN TÉCNICO-JURÍDICA SOBRE ATRIBUCIÓN DEL CIBERATAQUE
+
+De conformidad con el análisis técnico-forense efectuado sobre la evidencia incorporada al caso, corresponde concluir que existen elementos técnicos suficientes, concordantes y convergentes para atribuir prima facie la ejecución del ataque informático investigado a {subject}.
+
+La atribución no se funda en un único indicador aislado, sino en una pluralidad de evidencias digitales recíprocamente corroboradas, cuya valoración debe considerar registros de acceso, trazabilidad temporal, artefactos técnicos, hashes, indicadores de infraestructura, eventuales registros de proveedor y demás elementos externos disponibles.
+
+Desde el punto de vista jurídico penal argentino, los hechos analizados resultan prima facie compatibles con figuras de acceso ilegítimo, fraude digital, defraudación mediante manipulación informática, daño informático o afectación de datos personales, según el alcance final de la prueba. La calificación definitiva corresponde a la autoridad competente.
+
+En consecuencia, este informe concluye que sí existen elementos técnicos, indiciarios y jurídicamente relevantes que permiten formular una atribución técnica preliminar, sin perjuicio de que dicha atribución conserva naturaleza técnico-pericial y deberá ser valorada jurisdiccionalmente conforme las reglas de la sana crítica racional, la contradicción de partes, la cadena de custodia y el estándar probatorio propio del proceso penal argentino.
+
+{ATTRIBUTION_METHOD_NOTE}"""
+        )
+    return normalize_spanish(
+        f"""CONCLUSIÓN TÉCNICO-JURÍDICA SOBRE IMPOSIBILIDAD DE ATRIBUCIÓN DEL CIBERATAQUE
+
+Del análisis técnico-forense efectuado sobre los registros de acceso, logs del servidor, metadatos de conexión, indicadores de compromiso, direcciones IP, huellas de malware, trazas de red, artefactos de sistema y repositorios de eventos disponibles, corresponde concluir que no se han reunido elementos técnicos suficientes para atribuir de manera concluyente el ciberataque investigado a una persona física, grupo organizado, entidad u organización determinada.
+
+La investigación permitió confirmar la existencia material de un incidente de seguridad. Sin embargo, la información disponible no permite establecer con certeza quién ejecutó la intrusión, quién la ordenó ni qué persona física controlaba efectivamente la infraestructura utilizada.
+
+La sola existencia de una dirección IP, alias no verificado, URL, anuncio, perfil, cuenta digital o infraestructura técnica, sin correlación suficiente con identidad civil, dispositivo físico, credenciales personales, registros de pago, geolocalización, artefactos locales u otros elementos externos, no resulta bastante para sostener una atribución penal individual.
+
+Desde el punto de vista jurídico penal, la materialidad del hecho podría resultar compatible, en abstracto, con figuras tales como estafa, defraudación mediante manipulación informática, acceso ilegítimo, violación de datos personales o infracciones conexas, según la prueba que eventualmente se incorpore. No obstante, una cosa es acreditar la existencia de un incidente informático y otra distinta es atribuirlo penalmente a una persona determinada.
+
+En consecuencia, la evidencia actualmente disponible permite sostener la ocurrencia de un incidente compatible con phishing/fraude digital, pero no permite afirmar con grado suficiente de certeza técnico-jurídica la autoría material o intelectual de una persona física determinada.
+
+Desde la perspectiva procesal, corresponde mantener abierta la línea investigativa, preservar la totalidad de la evidencia digital recolectada, requerir informes ampliatorios a proveedores de conectividad, plataformas, servicios de correo, registradores de dominio, entidades financieras, billeteras virtuales, exchanges o servicios de alojamiento, así como realizar nuevas pericias sobre dispositivos, cuentas o sistemas vinculados que pudieran incorporarse en el futuro.
+
+Por todo lo expuesto, este informe concluye que no se logró determinar la atribución del ciberataque a una persona física, grupo u organización específica, sin perjuicio de la existencia del hecho investigado y de la posibilidad de que futuras medidas probatorias permitan fortalecer, descartar o redireccionar las hipótesis de autoría actualmente consideradas.
+
+{ATTRIBUTION_METHOD_NOTE}"""
     )
 
 

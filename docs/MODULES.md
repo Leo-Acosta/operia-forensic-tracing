@@ -180,7 +180,6 @@ Canonical report PDF export now uses `operia/exports/report_exporters.py`.
 The professional report includes:
 
 - cover page and case metadata;
-- human review warning for AI-assisted material;
 - case metrics;
 - participants and entities;
 - evidence integrity table with hashes;
@@ -190,3 +189,19 @@ The professional report includes:
 - generated report content;
 - prudent conclusions;
 - export annex explaining manifest/hash traceability.
+
+## Fase Operativa 5 - Final Report and Attribution Engine
+
+The final report engine now treats the PDF as a professional forensic-legal document prepared by the analyst/operator.
+
+It provides:
+
+- visible analyst/author attribution instead of platform authorship;
+- professional case/report states instead of internal workflow values;
+- non-attribution text when no person, group or entity can be technically linked;
+- unified Argentine legal framing from the registered legal knowledge library;
+- controlled support for registered jurisprudence and doctrine without invented sources;
+- attribution assessment based on convergent technical signals;
+- separate conclusion templates for attribution and non-attribution scenarios;
+- export annex metadata with case id, report version, generation date, author, state and evidence/custody counts;
+- PDF filtering of internal assistant/provider details.

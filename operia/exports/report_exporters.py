@@ -17,7 +17,9 @@ from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, S
 
 from operia.reports.models import Presentation, Report
 from operia.legal_report.services.text_service import normalize_spanish
+from operia.legal_report.services.report_service import NO_ATTRIBUTION_TEXT, attribution_assessment, build_attribution_conclusion
 from operia.core.config import settings
+from operia.shared.time import utcnow
 
 EXPORT_DIR = settings.exports_dir
 
@@ -93,8 +95,6 @@ def export_docx(report: Report) -> Path:
     subtitle = document.add_paragraph()
     subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
     subtitle.add_run(f"Caso {report.case.case_code} | {normalize_spanish(report.case.incident_type)}").bold = True
-    document.add_paragraph("Documento asistido por IA. Requiere revisión humana profesional.").alignment = WD_ALIGN_PARAGRAPH.CENTER
-
     table = document.add_table(rows=1, cols=4)
     table.style = "Table Grid"
     headers = ["Evidencias", "Hallazgos", "Daño estimado", "Estado"]
@@ -157,14 +157,14 @@ def export_pdf(report: Report) -> Path:
     if logo:
         c.drawImage(ImageReader(str(logo)), 72, height - 188, width=230, height=88, preserveAspectRatio=True, mask="auto")
     _draw_chip(c, 72, height - 210, "INFORME INTEGRAL", "#eef8f7", "#b9ebe4", "#087f5b")
-    _draw_chip(c, 190, height - 210, "REVISIÓN HUMANA REQUERIDA", "#fff7ed", "#fed7aa", "#9a3412")
+    _draw_chip(c, 190, height - 210, "CONTROL PROFESIONAL", "#fff7ed", "#fed7aa", "#9a3412")
     c.setFont("Helvetica-Bold", 26)
     c.setFillColor(colors.HexColor("#0f172a"))
     _draw_wrapped(c, normalize_spanish(report.title), 72, height - 260, width - 144, "Helvetica-Bold", 26, 31, colors.HexColor("#0f172a"), max_lines=3)
     c.setFont("Helvetica", 12)
     c.setFillColor(colors.HexColor("#475467"))
     c.drawString(74, height - 330, normalize_spanish(f"Caso {case.case_code} | {case.incident_type}"))
-    c.drawString(74, height - 350, normalize_spanish(f"Responsable: {case.responsible or 'pendiente'}"))
+    c.drawString(74, height - 350, normalize_spanish(f"Responsable: {_responsible_text(report)}"))
     c.drawString(74, height - 370, normalize_spanish(f"Jurisdicción: {case.jurisdiction}"))
 
     card_y = 142
@@ -173,7 +173,7 @@ def export_pdf(report: Report) -> Path:
     _draw_metric(c, 388, card_y, "Daño estimado", f"{total_damage:,.0f} ARS", "#b7791f")
     c.setFont("Helvetica", 8)
     c.setFillColor(colors.HexColor("#64748b"))
-    c.drawRightString(width - 72, 74, "Operia Forensic Legal Report | Documento asistido por IA, no sustituye revisión profesional")
+    c.drawRightString(width - 72, 74, "OPERIA Forensic Tracing | Informe forense profesional")
     c.showPage()
 
     page = 1
@@ -243,11 +243,11 @@ def export_pdf(report: Report) -> Path:
             [
                 ("Estado del caso", case.status),
                 ("Jurisdicci\u00f3n", case.jurisdiction),
-                ("Responsable", case.responsible or "pendiente"),
-                ("Cliente / damnificado", case.client_or_victim or "pendiente"),
-                ("Autor del informe", report.author or "OPERIA"),
+                ("Responsable", _responsible_text(report)),
+                ("Cliente / damnificado", case.client_or_victim or ""),
+                ("Autor del informe", _visible_author(report)),
                 ("Versi\u00f3n", report.version),
-                ("Estado del informe", report.status),
+                ("Estado del informe", _professional_status(report, case)),
                 ("Puntaje de revisi\u00f3n", str(report.review_score or 0)),
             ],
             styles,
@@ -297,12 +297,12 @@ def export_pdf(report: Report) -> Path:
                 ["Rol", "Tipo", "Nombre", "Documento / CUIT", "Relaci\u00f3n", "Sensibilidad"],
                 [
                     [
-                        item.participant_type,
-                        item.person_type,
-                        item.display_name,
+                        _display_value(item.participant_type),
+                        _display_value(item.person_type),
+                        _display_name(item.display_name),
                         item.document_number or item.tax_id or "-",
-                        item.relationship_to_case or item.role_description or "-",
-                        item.sensitivity_level,
+                        _display_value(item.relationship_to_case or item.role_description or "-"),
+                        _display_value(item.sensitivity_level),
                     ]
                     for item in case.participants
                 ],
@@ -419,9 +419,10 @@ def export_pdf(report: Report) -> Path:
         report.markdown_content,
         [
             "Hip\u00f3tesis investigativas",
-            "Hipotesis investigativas reforzadas",
-            "An\u00e1lisis ampliado asistido por IA local",
-            "Analisis ampliado asistido por IA local",
+            "Hip\u00f3tesis y an\u00e1lisis del caso",
+            "Hipotesis y analisis del caso",
+            "Evidencia que sostiene o limita la teor\u00eda del caso",
+            "Evidencia que sostiene o limita la teoria del caso",
         ],
     )
     if analysis_content:
@@ -434,20 +435,21 @@ def export_pdf(report: Report) -> Path:
             "Conclusi\u00f3n jur\u00eddicamente defendible",
             "Conclusiones profundas y prudentes",
             "Conclusiones t\u00e9cnicas",
+            "Conclusi\u00f3n t\u00e9cnico-jur\u00eddica",
+            "Conclusion tecnico-juridica",
         ],
     )
     _section(story, "8. Conclusi\u00f3n t\u00e9cnico-jur\u00eddica", styles)
     if conclusion_content:
         _append_markdown_content(story, conclusion_content, styles)
     else:
-        story.append(Paragraph(_html(_professional_conclusion(case)), styles["body"]))
+        story.append(Paragraph(_html(build_attribution_conclusion(case)), styles["body"]))
 
     _section(story, "9. Anexo de exportaci\u00f3n", styles)
     story.append(
         Paragraph(
             _html(
-                "El manifiesto de exportaci\u00f3n OPERIA se genera junto con el archivo y registra hash SHA-256, MD5, usuario, caso, "
-                "fecha de generaci\u00f3n y metadatos forenses para trazabilidad documental."
+                _export_metadata_text(report)
             ),
             styles["body"],
         )
@@ -643,10 +645,16 @@ def _append_markdown_content(story: list, content: str, styles: dict[str, Paragr
         line = raw_line.strip()
         if not line or line.startswith("| ---"):
             continue
+        if _is_internal_line(line):
+            continue
         if line.startswith("### "):
-            story.append(Paragraph(_html(line[4:]), styles["subheading"]))
+            title = line[4:].strip()
+            if not _is_internal_line(title):
+                story.append(Paragraph(_html(title), styles["subheading"]))
         elif line.startswith("## "):
-            story.append(Paragraph(_html(line[3:]), styles["subheading"]))
+            title = line[3:].strip()
+            if not _is_internal_line(title):
+                story.append(Paragraph(_html(title), styles["subheading"]))
         elif line.startswith("- "):
             story.append(Paragraph(f"\u2022 {_html(_clean_markdown_text(line[2:]))}", styles["body"]))
         elif line.startswith("|"):
@@ -660,9 +668,13 @@ def _append_markdown_content(story: list, content: str, styles: dict[str, Paragr
 def _extract_named_sections(markdown: str, titles: list[str]) -> str:
     wanted = {normalize_spanish(title).lower() for title in titles}
     parts = []
+    seen = set()
     for title, content in _markdown_sections(markdown):
         normalized_title = normalize_spanish(title).lower()
-        if normalized_title in wanted:
+        normalized_content = normalize_spanish(content).strip()
+        fingerprint = re.sub(r"\s+", " ", normalized_content.lower())
+        if normalized_title in wanted and fingerprint not in seen:
+            seen.add(fingerprint)
             parts.append(content.strip())
     return "\n\n".join(part for part in parts if _meaningful_content(part))
 
@@ -681,6 +693,68 @@ def _meaningful_content(content: str) -> bool:
         "evaluación pendiente",
     ]
     return not any(marker in text for marker in empty_markers)
+
+
+def _is_internal_line(text: str) -> bool:
+    haystack = normalize_spanish(text).lower()
+    forbidden = ["ollama", "mistral", "fallback", " ia ", "asistido por ia", "herramientas automatizadas", "enriquecido_con_ia"]
+    padded = f" {haystack} "
+    return any(term in padded for term in forbidden)
+
+
+def _display_value(value: object) -> str:
+    text = normalize_spanish(str(value or "")).replace("_", " ").strip()
+    if not text:
+        return ""
+    return text[:1].upper() + text[1:]
+
+
+def _display_name(value: object) -> str:
+    text = normalize_spanish(str(value or "")).strip()
+    return " ".join(part[:1].upper() + part[1:] for part in text.split())
+
+
+def _visible_author(report: Report) -> str:
+    author = normalize_spanish(report.author or "").strip()
+    return "" if author.upper() == "OPERIA" else author
+
+
+def _responsible_text(report: Report) -> str:
+    case = report.case
+    assessment = attribution_assessment(case)
+    if assessment["sufficient"] and assessment["subject"]:
+        return _display_name(assessment["subject"])
+    if normalize_spanish(case.responsible or "").strip():
+        return _display_name(case.responsible)
+    return NO_ATTRIBUTION_TEXT
+
+
+def _professional_status(report: Report, case) -> str:
+    if normalize_spanish(case.status).lower() == "cerrado":
+        return "Caso Cerrado"
+    if case.findings and case.evidence:
+        return "En Proceso Investigativo"
+    if case.evidence or case.actions:
+        return "En Proceso de Análisis"
+    return "Caso en Proceso de Inicio de Investigación"
+
+
+def _export_metadata_text(report: Report) -> str:
+    case = report.case
+    return normalize_spanish(
+        "\n".join(
+            [
+                f"Identificador del caso: {case.case_code}.",
+                f"Versión del informe: {report.version}.",
+                f"Fecha y hora de generación: {utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}.",
+                f"Autor/analista: {_visible_author(report) or 'No informado'}.",
+                f"Estado del caso: {_professional_status(report, case)}.",
+                f"Cantidad de evidencias: {len(case.evidence)}.",
+                f"Cantidad de acciones de custodia: {len(case.actions)}.",
+                "Hashes del PDF e identificador de manifiesto: registrados en los metadatos técnicos de exportación de la plataforma.",
+            ]
+        )
+    )
 
 
 def _professional_conclusion(case) -> str:

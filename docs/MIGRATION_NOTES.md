@@ -236,3 +236,26 @@ Remaining:
 - add richer legal citation annexes with source snapshots;
 - add visual evidence annex previews;
 - add report template selection and editable section ordering from the frontend.
+
+## Fase Operativa 5
+
+Completed:
+
+- converted the final PDF into a non-revealing professional forensic-legal report;
+- removed visible references to internal assistant providers and fallback behavior from report output;
+- added analyst/operator authorship support in the frontend report flow;
+- normalized professional case/report state labels for visible exports;
+- replaced unresolved responsible values with a formal non-attribution statement;
+- unified Argentine legal framing and removed duplicate legal sections;
+- prioritized phishing/fraud mappings to registered Argentine legal articles, including CP art. 172;
+- added future-ready registered jurisprudence and doctrine models and API routes;
+- added an attribution engine with sufficient/insufficient attribution branches;
+- added robust attribution and non-attribution conclusion templates;
+- added export metadata annex content based on real case/report values;
+- extended automated coverage to reject internal terms in enriched report content and generated PDF text.
+
+Verification:
+
+- `python -m compileall operia apps\api tests` passed;
+- `python -m pytest -q -p no:cacheprovider` passed with `8 passed`;
+- `npm run build` passed.

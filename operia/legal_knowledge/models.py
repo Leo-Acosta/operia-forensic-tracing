@@ -87,3 +87,36 @@ class LegalEvaluation(Base, TimestampMixin):
     weaknesses: Mapped[str] = mapped_column(Text, default="")
     conclusion: Mapped[str] = mapped_column(Text, default="")
 
+
+class LegalPrecedent(Base, TimestampMixin):
+    __tablename__ = "legal_precedents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    organization_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id"), nullable=True)
+    article_id: Mapped[int | None] = mapped_column(ForeignKey("legal_articles.id"), nullable=True)
+    title: Mapped[str] = mapped_column(String(255))
+    court_or_authority: Mapped[str] = mapped_column(String(255), default="")
+    decision_date: Mapped[str] = mapped_column(String(80), default="")
+    source: Mapped[str] = mapped_column(String(255), default="")
+    url: Mapped[str] = mapped_column(String(500), default="")
+    summary: Mapped[str] = mapped_column(Text, default="")
+    applicable_criterion: Mapped[str] = mapped_column(Text, default="")
+    related_crime_type: Mapped[str] = mapped_column(String(160), default="")
+    verified: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class LegalDoctrine(Base, TimestampMixin):
+    __tablename__ = "legal_doctrine"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    organization_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id"), nullable=True)
+    article_id: Mapped[int | None] = mapped_column(ForeignKey("legal_articles.id"), nullable=True)
+    title: Mapped[str] = mapped_column(String(255))
+    author: Mapped[str] = mapped_column(String(255), default="")
+    publication_date: Mapped[str] = mapped_column(String(80), default="")
+    source: Mapped[str] = mapped_column(String(255), default="")
+    url: Mapped[str] = mapped_column(String(500), default="")
+    summary: Mapped[str] = mapped_column(Text, default="")
+    applicable_criterion: Mapped[str] = mapped_column(Text, default="")
+    related_crime_type: Mapped[str] = mapped_column(String(160), default="")
+    verified: Mapped[bool] = mapped_column(Boolean, default=False)

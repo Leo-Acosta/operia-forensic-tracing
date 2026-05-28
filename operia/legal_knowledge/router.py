@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from operia.core.database import get_db
-from operia.legal_knowledge.models import LegalArticle, LegalMapping, LegalSource
+from operia.legal_knowledge.models import LegalArticle, LegalDoctrine, LegalMapping, LegalPrecedent, LegalSource
 from operia.legal_knowledge.service import (
     ensure_legal_articles,
     recommend_articles_for_incident,
@@ -10,7 +10,16 @@ from operia.legal_knowledge.service import (
     verify_registered_sources,
     verify_source_url,
 )
-from operia.legal_knowledge.schemas import LegalMappingCreate, LegalMappingRead, LegalSourceCreate, LegalSourceRead
+from operia.legal_knowledge.schemas import (
+    LegalDoctrineCreate,
+    LegalDoctrineRead,
+    LegalMappingCreate,
+    LegalMappingRead,
+    LegalPrecedentCreate,
+    LegalPrecedentRead,
+    LegalSourceCreate,
+    LegalSourceRead,
+)
 from operia.legal_report.services.legal_knowledge_base import sync_official_sources
 from operia.shared.crud import get_or_404, update_from_payload
 
@@ -95,6 +104,20 @@ def recommend_articles(payload: dict, db: Session = Depends(get_db)):
     }
 
 
+@router.get("/attack-types")
+def attack_types() -> list[dict[str, object]]:
+    return [
+        {"value": "phishing / fraude digital", "label": "Phishing / fraude digital", "query": "phishing fraude acceso datos consumidor"},
+        {"value": "ransomware", "label": "Ransomware", "query": "ransomware extorsion dano informatico preservacion"},
+        {"value": "acceso ilegitimo", "label": "Acceso ilegítimo", "query": "acceso ilegitimo sistema dato informatico"},
+        {"value": "fraude digital", "label": "Fraude digital", "query": "fraude estafa manipulacion informatica consumidor"},
+        {"value": "dano informatico", "label": "Daño informático", "query": "dano informatico sistemas datos"},
+        {"value": "filtracion de datos", "label": "Filtración de datos", "query": "filtracion datos personales confidencialidad"},
+        {"value": "extorsion", "label": "Extorsión", "query": "extorsion intimidacion datos ransomware"},
+        {"value": "otro", "label": "Otro", "query": "incidente informatico evidencia digital"},
+    ]
+
+
 @router.post("/mappings", response_model=LegalMappingRead)
 def create_legal_mapping(payload: LegalMappingCreate, db: Session = Depends(get_db)):
     item = LegalMapping(**payload.model_dump())
@@ -107,3 +130,41 @@ def create_legal_mapping(payload: LegalMappingCreate, db: Session = Depends(get_
 @router.get("/case/{case_id}/mappings", response_model=list[LegalMappingRead])
 def list_case_mappings(case_id: int, db: Session = Depends(get_db)):
     return db.query(LegalMapping).filter_by(case_id=case_id).order_by(LegalMapping.created_at.desc()).all()
+
+
+@router.post("/precedents", response_model=LegalPrecedentRead)
+def create_precedent(payload: LegalPrecedentCreate, db: Session = Depends(get_db)):
+    item = LegalPrecedent(**payload.model_dump())
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.get("/precedents", response_model=list[LegalPrecedentRead])
+def list_precedents(article_id: int | None = None, crime_type: str | None = None, db: Session = Depends(get_db)):
+    query = db.query(LegalPrecedent).filter_by(verified=True)
+    if article_id is not None:
+        query = query.filter_by(article_id=article_id)
+    if crime_type:
+        query = query.filter(LegalPrecedent.related_crime_type.ilike(f"%{crime_type}%"))
+    return query.order_by(LegalPrecedent.created_at.desc()).all()
+
+
+@router.post("/doctrine", response_model=LegalDoctrineRead)
+def create_doctrine(payload: LegalDoctrineCreate, db: Session = Depends(get_db)):
+    item = LegalDoctrine(**payload.model_dump())
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.get("/doctrine", response_model=list[LegalDoctrineRead])
+def list_doctrine(article_id: int | None = None, crime_type: str | None = None, db: Session = Depends(get_db)):
+    query = db.query(LegalDoctrine).filter_by(verified=True)
+    if article_id is not None:
+        query = query.filter_by(article_id=article_id)
+    if crime_type:
+        query = query.filter(LegalDoctrine.related_crime_type.ilike(f"%{crime_type}%"))
+    return query.order_by(LegalDoctrine.created_at.desc()).all()
