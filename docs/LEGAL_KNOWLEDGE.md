@@ -40,6 +40,14 @@ Each profile defines:
 - probatory limits;
 - confidence level.
 
+Fase Operativa 6.1 adds analyst-approved legal mappings:
+
+- every recommended article can be approved or discarded for a concrete case;
+- the analyst name, rationale, legal role, applicability and probatory limits are stored;
+- approved mappings are included in report legal framing;
+- discarded mappings remain auditable but are excluded from report legal framing;
+- every decision writes an audit log entry.
+
 Initial seeded coverage:
 
 - Argentine Penal Code article 172;
@@ -75,6 +83,7 @@ Canonical API:
 - `POST /api/legal-knowledge/sources/verify`
 - `POST /api/legal-knowledge/sources/verify-url`
 - `POST /api/legal-knowledge/mappings`
+- `POST /api/legal-knowledge/mappings/decision`
 - `GET /api/legal-knowledge/case/{case_id}/mappings`
 - `POST /api/legal-knowledge/precedents`
 - `GET /api/legal-knowledge/precedents`

@@ -599,6 +599,19 @@ code {
   padding-left: 18px;
 }
 
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.secondary-button {
+  background: #f5f8fb;
+  border-color: #cfdbe8;
+  color: #29425d;
+}
+
 .requirements {
   background: #fff8eb;
   border: 1px solid #efd39d;

@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from operia.audit.service import write_audit
 from operia.core.database import get_db
+from operia.identity.dependencies import CurrentUser, get_optional_user
 from operia.legal_knowledge.models import LegalArticle, LegalDoctrine, LegalMapping, LegalPrecedent, LegalSource
 from operia.legal_knowledge.service import (
     article_context,
@@ -17,6 +19,7 @@ from operia.legal_knowledge.schemas import (
     LegalDoctrineCreate,
     LegalDoctrineRead,
     LegalMappingCreate,
+    LegalMappingDecisionCreate,
     LegalMappingRead,
     LegalPrecedentCreate,
     LegalPrecedentRead,
@@ -24,6 +27,7 @@ from operia.legal_knowledge.schemas import (
     LegalSourceRead,
 )
 from operia.legal_report.services.legal_knowledge_base import sync_official_sources
+from operia.shared.time import utcnow
 from operia.shared.crud import get_or_404, update_from_payload
 
 router = APIRouter()
@@ -145,6 +149,71 @@ def attack_type_profile(attack_type: str):
 def create_legal_mapping(payload: LegalMappingCreate, db: Session = Depends(get_db)):
     item = LegalMapping(**payload.model_dump())
     db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.post("/mappings/decision", response_model=LegalMappingRead)
+def decide_legal_mapping(
+    payload: LegalMappingDecisionCreate,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser | None = Depends(get_optional_user),
+):
+    decision = payload.decision_status.lower().strip()
+    if decision not in {"aprobado", "descartado"}:
+        decision = "aprobado" if decision in {"approve", "approved"} else "descartado"
+
+    article = get_or_404(db, LegalArticle, payload.article_id)
+    source_id = article.source_id
+    norm_reference = f"{article.code} art. {article.article_number}{' inc. ' + article.subsection if article.subsection else ''}"
+    existing = (
+        db.query(LegalMapping)
+        .filter_by(case_id=payload.case_id, article_id=article.id)
+        .order_by(LegalMapping.created_at.desc())
+        .first()
+    )
+    analysis_parts = [
+        payload.applicability_to_case or article.objective_elements,
+        payload.probatory_limits,
+        payload.analyst_rationale,
+    ]
+    analysis = "\n".join(part for part in analysis_parts if part).strip() or article.objective_elements
+    item = existing or LegalMapping(
+        case_id=payload.case_id,
+        article_id=article.id,
+        legal_area="Encuadre legal argentino",
+        norm_reference=norm_reference,
+        source_id=source_id,
+        analysis=analysis,
+    )
+    item.legal_area = "Encuadre legal argentino"
+    item.norm_reference = norm_reference
+    item.source_id = source_id
+    item.analysis = analysis
+    item.verification_status = "aprobado_por_analista" if decision == "aprobado" else "descartado_por_analista"
+    item.confidence_level = payload.confidence_level
+    item.requires_human_review = decision != "aprobado"
+    item.decision_status = decision
+    item.analyst_name = payload.analyst_name or (current_user.name if current_user else "")
+    item.analyst_rationale = payload.analyst_rationale
+    item.legal_role = payload.legal_role
+    item.applicability_to_case = payload.applicability_to_case
+    item.probatory_limits = payload.probatory_limits
+    item.decided_at = utcnow().isoformat()
+    if not existing:
+        db.add(item)
+        db.flush()
+    write_audit(
+        db,
+        "approve_legal_mapping" if decision == "aprobado" else "reject_legal_mapping",
+        "legal_knowledge",
+        current_user,
+        case_id=payload.case_id,
+        entity_type="legal_mapping",
+        entity_id=str(item.id),
+        details=f"{norm_reference}: {decision}",
+    )
     db.commit()
     db.refresh(item)
     return item

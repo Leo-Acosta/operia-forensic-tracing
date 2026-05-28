@@ -276,3 +276,21 @@ Verification:
 - `python -m compileall operia apps\api tests` passed;
 - `python -m pytest -q -p no:cacheprovider` passed with `9 passed`;
 - `npm run build` passed.
+
+## Fase Operativa 6.1
+
+Completed:
+
+- added analyst-approved legal mapping decisions for each case/article pair;
+- added `aprobado` and `descartado` legal mapping states with analyst name, rationale, legal role, applicability and probatory limits;
+- added audit logs for legal approval and rejection decisions;
+- updated report generation/export to exclude discarded mappings from the final legal framing;
+- connected the frontend legal recommendation cards to approve/discard actions;
+- added visible case legal mapping history in the Biblioteca Legal view;
+- added regression tests for approval, rejection and audit trail.
+
+Verification:
+
+- `python -m compileall operia apps\api tests` passed;
+- `python -m pytest -q -p no:cacheprovider` passed with `10 passed`;
+- `npm run build` passed.

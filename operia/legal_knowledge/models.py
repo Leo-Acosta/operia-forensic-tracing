@@ -54,6 +54,13 @@ class LegalMapping(Base, TimestampMixin):
     verification_status: Mapped[str] = mapped_column(String(120), default="Fuente pendiente de verificacion")
     confidence_level: Mapped[str] = mapped_column(String(40), default="medio")
     requires_human_review: Mapped[bool] = mapped_column(Boolean, default=True)
+    decision_status: Mapped[str] = mapped_column(String(80), default="sugerido")
+    analyst_name: Mapped[str] = mapped_column(String(160), default="")
+    analyst_rationale: Mapped[str] = mapped_column(Text, default="")
+    legal_role: Mapped[str] = mapped_column(String(80), default="")
+    applicability_to_case: Mapped[str] = mapped_column(Text, default="")
+    probatory_limits: Mapped[str] = mapped_column(Text, default="")
+    decided_at: Mapped[str] = mapped_column(String(80), default="")
 
     case: Mapped["Case"] = relationship(back_populates="legal_mappings")
 

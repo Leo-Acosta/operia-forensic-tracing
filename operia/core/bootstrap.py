@@ -49,6 +49,13 @@ SQLITE_PLATFORM_COLUMNS: dict[str, dict[str, str]] = {
         "article_id": "INTEGER",
         "confidence_level": "VARCHAR(40) DEFAULT 'medio'",
         "requires_human_review": "BOOLEAN DEFAULT 1",
+        "decision_status": "VARCHAR(80) DEFAULT 'sugerido'",
+        "analyst_name": "VARCHAR(160) DEFAULT ''",
+        "analyst_rationale": "TEXT DEFAULT ''",
+        "legal_role": "VARCHAR(80) DEFAULT ''",
+        "applicability_to_case": "TEXT DEFAULT ''",
+        "probatory_limits": "TEXT DEFAULT ''",
+        "decided_at": "VARCHAR(80) DEFAULT ''",
     },
 }
 

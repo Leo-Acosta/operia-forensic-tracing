@@ -156,6 +156,24 @@ type LegalRecommendationResponse = {
   disclaimer?: string;
 };
 
+type LegalMapping = {
+  id: number;
+  case_id: number;
+  article_id?: number;
+  legal_area: string;
+  norm_reference: string;
+  analysis: string;
+  verification_status: string;
+  confidence_level: string;
+  decision_status: string;
+  analyst_name: string;
+  analyst_rationale: string;
+  legal_role: string;
+  applicability_to_case: string;
+  probatory_limits: string;
+  decided_at: string;
+};
+
 type DashboardPayload = {
   metrics?: Record<string, number>;
   alerts?: string[];
@@ -295,6 +313,7 @@ export function App() {
   const [reports, setReports] = useState<ReportItem[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [manifests, setManifests] = useState<ExportManifest[]>([]);
+  const [legalMappings, setLegalMappings] = useState<LegalMapping[]>([]);
   const [articles, setArticles] = useState<LegalArticle[]>([]);
   const [modulePayload, setModulePayload] = useState<unknown>(null);
   const [caseForm, setCaseForm] = useState(emptyCase);
@@ -345,16 +364,18 @@ export function App() {
       setCustody([]);
       setAuditLogs([]);
       setManifests([]);
+      setLegalMappings([]);
       setClosureStatus(null);
       return;
     }
-    const [participantData, evidenceData, reportData, custodyData, auditData, manifestData] = await Promise.all([
+    const [participantData, evidenceData, reportData, custodyData, auditData, manifestData, mappingData] = await Promise.all([
       apiGet<CaseParticipant[]>(`/cases/${caseId}/participants`),
       apiGet<EvidenceItem[]>(`/evidence/case/${caseId}`),
       apiGet<ReportItem[]>(`/reports/case/${caseId}`),
       apiGet<CustodyAction[]>(`/evidence/case/${caseId}/custody-actions`),
       apiGet<AuditLog[]>(`/audit/logs?case_id=${caseId}`),
-      apiGet<ExportManifest[]>(`/exports/manifests?case_id=${caseId}`)
+      apiGet<ExportManifest[]>(`/exports/manifests?case_id=${caseId}`),
+      apiGet<LegalMapping[]>(`/legal-knowledge/case/${caseId}/mappings`)
     ]);
     setParticipants(participantData);
     setEvidence(evidenceData);
@@ -362,6 +383,7 @@ export function App() {
     setCustody(custodyData);
     setAuditLogs(auditData);
     setManifests(manifestData);
+    setLegalMappings(mappingData);
     setClosureStatus(await apiGet<ClosureStatus>(`/cases/${caseId}/closure-status`));
   }
 
@@ -567,6 +589,29 @@ export function App() {
     ]);
     setArticles(found);
     setLegalRecommendation(recommended);
+  }
+
+  async function decideLegalRecommendation(item: LegalRecommendation, decision_status: "aprobado" | "descartado") {
+    if (!selectedCaseId) {
+      setError("Selecciona un caso antes de aprobar o descartar una norma.");
+      return;
+    }
+    localStorage.setItem("operia_analyst_name", analystName);
+    await apiPost<LegalMapping>("/legal-knowledge/mappings/decision", {
+      case_id: selectedCaseId,
+      article_id: item.article_id,
+      decision_status,
+      analyst_name: analystName,
+      analyst_rationale:
+        decision_status === "aprobado"
+          ? "Norma aceptada por el analista para el encuadre preliminar del caso."
+          : "Norma descartada por el analista para este estado de evidencia.",
+      legal_role: item.legal_role,
+      applicability_to_case: item.applicability_to_case,
+      probatory_limits: item.probatory_limits,
+      confidence_level: item.confidence
+    });
+    await refreshCaseCollections(selectedCaseId);
   }
 
   async function runAiAssist() {
@@ -1140,10 +1185,37 @@ export function App() {
                 <small>Evidencia: {item.evidence_needed}</small>
                 {item.precedents.length > 0 && <small>Jurisprudencia registrada: {item.precedents.length}</small>}
                 {item.doctrine.length > 0 && <small>Doctrina registrada: {item.doctrine.length}</small>}
+                <div className="button-row">
+                  <button onClick={() => decideLegalRecommendation(item, "aprobado")} disabled={!selectedCaseId}>
+                    <CheckCircle2 size={16} /> Aprobar para el caso
+                  </button>
+                  <button className="secondary-button" onClick={() => decideLegalRecommendation(item, "descartado")} disabled={!selectedCaseId}>
+                    <Trash2 size={16} /> Descartar
+                  </button>
+                </div>
               </article>
             ))}
           </div>
         ) : null}
+        <div className="case-panel">
+          <div className="section-head compact-head">
+            <div>
+              <h3>Mapeo legal aprobado por analista</h3>
+              <p>Normas aceptadas o descartadas para el caso seleccionado.</p>
+            </div>
+          </div>
+          <div className="table">
+            {legalMappings.map((item) => (
+              <div className="record" key={item.id}>
+                <strong>{item.norm_reference} · {item.decision_status}</strong>
+                <span>{item.legal_role || item.legal_area} · confianza {item.confidence_level}</span>
+                <em>{item.analyst_name || "Analista no informado"}</em>
+                <small>{item.analysis}</small>
+              </div>
+            ))}
+            {!legalMappings.length && <EmptyState text="No hay normas aprobadas o descartadas para este caso." />}
+          </div>
+        </div>
         <div className="article-list">
           {articles.map((item) => (
             <article key={item.id}>

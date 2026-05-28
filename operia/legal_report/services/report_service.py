@@ -74,13 +74,16 @@ def build_integral_markdown(case: Case, legal_recommendations: list[Any] | None 
         f"- {h.title}: {h.description}. Soporte: {h.support_degree}. Conclusión provisional: {h.provisional_conclusion or 'pendiente'}."
         for h in case.hypotheses
     ) or "- Sin hipótesis cargadas."
+    approved_mappings = [
+        m for m in case.legal_mappings if getattr(m, "decision_status", "sugerido") != "descartado"
+    ]
     legal_lines = "\n".join(
         f"- {m.legal_area}: {m.norm_reference}. {m.analysis}. Estado: {m.verification_status}."
-        for m in case.legal_mappings
+        for m in approved_mappings
     ) or "- Sin encuadre legal cargado. Fuente pendiente de verificación."
     if not case.hypotheses:
         hypothesis_lines = _default_hypotheses_markdown(case)
-    if not case.legal_mappings:
+    if not approved_mappings:
         legal_lines = _legal_recommendation_markdown(legal_recommendations or [])
     damage_lines = "\n".join(
         f"| {d.concept} | {d.amount:.2f} {d.currency} | {d.formula_used or 'pendiente'} | {d.value_source or 'pendiente'} | {d.certainty_level} |"

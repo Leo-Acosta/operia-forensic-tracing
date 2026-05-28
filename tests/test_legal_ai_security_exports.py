@@ -49,6 +49,77 @@ def test_legal_knowledge_attack_profile_for_phishing(client):
     assert context.json()["context"]["doctrine"] == []
 
 
+def test_analyst_can_approve_and_reject_legal_mapping(client, admin_headers):
+    seed = client.post("/api/legal-knowledge/articles/seed")
+    assert seed.status_code == 200
+    case = client.post(
+        "/api/cases",
+        json={
+            "case_code": "LEGAL-MAP-001",
+            "title": "Mapeo legal",
+            "description": "phishing por anuncio falso",
+            "incident_type": "phishing",
+        },
+        headers=admin_headers,
+    )
+    assert case.status_code == 200
+    case_id = case.json()["id"]
+
+    recommendation = client.post(
+        "/api/legal-knowledge/articles/recommend",
+        json={"incident_text": "phishing por anuncio falso con pago"},
+    )
+    principal = recommendation.json()["recommendations"][0]
+    approved = client.post(
+        "/api/legal-knowledge/mappings/decision",
+        json={
+            "case_id": case_id,
+            "article_id": principal["article_id"],
+            "decision_status": "aprobado",
+            "analyst_name": "Analista QA",
+            "analyst_rationale": "Se verifican elementos compatibles con estafa digital.",
+            "legal_role": principal["legal_role"],
+            "applicability_to_case": principal["applicability_to_case"],
+            "probatory_limits": principal["probatory_limits"],
+            "confidence_level": principal["confidence"],
+        },
+        headers=admin_headers,
+    )
+    assert approved.status_code == 200
+    assert approved.json()["decision_status"] == "aprobado"
+    assert approved.json()["verification_status"] == "aprobado_por_analista"
+    assert approved.json()["analyst_name"] == "Analista QA"
+
+    connected = recommendation.json()["recommendations"][1]
+    rejected = client.post(
+        "/api/legal-knowledge/mappings/decision",
+        json={
+            "case_id": case_id,
+            "article_id": connected["article_id"],
+            "decision_status": "descartado",
+            "analyst_name": "Analista QA",
+            "analyst_rationale": "No hay evidencia suficiente de manipulacion informatica directa.",
+            "legal_role": connected["legal_role"],
+            "applicability_to_case": connected["applicability_to_case"],
+            "probatory_limits": connected["probatory_limits"],
+            "confidence_level": connected["confidence"],
+        },
+        headers=admin_headers,
+    )
+    assert rejected.status_code == 200
+    assert rejected.json()["decision_status"] == "descartado"
+    assert rejected.json()["verification_status"] == "descartado_por_analista"
+
+    mappings = client.get(f"/api/legal-knowledge/case/{case_id}/mappings", headers=admin_headers)
+    assert mappings.status_code == 200
+    decisions = {item["decision_status"] for item in mappings.json()}
+    assert {"aprobado", "descartado"}.issubset(decisions)
+
+    logs = client.get(f"/api/audit/logs?case_id={case_id}", headers=admin_headers)
+    actions = {item["action"] for item in logs.json()}
+    assert {"approve_legal_mapping", "reject_legal_mapping"}.issubset(actions)
+
+
 def test_ai_assistant_gracefully_handles_unavailable_ollama(client):
     response = client.post("/api/ai/assist", json={"prompt": "Analiza phishing con acceso ilegitimo"})
     assert response.status_code == 200

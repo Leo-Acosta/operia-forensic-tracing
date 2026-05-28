@@ -392,21 +392,24 @@ def export_pdf(report: Report) -> Path:
             "Fundamentaci\u00f3n legal argentina con art\u00edculos citados",
         ],
     )
-    if case.legal_mappings or legal_content:
+    approved_mappings = [
+        item for item in case.legal_mappings if getattr(item, "decision_status", "sugerido") != "descartado"
+    ]
+    if approved_mappings or legal_content:
         _section(story, "6. Encuadre legal argentino", styles)
-    if case.legal_mappings:
+    if approved_mappings:
         story.append(
             _data_table(
-                ["\u00c1rea", "Norma / art\u00edculo", "An\u00e1lisis", "Estado", "Confianza"],
+                ["\u00c1rea", "Norma / art\u00edculo", "An\u00e1lisis", "Decisi\u00f3n", "Confianza"],
                 [
                     [
                         item.legal_area,
                         item.norm_reference,
                         item.analysis,
-                        item.verification_status,
+                        getattr(item, "decision_status", "") or item.verification_status,
                         item.confidence_level,
                     ]
-                    for item in case.legal_mappings
+                    for item in approved_mappings
                 ],
                 styles,
                 [78, 116, 190, 90, 50],
