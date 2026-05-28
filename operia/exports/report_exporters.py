@@ -423,21 +423,23 @@ def export_pdf(report: Report) -> Path:
                 linked_rows.append(
                     [
                         mapping.norm_reference,
-                        f"#{link.evidence.id} {link.evidence.description}",
                         link.legal_element or "",
+                        f"#{link.evidence.id} {link.evidence.description}",
+                        getattr(link, "element_status", "pendiente"),
                         link.probatory_strength,
-                        link.link_rationale or "",
+                        getattr(link, "contradiction_risk", "bajo"),
+                        getattr(link, "recommended_measure", "") or link.link_rationale or "",
                     ]
                 )
         if linked_rows:
             story.append(Spacer(1, 8))
-            story.append(Paragraph("Evidencia vinculada al encuadre legal", styles["subheading"]))
+            story.append(Paragraph("Matriz legal-probatoria", styles["subheading"]))
             story.append(
                 _data_table(
-                    ["Norma", "Evidencia", "Elemento", "Fuerza", "Fundamento"],
+                    ["Norma", "Elemento", "Evidencia", "Estado", "Fuerza", "Riesgo", "Medida"],
                     linked_rows,
                     styles,
-                    [95, 150, 95, 55, 184],
+                    [76, 86, 128, 56, 48, 46, 138],
                 )
             )
     if legal_content:

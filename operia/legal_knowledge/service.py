@@ -4,7 +4,7 @@ from datetime import date
 import requests
 from sqlalchemy.orm import Session
 
-from operia.legal_knowledge.models import LegalArticle, LegalDoctrine, LegalPrecedent, LegalSource
+from operia.legal_knowledge.models import LegalArticle, LegalDoctrine, LegalMapping, LegalMappingEvidence, LegalPrecedent, LegalSource
 
 
 @dataclass(frozen=True)
@@ -522,6 +522,72 @@ INCIDENT_KEYWORDS: dict[str, list[str]] = {
     "preservacion": ["16", "18", "129"],
 }
 
+LEGAL_ELEMENT_CHECKLISTS: dict[tuple[str, str, str], tuple[str, ...]] = {
+    ("CP", "172", ""): (
+        "Ardid o engaño",
+        "Error de la víctima",
+        "Disposición patrimonial",
+        "Perjuicio patrimonial",
+        "Nexo causal",
+        "Dolo defraudatorio",
+    ),
+    ("CP", "173", "16"): (
+        "Manipulación informática",
+        "Alteración del funcionamiento o transmisión de datos",
+        "Perjuicio patrimonial",
+        "Nexo causal",
+        "Dolo defraudatorio",
+    ),
+    ("CP", "153 bis", ""): (
+        "Sistema o dato de acceso restringido",
+        "Acceso técnico verificable",
+        "Falta de autorización",
+        "Dolo de acceso",
+    ),
+    ("CP", "157 bis", ""): (
+        "Dato personal o banco de datos",
+        "Acceso, revelación o alteración",
+        "Falta de habilitación",
+        "Dolo",
+    ),
+    ("CP", "168", ""): (
+        "Intimidación",
+        "Exigencia",
+        "Disposición patrimonial o conducta forzada",
+        "Finalidad patrimonial",
+    ),
+    ("CP", "183", ""): (
+        "Alteración, destrucción o inutilización",
+        "Dato, programa o sistema afectado",
+        "Daño verificable",
+        "Dolo de dañar o alterar",
+    ),
+    ("LPDP", "5", ""): (
+        "Dato personal",
+        "Tratamiento",
+        "Consentimiento o base legal",
+        "Finalidad y alcance",
+    ),
+    ("LPDP", "9", ""): (
+        "Datos personales protegidos",
+        "Responsable o usuario de base",
+        "Medidas técnicas y organizativas",
+        "Incumplimiento o insuficiencia verificable",
+    ),
+    ("LDC", "4", ""): (
+        "Relación de consumo",
+        "Proveedor",
+        "Información cierta, clara y detallada",
+        "Impacto en la decisión o reclamo",
+    ),
+    ("LDC", "40", ""): (
+        "Relación de consumo",
+        "Daño",
+        "Proveedor interviniente",
+        "Nexo con servicio o cosa",
+    ),
+}
+
 
 def list_attack_profiles() -> list[dict]:
     unique: dict[str, AttackLegalProfile] = {}
@@ -764,6 +830,197 @@ def recommend_legal_profile(db: Session, incident_text: str, limit: int = 12) ->
             "human_review_required": True,
             "no_unregistered_jurisprudence_or_doctrine": True,
         },
+    }
+
+
+def legal_article_checklist(article: LegalArticle) -> dict:
+    key = (article.code, article.article_number, article.subsection or "")
+    elements = list(LEGAL_ELEMENT_CHECKLISTS.get(key, ()))
+    if not elements:
+        raw_parts = [
+            part.strip(" .")
+            for block in (article.objective_elements, article.subjective_elements)
+            for part in block.replace(" y ", ", ").split(",")
+            if part.strip(" .")
+        ]
+        elements = raw_parts[:8] or ["Hecho relevante", "Evidencia disponible", "Nexo probatorio", "Elemento subjetivo"]
+    return {
+        "article_id": article.id,
+        "reference": f"{article.code} art. {article.article_number}{' inc. ' + article.subsection if article.subsection else ''}",
+        "title": article.title,
+        "elements": elements,
+        "evidentiary_requirements": article.evidentiary_requirements,
+    }
+
+
+def _element_matches(link_element: str, checklist_element: str) -> bool:
+    left = (link_element or "").lower()
+    right = (checklist_element or "").lower()
+    if not left or not right:
+        return False
+    return left in right or right in left or any(token in left for token in right.split() if len(token) > 4)
+
+
+def build_legal_probatory_matrix(db: Session, case_id: int) -> dict:
+    mappings = (
+        db.query(LegalMapping)
+        .filter(LegalMapping.case_id == case_id, LegalMapping.decision_status != "descartado")
+        .order_by(LegalMapping.legal_role.desc(), LegalMapping.created_at.desc())
+        .all()
+    )
+    rows: list[dict] = []
+    proved = weak = missing = high_risk = 0
+
+    for mapping in mappings:
+        article = db.get(LegalArticle, mapping.article_id) if mapping.article_id else None
+        checklist = legal_article_checklist(article) if article else {"elements": []}
+        links = db.query(LegalMappingEvidence).filter_by(legal_mapping_id=mapping.id).all()
+        used_link_ids: set[int] = set()
+        for element in checklist["elements"]:
+            matched = [link for link in links if _element_matches(link.legal_element, element)]
+            if not matched:
+                missing += 1
+                rows.append(
+                    {
+                        "mapping_id": mapping.id,
+                        "article_id": mapping.article_id,
+                        "norm_reference": mapping.norm_reference,
+                        "legal_role": mapping.legal_role,
+                        "legal_element": element,
+                        "element_status": "faltante",
+                        "evidence_id": None,
+                        "evidence_description": "",
+                        "evidence_hash": "",
+                        "probatory_strength": "sin evidencia",
+                        "missing_evidence": f"Falta evidencia especifica para acreditar: {element}.",
+                        "contradiction_risk": "medio",
+                        "recommended_measure": "Incorporar evidencia directa o corroborante antes de sostener atribucion o calificacion definitiva.",
+                    }
+                )
+                continue
+            for link in matched:
+                used_link_ids.add(link.id)
+                status = link.element_status or ("probado" if link.probatory_strength in {"alto", "medio"} else "debil")
+                proved += 1 if status == "probado" else 0
+                weak += 1 if status != "probado" else 0
+                high_risk += 1 if link.contradiction_risk in {"alto", "critico"} else 0
+                evidence = link.evidence
+                rows.append(
+                    {
+                        "mapping_id": mapping.id,
+                        "article_id": mapping.article_id,
+                        "norm_reference": mapping.norm_reference,
+                        "legal_role": mapping.legal_role,
+                        "legal_element": element,
+                        "element_status": status,
+                        "evidence_id": evidence.id if evidence else None,
+                        "evidence_description": evidence.description if evidence else "",
+                        "evidence_hash": evidence.sha256_hash if evidence else "",
+                        "probatory_strength": link.probatory_strength,
+                        "missing_evidence": link.missing_evidence,
+                        "contradiction_risk": link.contradiction_risk,
+                        "recommended_measure": link.recommended_measure,
+                    }
+                )
+
+        for link in links:
+            if link.id in used_link_ids:
+                continue
+            status = link.element_status or ("probado" if link.probatory_strength in {"alto", "medio"} else "debil")
+            proved += 1 if status == "probado" else 0
+            weak += 1 if status != "probado" else 0
+            high_risk += 1 if link.contradiction_risk in {"alto", "critico"} else 0
+            evidence = link.evidence
+            rows.append(
+                {
+                    "mapping_id": mapping.id,
+                    "article_id": mapping.article_id,
+                    "norm_reference": mapping.norm_reference,
+                    "legal_role": mapping.legal_role,
+                    "legal_element": link.legal_element or "Elemento no especificado",
+                    "element_status": status,
+                    "evidence_id": evidence.id if evidence else None,
+                    "evidence_description": evidence.description if evidence else "",
+                    "evidence_hash": evidence.sha256_hash if evidence else "",
+                    "probatory_strength": link.probatory_strength,
+                    "missing_evidence": link.missing_evidence,
+                    "contradiction_risk": link.contradiction_risk,
+                    "recommended_measure": link.recommended_measure,
+                }
+            )
+
+    return {
+        "case_id": case_id,
+        "rows": rows,
+        "summary": {
+            "approved_or_suggested_mappings": len(mappings),
+            "proved_elements": proved,
+            "weak_elements": weak,
+            "missing_elements": missing,
+            "high_risk_elements": high_risk,
+        },
+    }
+
+
+def legal_quality_control(db: Session, case_id: int) -> dict:
+    matrix = build_legal_probatory_matrix(db, case_id)
+    issues: list[dict] = []
+    rows = matrix["rows"]
+    mappings = db.query(LegalMapping).filter_by(case_id=case_id, decision_status="aprobado").all()
+    link_counts = {
+        mapping.id: db.query(LegalMappingEvidence).filter_by(legal_mapping_id=mapping.id).count()
+        for mapping in mappings
+    }
+    for mapping in mappings:
+        if link_counts.get(mapping.id, 0) == 0:
+            issues.append(
+                {
+                    "severity": "alto",
+                    "code": "approved_mapping_without_evidence",
+                    "message": f"{mapping.norm_reference} fue aprobado pero no tiene evidencia vinculada.",
+                    "recommended_action": "Vincular evidencia concreta o degradar la norma a hipotesis no validada.",
+                }
+            )
+    for row in rows:
+        if row["element_status"] == "faltante":
+            issues.append(
+                {
+                    "severity": "medio",
+                    "code": "missing_legal_element",
+                    "message": f"Falta acreditar {row['legal_element']} para {row['norm_reference']}.",
+                    "recommended_action": row["recommended_measure"],
+                }
+            )
+        if row["element_status"] == "debil" or row["probatory_strength"] == "bajo":
+            issues.append(
+                {
+                    "severity": "medio",
+                    "code": "weak_probatory_support",
+                    "message": f"Soporte probatorio debil en {row['legal_element']} ({row['norm_reference']}).",
+                    "recommended_action": "Agregar evidencia corroborante, fuente externa o pericia complementaria.",
+                }
+            )
+        if row["contradiction_risk"] in {"alto", "critico"}:
+            issues.append(
+                {
+                    "severity": "alto",
+                    "code": "contradiction_risk",
+                    "message": f"Riesgo de contradiccion {row['contradiction_risk']} en {row['legal_element']}.",
+                    "recommended_action": row["recommended_measure"] or "Resolver contradicciones antes de cerrar el informe.",
+                }
+            )
+
+    penalties = {"bajo": 4, "medio": 9, "alto": 18, "critico": 30}
+    score = max(0, 100 - sum(penalties.get(issue["severity"], 8) for issue in issues))
+    risk_level = "bajo" if score >= 80 else "medio" if score >= 55 else "alto"
+    conclusion_impact = "fortalecida" if score >= 80 else "prudente" if score >= 55 else "alta_prudencia"
+    return {
+        "case_id": case_id,
+        "score": score,
+        "risk_level": risk_level,
+        "conclusion_impact": conclusion_impact,
+        "issues": issues,
+        "matrix_summary": matrix["summary"],
     }
 
 

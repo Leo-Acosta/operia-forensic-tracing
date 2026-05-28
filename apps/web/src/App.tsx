@@ -183,6 +183,39 @@ type LegalMappingEvidence = {
   link_rationale: string;
   legal_element: string;
   probatory_strength: string;
+  element_status: string;
+  missing_evidence: string;
+  contradiction_risk: string;
+  recommended_measure: string;
+};
+
+type LegalProbatoryMatrix = {
+  case_id: number;
+  rows: Array<{
+    mapping_id: number;
+    article_id?: number;
+    norm_reference: string;
+    legal_role: string;
+    legal_element: string;
+    element_status: string;
+    evidence_id?: number;
+    evidence_description: string;
+    evidence_hash: string;
+    probatory_strength: string;
+    missing_evidence: string;
+    contradiction_risk: string;
+    recommended_measure: string;
+  }>;
+  summary: Record<string, number>;
+};
+
+type LegalQualityControl = {
+  case_id: number;
+  score: number;
+  risk_level: string;
+  conclusion_impact: string;
+  issues: Array<{ severity: string; code: string; message: string; recommended_action: string }>;
+  matrix_summary: Record<string, number>;
 };
 
 type DashboardPayload = {
@@ -326,6 +359,8 @@ export function App() {
   const [manifests, setManifests] = useState<ExportManifest[]>([]);
   const [legalMappings, setLegalMappings] = useState<LegalMapping[]>([]);
   const [legalMappingEvidence, setLegalMappingEvidence] = useState<LegalMappingEvidence[]>([]);
+  const [legalProbatoryMatrix, setLegalProbatoryMatrix] = useState<LegalProbatoryMatrix | null>(null);
+  const [legalQualityControl, setLegalQualityControl] = useState<LegalQualityControl | null>(null);
   const [legalEvidenceSelection, setLegalEvidenceSelection] = useState<Record<number, string>>({});
   const [articles, setArticles] = useState<LegalArticle[]>([]);
   const [modulePayload, setModulePayload] = useState<unknown>(null);
@@ -379,10 +414,23 @@ export function App() {
       setManifests([]);
       setLegalMappings([]);
       setLegalMappingEvidence([]);
+      setLegalProbatoryMatrix(null);
+      setLegalQualityControl(null);
       setClosureStatus(null);
       return;
     }
-    const [participantData, evidenceData, reportData, custodyData, auditData, manifestData, mappingData, mappingEvidenceData] = await Promise.all([
+    const [
+      participantData,
+      evidenceData,
+      reportData,
+      custodyData,
+      auditData,
+      manifestData,
+      mappingData,
+      mappingEvidenceData,
+      probatoryMatrixData,
+      qualityControlData
+    ] = await Promise.all([
       apiGet<CaseParticipant[]>(`/cases/${caseId}/participants`),
       apiGet<EvidenceItem[]>(`/evidence/case/${caseId}`),
       apiGet<ReportItem[]>(`/reports/case/${caseId}`),
@@ -390,7 +438,9 @@ export function App() {
       apiGet<AuditLog[]>(`/audit/logs?case_id=${caseId}`),
       apiGet<ExportManifest[]>(`/exports/manifests?case_id=${caseId}`),
       apiGet<LegalMapping[]>(`/legal-knowledge/case/${caseId}/mappings`),
-      apiGet<LegalMappingEvidence[]>(`/legal-knowledge/case/${caseId}/mapping-evidence`)
+      apiGet<LegalMappingEvidence[]>(`/legal-knowledge/case/${caseId}/mapping-evidence`),
+      apiGet<LegalProbatoryMatrix>(`/legal-knowledge/case/${caseId}/probatory-matrix`),
+      apiGet<LegalQualityControl>(`/legal-knowledge/case/${caseId}/quality-control`)
     ]);
     setParticipants(participantData);
     setEvidence(evidenceData);
@@ -400,6 +450,8 @@ export function App() {
     setManifests(manifestData);
     setLegalMappings(mappingData);
     setLegalMappingEvidence(mappingEvidenceData);
+    setLegalProbatoryMatrix(probatoryMatrixData);
+    setLegalQualityControl(qualityControlData);
     setClosureStatus(await apiGet<ClosureStatus>(`/cases/${caseId}/closure-status`));
   }
 
@@ -644,7 +696,11 @@ export function App() {
       linked_by: analystName,
       link_rationale: "La evidencia fue seleccionada por el analista como soporte del encuadre legal.",
       legal_element: mapping.legal_role || "elemento del tipo penal",
-      probatory_strength: mapping.confidence_level || "medio"
+      probatory_strength: mapping.confidence_level || "medio",
+      element_status: mapping.confidence_level === "alto" ? "probado" : "debil",
+      missing_evidence: "",
+      contradiction_risk: "bajo",
+      recommended_measure: "Corroborar con fuentes externas si se pretende atribucion personal."
     });
     await refreshCaseCollections(selectedCaseId);
   }
@@ -1273,6 +1329,42 @@ export function App() {
               </div>
             ))}
             {!legalMappings.length && <EmptyState text="No hay normas aprobadas o descartadas para este caso." />}
+          </div>
+          <div className="section-head compact-head">
+            <div>
+              <h3>Matriz legal-probatoria</h3>
+              <p>Controla que cada norma quede sostenida por evidencia concreta.</p>
+            </div>
+            {legalProbatoryMatrix && <span className="badge">Faltantes: {legalProbatoryMatrix.summary.missing_elements || 0}</span>}
+          </div>
+          <div className="table">
+            {legalProbatoryMatrix?.rows.slice(0, 8).map((row, index) => (
+              <div className="record" key={`${row.mapping_id}-${row.legal_element}-${index}`}>
+                <strong>{row.norm_reference} · {row.legal_element}</strong>
+                <span>{row.element_status} · fuerza {row.probatory_strength} · riesgo {row.contradiction_risk}</span>
+                {row.evidence_id && <small>#{row.evidence_id} {row.evidence_description} {row.evidence_hash ? `· SHA-256 ${row.evidence_hash}` : ""}</small>}
+                {row.missing_evidence && <small>{row.missing_evidence}</small>}
+                {row.recommended_measure && <em>{row.recommended_measure}</em>}
+              </div>
+            ))}
+            {!legalProbatoryMatrix?.rows.length && <EmptyState text="La matriz aparece cuando vinculas evidencia a normas aprobadas." />}
+          </div>
+          <div className="section-head compact-head">
+            <div>
+              <h3>Control de calidad legal</h3>
+              <p>Detecta faltantes y contradicciones antes de usar el encuadre en un informe.</p>
+            </div>
+            {legalQualityControl && <span className="badge">Score {legalQualityControl.score} · riesgo {legalQualityControl.risk_level}</span>}
+          </div>
+          <div className="table">
+            {legalQualityControl?.issues.slice(0, 6).map((issue) => (
+              <div className="record" key={`${issue.code}-${issue.message}`}>
+                <strong>{issue.severity} · {issue.code}</strong>
+                <span>{issue.message}</span>
+                <small>{issue.recommended_action}</small>
+              </div>
+            ))}
+            {legalQualityControl && !legalQualityControl.issues.length && <EmptyState text="No hay observaciones críticas en el encuadre legal actual." />}
           </div>
         </div>
         <div className="article-list">

@@ -57,7 +57,13 @@ SQLITE_PLATFORM_COLUMNS: dict[str, dict[str, str]] = {
         "probatory_limits": "TEXT DEFAULT ''",
         "decided_at": "VARCHAR(80) DEFAULT ''",
     },
-    "legal_mapping_evidence": {"organization_id": "INTEGER"},
+    "legal_mapping_evidence": {
+        "organization_id": "INTEGER",
+        "element_status": "VARCHAR(80) DEFAULT 'pendiente'",
+        "missing_evidence": "TEXT DEFAULT ''",
+        "contradiction_risk": "VARCHAR(80) DEFAULT 'bajo'",
+        "recommended_measure": "TEXT DEFAULT ''",
+    },
 }
 
 

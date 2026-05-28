@@ -65,6 +65,10 @@ class LegalMappingEvidenceCreate(BaseModel):
     link_rationale: str = ""
     legal_element: str = ""
     probatory_strength: str = "medio"
+    element_status: str = "pendiente"
+    missing_evidence: str = ""
+    contradiction_risk: str = "bajo"
+    recommended_measure: str = ""
 
 
 class LegalMappingEvidenceRead(LegalMappingEvidenceCreate, ORMModel):

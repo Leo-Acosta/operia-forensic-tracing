@@ -42,6 +42,7 @@ Additional legal knowledge routes:
 - `GET /api/legal-knowledge/attack-types`
 - `GET /api/legal-knowledge/attack-types/{attack_type}`
 - `GET /api/legal-knowledge/articles/{article_id}/context`
+- `GET /api/legal-knowledge/articles/{article_id}/checklist`
 - `POST /api/legal-knowledge/precedents`
 - `GET /api/legal-knowledge/precedents`
 - `POST /api/legal-knowledge/doctrine`
@@ -49,11 +50,14 @@ Additional legal knowledge routes:
 - `POST /api/legal-knowledge/mappings/decision`
 - `POST /api/legal-knowledge/mappings/evidence`
 - `GET /api/legal-knowledge/case/{case_id}/mapping-evidence`
+- `GET /api/legal-knowledge/case/{case_id}/probatory-matrix`
+- `GET /api/legal-knowledge/case/{case_id}/quality-control`
 - `DELETE /api/legal-knowledge/mappings/evidence/{link_id}`
 
 Precedent and doctrine list routes only expose verified registered records.
 Mapping decisions store analyst approval or rejection for a specific case/article pair and write audit logs.
 Mapping-evidence routes link approved legal theories to concrete evidence records.
+The probatory matrix and quality-control routes expose legal element coverage, missing proof, contradiction risk and report impact.
 
 `/api/ai-security/evaluations` supports `run_tests=true` for controlled local tests against the configured Ollama model.
 

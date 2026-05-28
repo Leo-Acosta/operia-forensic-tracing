@@ -56,6 +56,14 @@ Fase Operativa 6.2 adds evidence-linked legal mappings:
 - linked evidence is included in the final report legal framing;
 - every link/unlink operation writes an audit log entry.
 
+Fase Operativa 6.3 to 6.7 adds legal-probatory control:
+
+- article-level checklists define the legal elements that must be supported;
+- approved mappings are transformed into a matrix of norm, legal element, evidence, status, strength, contradiction risk and recommended measure;
+- missing elements are detected instead of silently treating a norm as proven;
+- legal quality control produces a score, risk level, conclusion impact and actionable issues;
+- the PDF legal section includes a concise legal-probatory matrix instead of a loose list of references.
+
 Initial seeded coverage:
 
 - Argentine Penal Code article 172;
@@ -86,6 +94,7 @@ Canonical API:
 - `POST /api/legal-knowledge/articles/seed`
 - `POST /api/legal-knowledge/articles/recommend`
 - `GET /api/legal-knowledge/articles/{article_id}/context`
+- `GET /api/legal-knowledge/articles/{article_id}/checklist`
 - `GET /api/legal-knowledge/attack-types`
 - `GET /api/legal-knowledge/attack-types/{attack_type}`
 - `POST /api/legal-knowledge/sources/verify`
@@ -94,6 +103,8 @@ Canonical API:
 - `POST /api/legal-knowledge/mappings/decision`
 - `POST /api/legal-knowledge/mappings/evidence`
 - `GET /api/legal-knowledge/case/{case_id}/mapping-evidence`
+- `GET /api/legal-knowledge/case/{case_id}/probatory-matrix`
+- `GET /api/legal-knowledge/case/{case_id}/quality-control`
 - `DELETE /api/legal-knowledge/mappings/evidence/{link_id}`
 - `GET /api/legal-knowledge/case/{case_id}/mappings`
 - `POST /api/legal-knowledge/precedents`

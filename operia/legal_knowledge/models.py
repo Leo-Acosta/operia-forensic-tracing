@@ -78,6 +78,10 @@ class LegalMappingEvidence(Base, TimestampMixin):
     link_rationale: Mapped[str] = mapped_column(Text, default="")
     legal_element: Mapped[str] = mapped_column(String(160), default="")
     probatory_strength: Mapped[str] = mapped_column(String(40), default="medio")
+    element_status: Mapped[str] = mapped_column(String(80), default="pendiente")
+    missing_evidence: Mapped[str] = mapped_column(Text, default="")
+    contradiction_risk: Mapped[str] = mapped_column(String(80), default="bajo")
+    recommended_measure: Mapped[str] = mapped_column(Text, default="")
 
     mapping: Mapped["LegalMapping"] = relationship(back_populates="evidence_links")
     evidence: Mapped["Evidence"] = relationship()

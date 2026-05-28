@@ -311,3 +311,21 @@ Verification:
 - `python -m compileall operia apps\api tests` passed;
 - `python -m pytest -q -p no:cacheprovider` passed with `11 passed`;
 - `npm run build` passed.
+
+## Fase Operativa 6.3-6.7
+
+Completed:
+
+- added legal element checklists for key Argentine cybercrime/legal articles;
+- extended legal-evidence links with element status, missing evidence, contradiction risk and recommended measures;
+- added a case legal-probatory matrix that connects norms, legal elements and concrete evidence;
+- added legal quality control with score, risk level, conclusion impact and actionable issues;
+- updated the PDF legal section to show a concise legal-probatory matrix;
+- added frontend views for matrix and quality control inside Biblioteca Legal;
+- added regression tests for checklist, matrix and quality-control endpoints.
+
+Verification:
+
+- `python -m compileall operia apps\api tests` passed;
+- `python -m pytest -q -p no:cacheprovider` passed with `11 passed`;
+- `npm run build` passed.

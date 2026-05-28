@@ -181,6 +181,10 @@ def test_analyst_can_link_legal_mapping_to_evidence(client, admin_headers):
             "link_rationale": "La captura y el comprobante apoyan el ardid y perjuicio patrimonial.",
             "legal_element": "ardid y perjuicio",
             "probatory_strength": "alto",
+            "element_status": "probado",
+            "missing_evidence": "Falta corroborar titularidad de cuenta receptora.",
+            "contradiction_risk": "bajo",
+            "recommended_measure": "Oficiar a proveedor de pagos y plataforma.",
         },
         headers=admin_headers,
     )
@@ -191,6 +195,20 @@ def test_analyst_can_link_legal_mapping_to_evidence(client, admin_headers):
     links = client.get(f"/api/legal-knowledge/case/{case_id}/mapping-evidence", headers=admin_headers)
     assert links.status_code == 200
     assert any(item["evidence_id"] == evidence_id and item["legal_mapping_id"] == mapping_id for item in links.json())
+
+    checklist = client.get(f"/api/legal-knowledge/articles/{principal['article_id']}/checklist", headers=admin_headers)
+    assert checklist.status_code == 200
+    assert any("Ardid" in item or "enga" in item.lower() for item in checklist.json()["elements"])
+
+    matrix = client.get(f"/api/legal-knowledge/case/{case_id}/probatory-matrix", headers=admin_headers)
+    assert matrix.status_code == 200
+    assert matrix.json()["case_id"] == case_id
+    assert any(row["evidence_id"] == evidence_id and row["element_status"] == "probado" for row in matrix.json()["rows"])
+
+    quality = client.get(f"/api/legal-knowledge/case/{case_id}/quality-control", headers=admin_headers)
+    assert quality.status_code == 200
+    assert quality.json()["score"] > 0
+    assert quality.json()["conclusion_impact"] in {"fortalecida", "prudente", "alta_prudencia"}
 
     logs = client.get(f"/api/audit/logs?case_id={case_id}", headers=admin_headers)
     actions = {item["action"] for item in logs.json()}

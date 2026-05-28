@@ -8,8 +8,11 @@ from operia.evidence.models import Evidence
 from operia.legal_knowledge.models import LegalArticle, LegalDoctrine, LegalMapping, LegalMappingEvidence, LegalPrecedent, LegalSource
 from operia.legal_knowledge.service import (
     article_context,
+    build_legal_probatory_matrix,
     ensure_legal_articles,
     get_attack_profile,
+    legal_article_checklist,
+    legal_quality_control,
     list_attack_profiles,
     recommend_legal_profile,
     search_articles,
@@ -101,6 +104,12 @@ def list_articles(source_id: int | None = None, q: str | None = None, db: Sessio
 def get_article_context(article_id: int, crime_type: str = "", db: Session = Depends(get_db)):
     article = get_or_404(db, LegalArticle, article_id)
     return {"article": article, "context": article_context(db, article, crime_type=crime_type)}
+
+
+@router.get("/articles/{article_id}/checklist")
+def get_article_checklist(article_id: int, db: Session = Depends(get_db)):
+    article = get_or_404(db, LegalArticle, article_id)
+    return legal_article_checklist(article)
 
 
 @router.post("/articles/seed")
@@ -251,6 +260,10 @@ def link_mapping_evidence(
     item.link_rationale = payload.link_rationale
     item.legal_element = payload.legal_element
     item.probatory_strength = payload.probatory_strength
+    item.element_status = payload.element_status
+    item.missing_evidence = payload.missing_evidence
+    item.contradiction_risk = payload.contradiction_risk
+    item.recommended_measure = payload.recommended_measure
     if not existing:
         db.add(item)
         db.flush()
@@ -272,6 +285,16 @@ def link_mapping_evidence(
 @router.get("/case/{case_id}/mapping-evidence", response_model=list[LegalMappingEvidenceRead])
 def list_case_mapping_evidence(case_id: int, db: Session = Depends(get_db)):
     return db.query(LegalMappingEvidence).filter_by(case_id=case_id).order_by(LegalMappingEvidence.created_at.desc()).all()
+
+
+@router.get("/case/{case_id}/probatory-matrix")
+def case_probatory_matrix(case_id: int, db: Session = Depends(get_db)):
+    return build_legal_probatory_matrix(db, case_id)
+
+
+@router.get("/case/{case_id}/quality-control")
+def case_legal_quality_control(case_id: int, db: Session = Depends(get_db)):
+    return legal_quality_control(db, case_id)
 
 
 @router.delete("/mappings/evidence/{link_id}")

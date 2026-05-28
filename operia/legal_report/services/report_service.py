@@ -323,7 +323,8 @@ def _legal_mapping_evidence_suffix(mapping: Any) -> str:
         evidence = link.evidence
         pieces.append(
             f"Evidencia #{evidence.id}: {evidence.description} "
-            f"(elemento: {link.legal_element or 'no especificado'}, fuerza: {link.probatory_strength})."
+            f"(elemento: {link.legal_element or 'no especificado'}, estado: {getattr(link, 'element_status', 'pendiente')}, "
+            f"fuerza: {link.probatory_strength})."
         )
     return " Evidencia vinculada: " + " ".join(pieces)
 
