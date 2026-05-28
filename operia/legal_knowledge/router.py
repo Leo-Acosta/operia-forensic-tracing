@@ -297,6 +297,43 @@ def case_legal_quality_control(case_id: int, db: Session = Depends(get_db)):
     return legal_quality_control(db, case_id)
 
 
+@router.put("/mappings/evidence/{link_id}", response_model=LegalMappingEvidenceRead)
+def update_mapping_evidence(
+    link_id: int,
+    payload: LegalMappingEvidenceCreate,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser | None = Depends(get_optional_user),
+):
+    item = get_or_404(db, LegalMappingEvidence, link_id)
+    mapping = get_or_404(db, LegalMapping, payload.legal_mapping_id)
+    evidence = get_or_404(db, Evidence, payload.evidence_id)
+    if mapping.case_id != payload.case_id or evidence.case_id != payload.case_id or item.case_id != payload.case_id:
+        raise HTTPException(status_code=400, detail="La evidencia y el mapeo legal deben pertenecer al mismo caso")
+    item.legal_mapping_id = mapping.id
+    item.evidence_id = evidence.id
+    item.linked_by = payload.linked_by or item.linked_by or (current_user.name if current_user else "")
+    item.link_rationale = payload.link_rationale
+    item.legal_element = payload.legal_element
+    item.probatory_strength = payload.probatory_strength
+    item.element_status = payload.element_status
+    item.missing_evidence = payload.missing_evidence
+    item.contradiction_risk = payload.contradiction_risk
+    item.recommended_measure = payload.recommended_measure
+    write_audit(
+        db,
+        "update_legal_mapping_evidence",
+        "legal_knowledge",
+        current_user,
+        case_id=payload.case_id,
+        entity_type="legal_mapping_evidence",
+        entity_id=str(item.id),
+        details=f"{mapping.norm_reference} <- evidencia #{evidence.id}",
+    )
+    db.commit()
+    db.refresh(item)
+    return item
+
+
 @router.delete("/mappings/evidence/{link_id}")
 def unlink_mapping_evidence(
     link_id: int,

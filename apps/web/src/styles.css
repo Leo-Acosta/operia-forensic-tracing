@@ -606,6 +606,20 @@ code {
   margin-top: 12px;
 }
 
+.inline-editor {
+  border-top: 1px solid #e3ebf3;
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 10px;
+  width: 100%;
+}
+
+.inline-editor input,
+.inline-editor select {
+  min-height: 34px;
+}
+
 .secondary-button {
   background: #f5f8fb;
   border-color: #cfdbe8;

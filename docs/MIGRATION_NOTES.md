@@ -329,3 +329,20 @@ Verification:
 - `python -m compileall operia apps\api tests` passed;
 - `python -m pytest -q -p no:cacheprovider` passed with `11 passed`;
 - `npm run build` passed.
+
+## Fase Operativa 6.8
+
+Completed:
+
+- added an editable legal-evidence link endpoint;
+- added frontend controls to edit legal element, status, probatory strength, contradiction risk, missing evidence and recommended measure;
+- added unlink controls so analysts can undo mistaken evidence/legal links without deleting evidence;
+- added controls to remove or reactivate legal articles in the case framing;
+- added a legal sufficiency traffic light from the quality-control score;
+- normalized visible legal-library Spanish labels such as Daño informático.
+
+Verification:
+
+- `python -m compileall operia apps\api tests` passed;
+- `python -m pytest -q -p no:cacheprovider` passed with `11 passed`;
+- `npm run build` passed.

@@ -64,6 +64,14 @@ Fase Operativa 6.3 to 6.7 adds legal-probatory control:
 - legal quality control produces a score, risk level, conclusion impact and actionable issues;
 - the PDF legal section includes a concise legal-probatory matrix instead of a loose list of references.
 
+Fase Operativa 6.8 turns the matrix into an editable decision tool:
+
+- analysts can edit a legal-evidence link status, strength, contradiction risk, missing evidence and recommended measure;
+- analysts can unlink evidence from a legal article without deleting the evidence record;
+- analysts can remove an approved article from the active legal framing and reactivate discarded articles;
+- the frontend shows a legal sufficiency traffic light based on quality-control scoring;
+- visible legal-library labels are normalized to professional Spanish.
+
 Initial seeded coverage:
 
 - Argentine Penal Code article 172;
@@ -102,6 +110,7 @@ Canonical API:
 - `POST /api/legal-knowledge/mappings`
 - `POST /api/legal-knowledge/mappings/decision`
 - `POST /api/legal-knowledge/mappings/evidence`
+- `PUT /api/legal-knowledge/mappings/evidence/{link_id}`
 - `GET /api/legal-knowledge/case/{case_id}/mapping-evidence`
 - `GET /api/legal-knowledge/case/{case_id}/probatory-matrix`
 - `GET /api/legal-knowledge/case/{case_id}/quality-control`

@@ -210,9 +210,31 @@ def test_analyst_can_link_legal_mapping_to_evidence(client, admin_headers):
     assert quality.json()["score"] > 0
     assert quality.json()["conclusion_impact"] in {"fortalecida", "prudente", "alta_prudencia"}
 
+    updated = client.put(
+        f"/api/legal-knowledge/mappings/evidence/{link.json()['id']}",
+        json={
+            "case_id": case_id,
+            "legal_mapping_id": mapping_id,
+            "evidence_id": evidence_id,
+            "linked_by": "Analista QA",
+            "link_rationale": "Correccion de matriz legal-probatoria.",
+            "legal_element": "ardid o engaño",
+            "probatory_strength": "medio",
+            "element_status": "debil",
+            "missing_evidence": "Falta respuesta de la plataforma.",
+            "contradiction_risk": "medio",
+            "recommended_measure": "Requerir preservacion y titularidad a la plataforma.",
+        },
+        headers=admin_headers,
+    )
+    assert updated.status_code == 200
+    assert updated.json()["element_status"] == "debil"
+    assert updated.json()["contradiction_risk"] == "medio"
+
     logs = client.get(f"/api/audit/logs?case_id={case_id}", headers=admin_headers)
     actions = {item["action"] for item in logs.json()}
     assert "link_legal_mapping_evidence" in actions
+    assert "update_legal_mapping_evidence" in actions
 
 
 def test_ai_assistant_gracefully_handles_unavailable_ollama(client):

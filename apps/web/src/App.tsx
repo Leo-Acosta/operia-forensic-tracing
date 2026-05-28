@@ -288,14 +288,39 @@ const emptyCase = {
 
 const attackTypes = [
   { value: "phishing / fraude digital", label: "Phishing / fraude digital", query: "phishing fraude acceso datos consumidor" },
-  { value: "ransomware", label: "Ransomware", query: "ransomware extorsion dano informatico preservacion" },
-  { value: "acceso ilegitimo", label: "Acceso ilegitimo", query: "acceso ilegitimo sistema dato informatico" },
-  { value: "fraude digital", label: "Fraude digital", query: "fraude estafa manipulacion informatica consumidor" },
-  { value: "dano informatico", label: "Dano informatico", query: "dano informatico sistemas datos" },
-  { value: "filtracion de datos", label: "Filtracion de datos", query: "filtracion datos personales confidencialidad" },
-  { value: "extorsion", label: "Extorsion", query: "extorsion intimidacion datos ransomware" },
-  { value: "otro", label: "Otro", query: "incidente informatico evidencia digital" }
+  { value: "ransomware", label: "Ransomware", query: "ransomware extorsión daño informático preservación" },
+  { value: "acceso ilegitimo", label: "Acceso ilegítimo", query: "acceso ilegítimo sistema dato informático" },
+  { value: "fraude digital", label: "Fraude digital", query: "fraude estafa manipulación informática consumidor" },
+  { value: "dano informatico", label: "Daño informático", query: "daño informático sistemas datos" },
+  { value: "filtracion de datos", label: "Filtración de datos", query: "filtración datos personales confidencialidad" },
+  { value: "extorsion", label: "Extorsión", query: "extorsión intimidación datos ransomware" },
+  { value: "otro", label: "Otro", query: "incidente informático evidencia digital" }
 ];
+
+function prettySpanish(value = "") {
+  return value
+    .replace(/\bDano\b/g, "Daño")
+    .replace(/\bdano\b/g, "daño")
+    .replace(/\bdanino\b/g, "dañino")
+    .replace(/\bDanino\b/g, "Dañino")
+    .replace(/\bengano\b/g, "engaño")
+    .replace(/\bEngano\b/g, "Engaño")
+    .replace(/\bilegitimo\b/g, "ilegítimo")
+    .replace(/\binformatico\b/g, "informático")
+    .replace(/\binformaticos\b/g, "informáticos")
+    .replace(/\bpublicos\b/g, "públicos")
+    .replace(/\brapida\b/g, "rápida")
+    .replace(/\balmacenados\b/g, "almacenados")
+    .replace(/\bpreservacion\b/g, "preservación")
+    .replace(/\bcuantificacion\b/g, "cuantificación")
+    .replace(/\bvictima\b/g, "víctima")
+    .replace(/\bdisposicion\b/g, "disposición")
+    .replace(/\bdefraudacion\b/g, "defraudación")
+    .replace(/\beconomica\b/g, "económica")
+    .replace(/\btecnica\b/g, "técnica")
+    .replace(/\bjuridica\b/g, "jurídica")
+    .replace(/\bcriticas\b/g, "críticas");
+}
 
 function MetricGrid({ metrics }: { metrics: Record<string, number> }) {
   return (
@@ -362,6 +387,8 @@ export function App() {
   const [legalProbatoryMatrix, setLegalProbatoryMatrix] = useState<LegalProbatoryMatrix | null>(null);
   const [legalQualityControl, setLegalQualityControl] = useState<LegalQualityControl | null>(null);
   const [legalEvidenceSelection, setLegalEvidenceSelection] = useState<Record<number, string>>({});
+  const [legalElementSelection, setLegalElementSelection] = useState<Record<number, string>>({});
+  const [legalLinkDrafts, setLegalLinkDrafts] = useState<Record<number, Partial<LegalMappingEvidence>>>({});
   const [articles, setArticles] = useState<LegalArticle[]>([]);
   const [modulePayload, setModulePayload] = useState<unknown>(null);
   const [caseForm, setCaseForm] = useState(emptyCase);
@@ -416,6 +443,8 @@ export function App() {
       setLegalMappingEvidence([]);
       setLegalProbatoryMatrix(null);
       setLegalQualityControl(null);
+      setLegalElementSelection({});
+      setLegalLinkDrafts({});
       setClosureStatus(null);
       return;
     }
@@ -682,6 +711,33 @@ export function App() {
     await refreshCaseCollections(selectedCaseId);
   }
 
+  async function changeLegalMappingDecision(mapping: LegalMapping, decision_status: "aprobado" | "descartado") {
+    if (!selectedCaseId || !mapping.article_id) return;
+    await apiPost<LegalMapping>("/legal-knowledge/mappings/decision", {
+      case_id: selectedCaseId,
+      article_id: mapping.article_id,
+      decision_status,
+      analyst_name: analystName || mapping.analyst_name,
+      analyst_rationale:
+        decision_status === "aprobado"
+          ? "Norma reactivada por el analista luego de revisión."
+          : "Norma retirada del encuadre por corrección del analista.",
+      legal_role: mapping.legal_role,
+      applicability_to_case: mapping.applicability_to_case,
+      probatory_limits: mapping.probatory_limits,
+      confidence_level: mapping.confidence_level
+    });
+    await refreshCaseCollections(selectedCaseId);
+  }
+
+  function legalElementsForMapping(mappingId: number) {
+    const elements = legalProbatoryMatrix?.rows
+      .filter((row) => row.mapping_id === mappingId)
+      .map((row) => row.legal_element)
+      .filter(Boolean) || [];
+    return Array.from(new Set(elements));
+  }
+
   async function linkEvidenceToLegalMapping(mapping: LegalMapping) {
     if (!selectedCaseId) return;
     const evidenceId = Number(legalEvidenceSelection[mapping.id] || evidence[0]?.id || 0);
@@ -695,13 +751,35 @@ export function App() {
       evidence_id: evidenceId,
       linked_by: analystName,
       link_rationale: "La evidencia fue seleccionada por el analista como soporte del encuadre legal.",
-      legal_element: mapping.legal_role || "elemento del tipo penal",
+      legal_element: legalElementSelection[mapping.id] || mapping.legal_role || "elemento del tipo penal",
       probatory_strength: mapping.confidence_level || "medio",
       element_status: mapping.confidence_level === "alto" ? "probado" : "debil",
       missing_evidence: "",
       contradiction_risk: "bajo",
       recommended_measure: "Corroborar con fuentes externas si se pretende atribucion personal."
     });
+    await refreshCaseCollections(selectedCaseId);
+  }
+
+  async function saveLegalLink(link: LegalMappingEvidence) {
+    if (!selectedCaseId) return;
+    const draft = legalLinkDrafts[link.id] || {};
+    await apiPut<LegalMappingEvidence>(`/legal-knowledge/mappings/evidence/${link.id}`, {
+      ...link,
+      ...draft,
+      case_id: selectedCaseId
+    });
+    setLegalLinkDrafts((current) => {
+      const next = { ...current };
+      delete next[link.id];
+      return next;
+    });
+    await refreshCaseCollections(selectedCaseId);
+  }
+
+  async function unlinkLegalEvidence(linkId: number) {
+    if (!confirm("Quitar esta evidencia del encuadre legal? La evidencia no se borra; solo se deshace el vinculo juridico.")) return;
+    await apiDelete(`/legal-knowledge/mappings/evidence/${linkId}`);
     await refreshCaseCollections(selectedCaseId);
   }
 
@@ -1230,7 +1308,7 @@ export function App() {
         <div className="section-head">
           <div>
             <h2>Biblioteca Legal Argentina</h2>
-            <p>Busqueda estructurada sobre fuentes registradas.</p>
+            <p>Búsqueda estructurada sobre fuentes registradas.</p>
           </div>
           <div className="search">
             <input value={legalQuery} onChange={(e) => setLegalQuery(e.target.value)} />
@@ -1241,21 +1319,21 @@ export function App() {
           <div className="case-panel">
             <div className="section-head compact-head">
               <div>
-                <h3>{legalRecommendation.profile.label}</h3>
-                <p>{legalRecommendation.profile.legal_theory}</p>
+                <h3>{prettySpanish(legalRecommendation.profile.label)}</h3>
+                <p>{prettySpanish(legalRecommendation.profile.legal_theory)}</p>
               </div>
             </div>
             <div className="split">
               <div>
                 <strong>Evidencia requerida</strong>
                 <ul className="compact-list">
-                  {legalRecommendation.profile.required_evidence.map((item) => <li key={item}>{item}</li>)}
+                  {legalRecommendation.profile.required_evidence.map((item) => <li key={item}>{prettySpanish(item)}</li>)}
                 </ul>
               </div>
               <div>
                 <strong>Medidas recomendadas</strong>
                 <ul className="compact-list">
-                  {legalRecommendation.profile.recommended_measures.map((item) => <li key={item}>{item}</li>)}
+                  {legalRecommendation.profile.recommended_measures.map((item) => <li key={item}>{prettySpanish(item)}</li>)}
                 </ul>
               </div>
             </div>
@@ -1267,13 +1345,13 @@ export function App() {
               <article key={`${item.reference}-${item.article_id}`}>
                 <div>
                   <span>{item.reference} · {item.legal_role} · confianza {item.confidence}</span>
-                  <h3>{item.title}</h3>
+                  <h3>{prettySpanish(item.title)}</h3>
                 </div>
-                <p>{item.text}</p>
-                <small>{item.applicability_to_case}</small>
-                <small>{item.probatory_limits}</small>
-                <small>Elementos: {item.why}</small>
-                <small>Evidencia: {item.evidence_needed}</small>
+                <p>{prettySpanish(item.text)}</p>
+                <small>{prettySpanish(item.applicability_to_case)}</small>
+                <small>{prettySpanish(item.probatory_limits)}</small>
+                <small>Elementos: {prettySpanish(item.why)}</small>
+                <small>Evidencia: {prettySpanish(item.evidence_needed)}</small>
                 {item.precedents.length > 0 && <small>Jurisprudencia registrada: {item.precedents.length}</small>}
                 {item.doctrine.length > 0 && <small>Doctrina registrada: {item.doctrine.length}</small>}
                 <div className="button-row">
@@ -1292,42 +1370,95 @@ export function App() {
           <div className="section-head compact-head">
             <div>
               <h3>Mapeo legal aprobado por analista</h3>
-              <p>Normas aceptadas o descartadas para el caso seleccionado.</p>
+              <p>Normas aceptadas o descartadas para el caso seleccionado. Podés corregir artículos y vínculos sin borrar evidencia.</p>
             </div>
+            {legalQualityControl && (
+              <span className={`badge ${legalQualityControl.risk_level === "bajo" ? "success" : ""}`}>
+                Semáforo legal: {prettySpanish(legalQualityControl.risk_level)}
+              </span>
+            )}
           </div>
           <div className="table">
-            {legalMappings.map((item) => (
+            {legalMappings.map((item) => {
+              const elementOptions = legalElementsForMapping(item.id);
+              return (
               <div className="record" key={item.id}>
                 <strong>{item.norm_reference} · {item.decision_status}</strong>
                 <span>{item.legal_role || item.legal_area} · confianza {item.confidence_level}</span>
                 <em>{item.analyst_name || "Analista no informado"}</em>
-                <small>{item.analysis}</small>
+                <small>{prettySpanish(item.analysis)}</small>
                 {item.decision_status === "aprobado" && (
                   <div className="button-row">
                     <select
                       value={legalEvidenceSelection[item.id] || ""}
                       onChange={(e) => setLegalEvidenceSelection({ ...legalEvidenceSelection, [item.id]: e.target.value })}
                     >
-                      <option value="">Seleccionar evidencia</option>
+                      <option value="">Seleccionar evidencia del caso activo</option>
                       {evidence.map((ev) => (
                         <option key={ev.id} value={ev.id}>#{ev.id} {ev.description}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={legalElementSelection[item.id] || ""}
+                      onChange={(e) => setLegalElementSelection({ ...legalElementSelection, [item.id]: e.target.value })}
+                    >
+                      <option value="">Elemento legal a sostener</option>
+                      {elementOptions.map((element) => (
+                        <option key={element} value={element}>{prettySpanish(element)}</option>
                       ))}
                     </select>
                     <button onClick={() => linkEvidenceToLegalMapping(item)} disabled={!evidence.length}>
                       <FileCheck2 size={16} /> Vincular evidencia
                     </button>
+                    <button className="secondary-button" onClick={() => changeLegalMappingDecision(item, "descartado")}>
+                      <Trash2 size={16} /> Quitar artículo
+                    </button>
+                  </div>
+                )}
+                {item.decision_status === "descartado" && (
+                  <div className="button-row">
+                    <button onClick={() => changeLegalMappingDecision(item, "aprobado")}>
+                      <CheckCircle2 size={16} /> Reactivar artículo
+                    </button>
                   </div>
                 )}
                 {legalMappingEvidence.filter((link) => link.legal_mapping_id === item.id).map((link) => {
                   const ev = evidence.find((e) => e.id === link.evidence_id);
+                  const draft = legalLinkDrafts[link.id] || {};
+                  const current = { ...link, ...draft };
                   return (
-                    <small key={link.id}>
+                    <div className="inline-editor" key={link.id}>
                       Evidencia vinculada: #{link.evidence_id} {ev?.description || ""} · {link.legal_element} · fuerza {link.probatory_strength}
-                    </small>
+                      <input value={current.legal_element || ""} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, legal_element: event.target.value } })} placeholder="Elemento legal" />
+                      <select value={current.element_status || "pendiente"} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, element_status: event.target.value } })}>
+                        <option value="probado">Probado</option>
+                        <option value="debil">Débil</option>
+                        <option value="faltante">Faltante</option>
+                        <option value="controvertido">Controvertido</option>
+                        <option value="pendiente">Pendiente</option>
+                      </select>
+                      <select value={current.probatory_strength || "medio"} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, probatory_strength: event.target.value } })}>
+                        <option value="alto">Fuerza alta</option>
+                        <option value="medio">Fuerza media</option>
+                        <option value="bajo">Fuerza baja</option>
+                      </select>
+                      <select value={current.contradiction_risk || "bajo"} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, contradiction_risk: event.target.value } })}>
+                        <option value="bajo">Riesgo bajo</option>
+                        <option value="medio">Riesgo medio</option>
+                        <option value="alto">Riesgo alto</option>
+                        <option value="critico">Riesgo crítico</option>
+                      </select>
+                      <input value={current.missing_evidence || ""} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, missing_evidence: event.target.value } })} placeholder="Evidencia faltante" />
+                      <input value={current.recommended_measure || ""} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, recommended_measure: event.target.value } })} placeholder="Medida recomendada" />
+                      <div className="button-row">
+                        <button onClick={() => saveLegalLink(link)}><Save size={16} /> Guardar vínculo</button>
+                        <button className="secondary-button" onClick={() => unlinkLegalEvidence(link.id)}><Trash2 size={16} /> Desvincular</button>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
-            ))}
+            );})}
             {!legalMappings.length && <EmptyState text="No hay normas aprobadas o descartadas para este caso." />}
           </div>
           <div className="section-head compact-head">
@@ -1343,8 +1474,8 @@ export function App() {
                 <strong>{row.norm_reference} · {row.legal_element}</strong>
                 <span>{row.element_status} · fuerza {row.probatory_strength} · riesgo {row.contradiction_risk}</span>
                 {row.evidence_id && <small>#{row.evidence_id} {row.evidence_description} {row.evidence_hash ? `· SHA-256 ${row.evidence_hash}` : ""}</small>}
-                {row.missing_evidence && <small>{row.missing_evidence}</small>}
-                {row.recommended_measure && <em>{row.recommended_measure}</em>}
+                {row.missing_evidence && <small>{prettySpanish(row.missing_evidence)}</small>}
+                {row.recommended_measure && <em>{prettySpanish(row.recommended_measure)}</em>}
               </div>
             ))}
             {!legalProbatoryMatrix?.rows.length && <EmptyState text="La matriz aparece cuando vinculas evidencia a normas aprobadas." />}
@@ -1372,10 +1503,10 @@ export function App() {
             <article key={item.id}>
               <div>
                 <span>{item.code} art. {item.article_number}{item.subsection ? ` inc. ${item.subsection}` : ""}</span>
-                <h3>{item.title}</h3>
+                <h3>{prettySpanish(item.title)}</h3>
               </div>
-              <p>{item.objective_elements}</p>
-              <small>{item.evidentiary_requirements}</small>
+              <p>{prettySpanish(item.objective_elements)}</p>
+              <small>{prettySpanish(item.evidentiary_requirements)}</small>
             </article>
           ))}
         </div>

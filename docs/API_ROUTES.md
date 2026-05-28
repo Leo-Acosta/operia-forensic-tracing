@@ -49,6 +49,7 @@ Additional legal knowledge routes:
 - `GET /api/legal-knowledge/doctrine`
 - `POST /api/legal-knowledge/mappings/decision`
 - `POST /api/legal-knowledge/mappings/evidence`
+- `PUT /api/legal-knowledge/mappings/evidence/{link_id}`
 - `GET /api/legal-knowledge/case/{case_id}/mapping-evidence`
 - `GET /api/legal-knowledge/case/{case_id}/probatory-matrix`
 - `GET /api/legal-knowledge/case/{case_id}/quality-control`
