@@ -1,0 +1,43 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from operia.core.config import settings
+from operia.core.router import api_router
+from operia.cybercrime.bootstrap import init_cybercrime_module
+from operia.geo_proximity.bootstrap import init_geo_proximity_module
+from operia.geo_trace.bootstrap import init_geo_trace_module
+from operia.legal_report.bootstrap import init_legal_report_module
+
+
+def create_app() -> FastAPI:
+    app = FastAPI(
+        title=settings.app_name,
+        description="Unified forensic tracing platform for OPERIA modules.",
+        version="0.1.0",
+    )
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    app.include_router(api_router, prefix=settings.api_prefix)
+
+    @app.on_event("startup")
+    def on_startup() -> None:
+        init_legal_report_module()
+        init_cybercrime_module()
+        init_geo_trace_module()
+        init_geo_proximity_module()
+
+    @app.get("/")
+    def root() -> dict[str, str]:
+        return {"name": settings.app_name, "status": "ready"}
+
+    return app
+
+
+app = create_app()

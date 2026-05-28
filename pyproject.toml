@@ -1,0 +1,12 @@
+[project]
+name = "operia-forensic-tracing"
+version = "0.1.0"
+description = "Unified OPERIA forensic tracing platform scaffold."
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+

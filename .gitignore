@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+
+# Environment
+.env
+
+# Local runtime data
+storage/*.db
+storage/**/*.db
+storage/evidence/*
+storage/uploads/*
+storage/exports/*
+storage/maps/*
+storage/temp/*
+!storage/evidence/.gitkeep
+!storage/uploads/.gitkeep
+!storage/exports/.gitkeep
+!storage/maps/.gitkeep
+!storage/temp/.gitkeep
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+

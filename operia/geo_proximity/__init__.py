@@ -1,0 +1,2 @@
+"""Geo proximity module placeholder."""
+
