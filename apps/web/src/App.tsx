@@ -174,6 +174,17 @@ type LegalMapping = {
   decided_at: string;
 };
 
+type LegalMappingEvidence = {
+  id: number;
+  case_id: number;
+  legal_mapping_id: number;
+  evidence_id: number;
+  linked_by: string;
+  link_rationale: string;
+  legal_element: string;
+  probatory_strength: string;
+};
+
 type DashboardPayload = {
   metrics?: Record<string, number>;
   alerts?: string[];
@@ -314,6 +325,8 @@ export function App() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [manifests, setManifests] = useState<ExportManifest[]>([]);
   const [legalMappings, setLegalMappings] = useState<LegalMapping[]>([]);
+  const [legalMappingEvidence, setLegalMappingEvidence] = useState<LegalMappingEvidence[]>([]);
+  const [legalEvidenceSelection, setLegalEvidenceSelection] = useState<Record<number, string>>({});
   const [articles, setArticles] = useState<LegalArticle[]>([]);
   const [modulePayload, setModulePayload] = useState<unknown>(null);
   const [caseForm, setCaseForm] = useState(emptyCase);
@@ -365,17 +378,19 @@ export function App() {
       setAuditLogs([]);
       setManifests([]);
       setLegalMappings([]);
+      setLegalMappingEvidence([]);
       setClosureStatus(null);
       return;
     }
-    const [participantData, evidenceData, reportData, custodyData, auditData, manifestData, mappingData] = await Promise.all([
+    const [participantData, evidenceData, reportData, custodyData, auditData, manifestData, mappingData, mappingEvidenceData] = await Promise.all([
       apiGet<CaseParticipant[]>(`/cases/${caseId}/participants`),
       apiGet<EvidenceItem[]>(`/evidence/case/${caseId}`),
       apiGet<ReportItem[]>(`/reports/case/${caseId}`),
       apiGet<CustodyAction[]>(`/evidence/case/${caseId}/custody-actions`),
       apiGet<AuditLog[]>(`/audit/logs?case_id=${caseId}`),
       apiGet<ExportManifest[]>(`/exports/manifests?case_id=${caseId}`),
-      apiGet<LegalMapping[]>(`/legal-knowledge/case/${caseId}/mappings`)
+      apiGet<LegalMapping[]>(`/legal-knowledge/case/${caseId}/mappings`),
+      apiGet<LegalMappingEvidence[]>(`/legal-knowledge/case/${caseId}/mapping-evidence`)
     ]);
     setParticipants(participantData);
     setEvidence(evidenceData);
@@ -384,6 +399,7 @@ export function App() {
     setAuditLogs(auditData);
     setManifests(manifestData);
     setLegalMappings(mappingData);
+    setLegalMappingEvidence(mappingEvidenceData);
     setClosureStatus(await apiGet<ClosureStatus>(`/cases/${caseId}/closure-status`));
   }
 
@@ -610,6 +626,25 @@ export function App() {
       applicability_to_case: item.applicability_to_case,
       probatory_limits: item.probatory_limits,
       confidence_level: item.confidence
+    });
+    await refreshCaseCollections(selectedCaseId);
+  }
+
+  async function linkEvidenceToLegalMapping(mapping: LegalMapping) {
+    if (!selectedCaseId) return;
+    const evidenceId = Number(legalEvidenceSelection[mapping.id] || evidence[0]?.id || 0);
+    if (!evidenceId) {
+      setError("Carga o selecciona una evidencia antes de vincularla a una norma.");
+      return;
+    }
+    await apiPost<LegalMappingEvidence>("/legal-knowledge/mappings/evidence", {
+      case_id: selectedCaseId,
+      legal_mapping_id: mapping.id,
+      evidence_id: evidenceId,
+      linked_by: analystName,
+      link_rationale: "La evidencia fue seleccionada por el analista como soporte del encuadre legal.",
+      legal_element: mapping.legal_role || "elemento del tipo penal",
+      probatory_strength: mapping.confidence_level || "medio"
     });
     await refreshCaseCollections(selectedCaseId);
   }
@@ -1211,6 +1246,30 @@ export function App() {
                 <span>{item.legal_role || item.legal_area} · confianza {item.confidence_level}</span>
                 <em>{item.analyst_name || "Analista no informado"}</em>
                 <small>{item.analysis}</small>
+                {item.decision_status === "aprobado" && (
+                  <div className="button-row">
+                    <select
+                      value={legalEvidenceSelection[item.id] || ""}
+                      onChange={(e) => setLegalEvidenceSelection({ ...legalEvidenceSelection, [item.id]: e.target.value })}
+                    >
+                      <option value="">Seleccionar evidencia</option>
+                      {evidence.map((ev) => (
+                        <option key={ev.id} value={ev.id}>#{ev.id} {ev.description}</option>
+                      ))}
+                    </select>
+                    <button onClick={() => linkEvidenceToLegalMapping(item)} disabled={!evidence.length}>
+                      <FileCheck2 size={16} /> Vincular evidencia
+                    </button>
+                  </div>
+                )}
+                {legalMappingEvidence.filter((link) => link.legal_mapping_id === item.id).map((link) => {
+                  const ev = evidence.find((e) => e.id === link.evidence_id);
+                  return (
+                    <small key={link.id}>
+                      Evidencia vinculada: #{link.evidence_id} {ev?.description || ""} · {link.legal_element} · fuerza {link.probatory_strength}
+                    </small>
+                  );
+                })}
               </div>
             ))}
             {!legalMappings.length && <EmptyState text="No hay normas aprobadas o descartadas para este caso." />}

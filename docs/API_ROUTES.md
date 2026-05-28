@@ -47,9 +47,13 @@ Additional legal knowledge routes:
 - `POST /api/legal-knowledge/doctrine`
 - `GET /api/legal-knowledge/doctrine`
 - `POST /api/legal-knowledge/mappings/decision`
+- `POST /api/legal-knowledge/mappings/evidence`
+- `GET /api/legal-knowledge/case/{case_id}/mapping-evidence`
+- `DELETE /api/legal-knowledge/mappings/evidence/{link_id}`
 
 Precedent and doctrine list routes only expose verified registered records.
 Mapping decisions store analyst approval or rejection for a specific case/article pair and write audit logs.
+Mapping-evidence routes link approved legal theories to concrete evidence records.
 
 `/api/ai-security/evaluations` supports `run_tests=true` for controlled local tests against the configured Ollama model.
 

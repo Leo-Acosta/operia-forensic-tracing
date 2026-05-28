@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from operia.audit.service import write_audit
 from operia.core.database import get_db
 from operia.identity.dependencies import CurrentUser, get_optional_user
-from operia.legal_knowledge.models import LegalArticle, LegalDoctrine, LegalMapping, LegalPrecedent, LegalSource
+from operia.evidence.models import Evidence
+from operia.legal_knowledge.models import LegalArticle, LegalDoctrine, LegalMapping, LegalMappingEvidence, LegalPrecedent, LegalSource
 from operia.legal_knowledge.service import (
     article_context,
     ensure_legal_articles,
@@ -20,6 +21,8 @@ from operia.legal_knowledge.schemas import (
     LegalDoctrineRead,
     LegalMappingCreate,
     LegalMappingDecisionCreate,
+    LegalMappingEvidenceCreate,
+    LegalMappingEvidenceRead,
     LegalMappingRead,
     LegalPrecedentCreate,
     LegalPrecedentRead,
@@ -222,6 +225,75 @@ def decide_legal_mapping(
 @router.get("/case/{case_id}/mappings", response_model=list[LegalMappingRead])
 def list_case_mappings(case_id: int, db: Session = Depends(get_db)):
     return db.query(LegalMapping).filter_by(case_id=case_id).order_by(LegalMapping.created_at.desc()).all()
+
+
+@router.post("/mappings/evidence", response_model=LegalMappingEvidenceRead)
+def link_mapping_evidence(
+    payload: LegalMappingEvidenceCreate,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser | None = Depends(get_optional_user),
+):
+    mapping = get_or_404(db, LegalMapping, payload.legal_mapping_id)
+    evidence = get_or_404(db, Evidence, payload.evidence_id)
+    if mapping.case_id != payload.case_id or evidence.case_id != payload.case_id:
+        raise HTTPException(status_code=400, detail="La evidencia y el mapeo legal deben pertenecer al mismo caso")
+    existing = (
+        db.query(LegalMappingEvidence)
+        .filter_by(legal_mapping_id=mapping.id, evidence_id=evidence.id)
+        .first()
+    )
+    item = existing or LegalMappingEvidence(
+        case_id=payload.case_id,
+        legal_mapping_id=mapping.id,
+        evidence_id=evidence.id,
+    )
+    item.linked_by = payload.linked_by or (current_user.name if current_user else "")
+    item.link_rationale = payload.link_rationale
+    item.legal_element = payload.legal_element
+    item.probatory_strength = payload.probatory_strength
+    if not existing:
+        db.add(item)
+        db.flush()
+    write_audit(
+        db,
+        "link_legal_mapping_evidence",
+        "legal_knowledge",
+        current_user,
+        case_id=payload.case_id,
+        entity_type="legal_mapping_evidence",
+        entity_id=str(item.id),
+        details=f"{mapping.norm_reference} <- evidencia #{evidence.id}",
+    )
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.get("/case/{case_id}/mapping-evidence", response_model=list[LegalMappingEvidenceRead])
+def list_case_mapping_evidence(case_id: int, db: Session = Depends(get_db)):
+    return db.query(LegalMappingEvidence).filter_by(case_id=case_id).order_by(LegalMappingEvidence.created_at.desc()).all()
+
+
+@router.delete("/mappings/evidence/{link_id}")
+def unlink_mapping_evidence(
+    link_id: int,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser | None = Depends(get_optional_user),
+):
+    item = get_or_404(db, LegalMappingEvidence, link_id)
+    case_id = item.case_id
+    db.delete(item)
+    write_audit(
+        db,
+        "unlink_legal_mapping_evidence",
+        "legal_knowledge",
+        current_user,
+        case_id=case_id,
+        entity_type="legal_mapping_evidence",
+        entity_id=str(link_id),
+    )
+    db.commit()
+    return {"deleted": True, "id": link_id}
 
 
 @router.post("/precedents", response_model=LegalPrecedentRead)

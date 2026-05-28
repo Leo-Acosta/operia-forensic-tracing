@@ -120,6 +120,83 @@ def test_analyst_can_approve_and_reject_legal_mapping(client, admin_headers):
     assert {"approve_legal_mapping", "reject_legal_mapping"}.issubset(actions)
 
 
+def test_analyst_can_link_legal_mapping_to_evidence(client, admin_headers):
+    seed = client.post("/api/legal-knowledge/articles/seed")
+    assert seed.status_code == 200
+    case = client.post(
+        "/api/cases",
+        json={
+            "case_code": "LEGAL-EVID-001",
+            "title": "Mapeo con evidencia",
+            "description": "phishing con comprobante de pago",
+            "incident_type": "phishing",
+        },
+        headers=admin_headers,
+    )
+    assert case.status_code == 200
+    case_id = case.json()["id"]
+    evidence = client.post(
+        "/api/evidence",
+        json={
+            "case_id": case_id,
+            "evidence_type": "captura",
+            "description": "Captura del anuncio y comprobante de transferencia",
+            "sha256_hash": "hash-legal-evidence",
+        },
+        headers=admin_headers,
+    )
+    assert evidence.status_code == 200
+    evidence_id = evidence.json()["id"]
+
+    recommendation = client.post(
+        "/api/legal-knowledge/articles/recommend",
+        json={"incident_text": "phishing por anuncio falso con pago"},
+    )
+    principal = recommendation.json()["recommendations"][0]
+    approved = client.post(
+        "/api/legal-knowledge/mappings/decision",
+        json={
+            "case_id": case_id,
+            "article_id": principal["article_id"],
+            "decision_status": "aprobado",
+            "analyst_name": "Analista QA",
+            "analyst_rationale": "La evidencia sostiene una hipótesis de estafa digital.",
+            "legal_role": principal["legal_role"],
+            "applicability_to_case": principal["applicability_to_case"],
+            "probatory_limits": principal["probatory_limits"],
+            "confidence_level": principal["confidence"],
+        },
+        headers=admin_headers,
+    )
+    assert approved.status_code == 200
+    mapping_id = approved.json()["id"]
+
+    link = client.post(
+        "/api/legal-knowledge/mappings/evidence",
+        json={
+            "case_id": case_id,
+            "legal_mapping_id": mapping_id,
+            "evidence_id": evidence_id,
+            "linked_by": "Analista QA",
+            "link_rationale": "La captura y el comprobante apoyan el ardid y perjuicio patrimonial.",
+            "legal_element": "ardid y perjuicio",
+            "probatory_strength": "alto",
+        },
+        headers=admin_headers,
+    )
+    assert link.status_code == 200
+    assert link.json()["legal_mapping_id"] == mapping_id
+    assert link.json()["evidence_id"] == evidence_id
+
+    links = client.get(f"/api/legal-knowledge/case/{case_id}/mapping-evidence", headers=admin_headers)
+    assert links.status_code == 200
+    assert any(item["evidence_id"] == evidence_id and item["legal_mapping_id"] == mapping_id for item in links.json())
+
+    logs = client.get(f"/api/audit/logs?case_id={case_id}", headers=admin_headers)
+    actions = {item["action"] for item in logs.json()}
+    assert "link_legal_mapping_evidence" in actions
+
+
 def test_ai_assistant_gracefully_handles_unavailable_ollama(client):
     response = client.post("/api/ai/assist", json={"prompt": "Analiza phishing con acceso ilegitimo"})
     assert response.status_code == 200

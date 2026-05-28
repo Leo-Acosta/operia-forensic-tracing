@@ -63,6 +63,24 @@ class LegalMapping(Base, TimestampMixin):
     decided_at: Mapped[str] = mapped_column(String(80), default="")
 
     case: Mapped["Case"] = relationship(back_populates="legal_mappings")
+    evidence_links: Mapped[list["LegalMappingEvidence"]] = relationship(back_populates="mapping", cascade="all, delete-orphan")
+
+
+class LegalMappingEvidence(Base, TimestampMixin):
+    __tablename__ = "legal_mapping_evidence"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    organization_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id"), nullable=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"))
+    legal_mapping_id: Mapped[int] = mapped_column(ForeignKey("legal_mappings.id"))
+    evidence_id: Mapped[int] = mapped_column(ForeignKey("evidence.id"))
+    linked_by: Mapped[str] = mapped_column(String(160), default="")
+    link_rationale: Mapped[str] = mapped_column(Text, default="")
+    legal_element: Mapped[str] = mapped_column(String(160), default="")
+    probatory_strength: Mapped[str] = mapped_column(String(40), default="medio")
+
+    mapping: Mapped["LegalMapping"] = relationship(back_populates="evidence_links")
+    evidence: Mapped["Evidence"] = relationship()
 
 
 class LegalCitation(Base, TimestampMixin):

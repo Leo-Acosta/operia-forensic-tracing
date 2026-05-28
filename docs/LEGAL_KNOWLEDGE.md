@@ -48,6 +48,14 @@ Fase Operativa 6.1 adds analyst-approved legal mappings:
 - discarded mappings remain auditable but are excluded from report legal framing;
 - every decision writes an audit log entry.
 
+Fase Operativa 6.2 adds evidence-linked legal mappings:
+
+- approved legal mappings can be linked to one or more evidence records;
+- each link stores the legal element supported, probatory strength, analyst and rationale;
+- linked evidence is visible in the legal mapping history;
+- linked evidence is included in the final report legal framing;
+- every link/unlink operation writes an audit log entry.
+
 Initial seeded coverage:
 
 - Argentine Penal Code article 172;
@@ -84,6 +92,9 @@ Canonical API:
 - `POST /api/legal-knowledge/sources/verify-url`
 - `POST /api/legal-knowledge/mappings`
 - `POST /api/legal-knowledge/mappings/decision`
+- `POST /api/legal-knowledge/mappings/evidence`
+- `GET /api/legal-knowledge/case/{case_id}/mapping-evidence`
+- `DELETE /api/legal-knowledge/mappings/evidence/{link_id}`
 - `GET /api/legal-knowledge/case/{case_id}/mappings`
 - `POST /api/legal-knowledge/precedents`
 - `GET /api/legal-knowledge/precedents`

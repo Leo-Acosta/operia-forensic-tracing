@@ -57,6 +57,21 @@ class LegalMappingDecisionCreate(BaseModel):
     confidence_level: str = "medio"
 
 
+class LegalMappingEvidenceCreate(BaseModel):
+    case_id: int
+    legal_mapping_id: int
+    evidence_id: int
+    linked_by: str = ""
+    link_rationale: str = ""
+    legal_element: str = ""
+    probatory_strength: str = "medio"
+
+
+class LegalMappingEvidenceRead(LegalMappingEvidenceCreate, ORMModel):
+    id: int
+    created_at: datetime
+
+
 class LegalPrecedentCreate(BaseModel):
     article_id: int | None = None
     title: str

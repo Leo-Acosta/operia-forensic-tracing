@@ -415,6 +415,31 @@ def export_pdf(report: Report) -> Path:
                 [78, 116, 190, 90, 50],
             )
         )
+        linked_rows = []
+        for mapping in approved_mappings:
+            for link in getattr(mapping, "evidence_links", []):
+                if not getattr(link, "evidence", None):
+                    continue
+                linked_rows.append(
+                    [
+                        mapping.norm_reference,
+                        f"#{link.evidence.id} {link.evidence.description}",
+                        link.legal_element or "",
+                        link.probatory_strength,
+                        link.link_rationale or "",
+                    ]
+                )
+        if linked_rows:
+            story.append(Spacer(1, 8))
+            story.append(Paragraph("Evidencia vinculada al encuadre legal", styles["subheading"]))
+            story.append(
+                _data_table(
+                    ["Norma", "Evidencia", "Elemento", "Fuerza", "Fundamento"],
+                    linked_rows,
+                    styles,
+                    [95, 150, 95, 55, 184],
+                )
+            )
     if legal_content:
         _append_markdown_content(story, legal_content, styles)
 

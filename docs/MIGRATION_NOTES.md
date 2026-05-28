@@ -294,3 +294,20 @@ Verification:
 - `python -m compileall operia apps\api tests` passed;
 - `python -m pytest -q -p no:cacheprovider` passed with `10 passed`;
 - `npm run build` passed.
+
+## Fase Operativa 6.2
+
+Completed:
+
+- added `legal_mapping_evidence` to link approved legal mappings with concrete evidence records;
+- added backend routes to link, list and unlink legal mapping evidence;
+- added audit events for evidence/legal mapping link and unlink operations;
+- updated the legal report markdown and PDF exporter to include evidence supporting approved legal mappings;
+- connected the frontend legal mapping history with an evidence selector and link action;
+- added regression tests for linking a legal mapping to evidence.
+
+Verification:
+
+- `python -m compileall operia apps\api tests` passed;
+- `python -m pytest -q -p no:cacheprovider` passed with `11 passed`;
+- `npm run build` passed.

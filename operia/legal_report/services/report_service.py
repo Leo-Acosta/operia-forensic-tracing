@@ -79,6 +79,7 @@ def build_integral_markdown(case: Case, legal_recommendations: list[Any] | None 
     ]
     legal_lines = "\n".join(
         f"- {m.legal_area}: {m.norm_reference}. {m.analysis}. Estado: {m.verification_status}."
+        + _legal_mapping_evidence_suffix(m)
         for m in approved_mappings
     ) or "- Sin encuadre legal cargado. Fuente pendiente de verificación."
     if not case.hypotheses:
@@ -311,6 +312,20 @@ def _legal_recommendation_markdown(recommendations: list[Any]) -> str:
             ]
         )
     return normalize_spanish("\n".join(lines))
+
+
+def _legal_mapping_evidence_suffix(mapping: Any) -> str:
+    links = [link for link in getattr(mapping, "evidence_links", []) if getattr(link, "evidence", None)]
+    if not links:
+        return ""
+    pieces = []
+    for link in links:
+        evidence = link.evidence
+        pieces.append(
+            f"Evidencia #{evidence.id}: {evidence.description} "
+            f"(elemento: {link.legal_element or 'no especificado'}, fuerza: {link.probatory_strength})."
+        )
+    return " Evidencia vinculada: " + " ".join(pieces)
 
 
 def build_ai_enrichment_markdown(case: Case, legal_recommendations: list[Any], ai_response: str = "") -> str:
