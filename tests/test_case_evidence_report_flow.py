@@ -30,12 +30,48 @@ def test_case_evidence_report_flow_with_audit(client, admin_headers):
     )
     assert evidence.status_code == 200
     assert evidence.json()["case_id"] == case_id
+    evidence_id = evidence.json()["id"]
+
+    seed = client.post("/api/legal-knowledge/articles/seed", headers=admin_headers)
+    assert seed.status_code == 200
+    articles = client.get("/api/legal-knowledge/articles", headers=admin_headers)
+    assert articles.status_code == 200
+    article_id = next(item["id"] for item in articles.json() if item["article_number"] == "172")
+    mapping = client.post(
+        "/api/legal-knowledge/mappings/decision",
+        json={
+            "case_id": case_id,
+            "article_id": article_id,
+            "decision_status": "aprobado",
+            "analyst_name": "Analista QA",
+            "analyst_rationale": "Figura base para phishing.",
+            "legal_role": "ardid/perjuicio",
+        },
+        headers=admin_headers,
+    )
+    assert mapping.status_code == 200
+    link = client.post(
+        "/api/legal-knowledge/mappings/evidence",
+        json={
+            "case_id": case_id,
+            "legal_mapping_id": mapping.json()["id"],
+            "evidence_id": evidence_id,
+            "linked_by": "Analista QA",
+            "legal_element": "Ardid o engaño",
+            "element_status": "controvertido",
+            "probatory_strength": "medio",
+            "contradiction_risk": "critico",
+            "recommended_measure": "Incorporar comprobante externo y respuesta de proveedor.",
+        },
+        headers=admin_headers,
+    )
+    assert link.status_code == 200
 
     report = client.post(f"/api/reports/case/{case_id}/generate?author=Analista%20QA", headers=admin_headers)
     assert report.status_code == 200
     report_id = report.json()["id"]
     assert report.json()["status"] == "caso_en_proceso_de_inicio_de_investigacion"
-    assert "Texto legal resumido" in report.json()["markdown_content"]
+    assert "Encuadre legal argentino" in report.json()["markdown_content"]
     assert "CP art. 172" in report.json()["markdown_content"]
     assert "Matriz legal-probatoria aplicada" in report.json()["markdown_content"]
     assert "Semáforo de suficiencia legal" in report.json()["markdown_content"]
@@ -44,6 +80,20 @@ def test_case_evidence_report_flow_with_audit(client, admin_headers):
     assert "Conclusión específica por phishing/fraude digital" in report.json()["markdown_content"]
     assert "Recomendaciones procesales automáticas" in report.json()["markdown_content"]
     assert "cuenta receptora" in report.json()["markdown_content"]
+
+    preview = client.get(f"/api/reports/{report_id}/preview", headers=admin_headers)
+    assert preview.status_code == 200
+    assert preview.json()["exportability"]["level"] in {"Informe preliminar", "Listo para revisión", "Apto para presentación"}
+    assert preview.json()["contradictions"]["count"] >= 1
+    assert preview.json()["can_export_final"] is False
+
+    updated_summary = client.put(
+        f"/api/reports/{report_id}/executive-summary",
+        json={"executive_summary": "Resumen ejecutivo editado por analista QA.", "author": "Analista QA"},
+        headers=admin_headers,
+    )
+    assert updated_summary.status_code == 200
+    assert "Resumen ejecutivo editado por analista QA." in updated_summary.json()["markdown_content"]
 
     enriched = client.post(
         f"/api/reports/{report_id}/ai-enrich",
@@ -91,6 +141,9 @@ def test_case_evidence_report_flow_with_audit(client, admin_headers):
     assert "cuenta receptora" in pdf_text
     assert "CONCLUSIÓN TÉCNICO-JURÍDICA SOBRE IMPOSIBILIDAD DE ATRIBUCIÓN" in pdf_text
     assert "La atribución técnica de un ciberataque" in pdf_text
+
+    final_pdf = client.get(f"/api/exports/reports/{report_id}/pdf?final=true", headers=admin_headers)
+    assert final_pdf.status_code == 409
 
     logs = client.get(f"/api/audit/logs?case_id={case_id}", headers=admin_headers)
     assert logs.status_code == 200

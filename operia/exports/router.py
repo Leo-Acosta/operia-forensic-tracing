@@ -15,6 +15,11 @@ from operia.exports.service import (
     export_text_pdf,
     register_export_manifest,
 )
+from operia.legal_report.services.report_service import (
+    legal_contradiction_assessment,
+    legal_probatory_assessment,
+    report_exportability_assessment,
+)
 from operia.identity.dependencies import CurrentUser, get_optional_user
 from operia.reports.models import Report
 from operia.shared.crud import get_or_404
@@ -132,10 +137,24 @@ def export_pdf_payload(payload: dict, db: Session = Depends(get_db), current_use
 def export_report(
     report_id: int,
     fmt: str,
+    final: bool = False,
     db: Session = Depends(get_db),
     current_user: CurrentUser | None = Depends(get_optional_user),
 ):
     report = get_or_404(db, Report, report_id)
+    legal_probatory = legal_probatory_assessment(report.case)
+    exportability = report_exportability_assessment(report.case, legal_probatory, report=report)
+    contradictions = legal_contradiction_assessment(report.case)
+    can_export_final = exportability["level"] in {"Listo para revisión", "Apto para presentación"} and not contradictions["blocking"]
+    if final and not can_export_final:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "El informe no cumple condiciones para exportación final.",
+                "exportability": exportability,
+                "contradictions": contradictions,
+            },
+        )
     if fmt == "json":
         path = export_json_payload(
             {
@@ -181,6 +200,9 @@ def export_report(
             "report_status": report.status,
             "template": "forensic_professional",
             "human_review_required": True,
+            "exportability_level": exportability["level"],
+            "exportability_score": exportability["score"],
+            "final_requested": final,
         },
     )
     write_audit(db, f"export_report_{fmt}", "exports", current_user, report.case_id, "export", str(manifest.id), details=path.name)

@@ -588,6 +588,173 @@ def build_smart_executive_summary(
     )
 
 
+def report_preview_payload(report: Report) -> dict[str, Any]:
+    case = report.case
+    legal_probatory = legal_probatory_assessment(case)
+    exportability = report_exportability_assessment(case, legal_probatory, report=report)
+    contradictions = legal_contradiction_assessment(case)
+    sections = _report_preview_sections(report.markdown_content or "")
+    return {
+        "report_id": report.id,
+        "case_id": report.case_id,
+        "title": report.title,
+        "author": report.author,
+        "status": report.status,
+        "review_score": report.review_score,
+        "executive_summary": extract_markdown_section(report.markdown_content or "", "Resumen ejecutivo"),
+        "exportability": exportability,
+        "contradictions": contradictions,
+        "sections": sections,
+        "warnings": _preview_warnings(exportability, contradictions, sections),
+        "can_export_final": exportability["level"] in {"Listo para revisión", "Apto para presentación"}
+        and not contradictions["blocking"],
+    }
+
+
+def extract_markdown_section(markdown: str, title: str) -> str:
+    normalized_title = normalize_spanish(title).strip().lower()
+    current = ""
+    lines: list[str] = []
+    collecting = False
+    for line in normalize_spanish(markdown).splitlines():
+        if line.startswith("## "):
+            current = line[3:].strip()
+            if collecting:
+                break
+            collecting = current.lower() == normalized_title
+            continue
+        if collecting:
+            lines.append(line)
+    return "\n".join(lines).strip()
+
+
+def replace_executive_summary(report: Report, summary: str) -> str:
+    markdown = normalize_spanish(report.markdown_content or "")
+    new_block = f"## Resumen ejecutivo\n\n{normalize_spanish(summary).strip()}\n"
+    lines = markdown.splitlines()
+    start = end = None
+    for index, line in enumerate(lines):
+        if line.strip() == "## Resumen ejecutivo":
+            start = index
+            end = len(lines)
+            for next_index in range(index + 1, len(lines)):
+                if lines[next_index].startswith("## "):
+                    end = next_index
+                    break
+            break
+    if start is None:
+        return markdown.rstrip() + "\n\n" + new_block
+    updated = lines[:start] + new_block.rstrip().splitlines() + [""] + lines[end:]
+    return "\n".join(updated).strip() + "\n"
+
+
+def legal_contradiction_assessment(case: Case) -> dict[str, Any]:
+    issues: list[dict[str, Any]] = []
+    by_mapping_element: dict[tuple[int, str], list[Any]] = {}
+    for mapping in case.legal_mappings:
+        if getattr(mapping, "decision_status", "sugerido") == "descartado":
+            continue
+        for link in getattr(mapping, "evidence_links", []) or []:
+            element = normalize_spanish(link.legal_element or mapping.legal_role or "elemento").strip().lower()
+            by_mapping_element.setdefault((mapping.id, element), []).append(link)
+            risk = normalize_spanish(getattr(link, "contradiction_risk", "") or "").lower()
+            status = normalize_spanish(getattr(link, "element_status", "") or "").lower()
+            if risk in {"alto", "critico"} or status == "controvertido":
+                issues.append(
+                    {
+                        "severity": "bloqueante" if risk == "critico" else "alta",
+                        "norm_reference": mapping.norm_reference,
+                        "legal_element": link.legal_element or mapping.legal_role or "Elemento legal",
+                        "evidence_id": link.evidence_id,
+                        "message": "La evidencia vinculada registra contradicción o estado controvertido.",
+                        "recommended_action": link.recommended_measure
+                        or "Resolver contradicción, incorporar corroboración externa o degradar la conclusión.",
+                    }
+                )
+    for (mapping_id, element), links in by_mapping_element.items():
+        statuses = {normalize_spanish(link.element_status or "").lower() for link in links}
+        if "probado" in statuses and ({"faltante", "controvertido"} & statuses):
+            mapping = next((item for item in case.legal_mappings if item.id == mapping_id), None)
+            issues.append(
+                {
+                    "severity": "alta",
+                    "norm_reference": mapping.norm_reference if mapping else "",
+                    "legal_element": element,
+                    "evidence_id": None,
+                    "message": "El mismo elemento legal aparece simultáneamente como probado y faltante/controvertido.",
+                    "recommended_action": "Unificar criterio probatorio antes de exportar una versión final.",
+                }
+            )
+    blocking = any(item["severity"] == "bloqueante" for item in issues)
+    return {
+        "blocking": blocking,
+        "count": len(issues),
+        "risk_level": "crítico" if blocking else "alto" if issues else "bajo",
+        "issues": issues,
+    }
+
+
+def _report_preview_sections(markdown: str) -> list[dict[str, Any]]:
+    sections = []
+    for title, content in _markdown_sections_for_preview(markdown):
+        clean = normalize_spanish(content).strip()
+        if not clean or _section_is_empty_for_preview(clean):
+            continue
+        sections.append(
+            {
+                "title": title,
+                "word_count": len(clean.split()),
+                "excerpt": clean[:700],
+                "has_tables": "|" in clean,
+            }
+        )
+    return sections
+
+
+def _markdown_sections_for_preview(markdown: str) -> list[tuple[str, str]]:
+    sections: list[tuple[str, str]] = []
+    current_title = "Informe"
+    current_lines: list[str] = []
+    for line in normalize_spanish(markdown).splitlines():
+        if line.startswith("## "):
+            if current_lines:
+                sections.append((current_title, "\n".join(current_lines).strip()))
+            current_title = line[3:].strip()
+            current_lines = []
+        elif line.startswith("# "):
+            current_title = line[2:].strip()
+        else:
+            current_lines.append(line)
+    if current_lines:
+        sections.append((current_title, "\n".join(current_lines).strip()))
+    return sections
+
+
+def _section_is_empty_for_preview(content: str) -> bool:
+    empty_markers = [
+        "sin evidencia cargada",
+        "sin acciones registradas",
+        "sin hallazgos cargados",
+        "anexos pendientes",
+        "evaluación pendiente",
+    ]
+    lowered = content.lower()
+    return any(marker in lowered for marker in empty_markers) and len(content.split()) < 18
+
+
+def _preview_warnings(exportability: dict[str, Any], contradictions: dict[str, Any], sections: list[dict[str, Any]]) -> list[str]:
+    warnings = []
+    if exportability["level"] in {"Borrador técnico", "Informe preliminar"}:
+        warnings.append(f"El informe se encuentra en nivel {exportability['level']}; no corresponde tratarlo como versión final.")
+    if contradictions["count"]:
+        warnings.append("Existen contradicciones legal-probatorias que deben resolverse antes de presentación final.")
+    if not any(section["title"].lower() == "resumen ejecutivo" for section in sections):
+        warnings.append("Falta resumen ejecutivo visible.")
+    if not any("conclus" in section["title"].lower() for section in sections):
+        warnings.append("Falta conclusión técnico-jurídica visible.")
+    return warnings
+
+
 def _legal_probatory_matrix_markdown(assessment: dict[str, Any]) -> str:
     rows = assessment["rows"]
     if not rows:

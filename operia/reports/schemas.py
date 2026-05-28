@@ -31,6 +31,11 @@ class ReportUpdate(BaseModel):
     author: str | None = None
 
 
+class ExecutiveSummaryUpdate(BaseModel):
+    executive_summary: str
+    author: str | None = None
+
+
 class ReviewResult(BaseModel):
     score: int
     status: str

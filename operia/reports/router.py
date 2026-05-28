@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
@@ -7,7 +7,7 @@ from operia.audit.service import write_audit
 from operia.cases.models import Case
 from operia.core.database import get_db
 from operia.identity.dependencies import CurrentUser, get_optional_user
-from operia.reports.schemas import ReportRead, ReportUpdate, ReviewResult
+from operia.reports.schemas import ExecutiveSummaryUpdate, ReportRead, ReportUpdate, ReviewResult
 from operia.exports.service import export_docx, export_html, export_markdown, export_pdf
 from operia.ai_assistant.ollama_client import OllamaUnavailable, generate_with_ollama
 from operia.ai_assistant.prompts import build_forensic_prompt
@@ -16,7 +16,12 @@ from operia.legal_knowledge.service import ensure_legal_articles, recommend_arti
 from operia.legal_report.services.report_service import (
     build_ai_enrichment_markdown,
     build_integral_markdown,
+    legal_contradiction_assessment,
     populate_report_sections,
+    replace_executive_summary,
+    report_preview_payload,
+    report_exportability_assessment,
+    legal_probatory_assessment,
     snapshot_report,
 )
 from operia.legal_report.services.review_service import review_report
@@ -128,6 +133,33 @@ def read_report(report_id: int, db: Session = Depends(get_db)):
     return get_or_404(db, Report, report_id)
 
 
+@router.get("/{report_id}/preview")
+def preview_report(report_id: int, db: Session = Depends(get_db)):
+    report = get_or_404(db, Report, report_id)
+    return report_preview_payload(report)
+
+
+@router.get("/{report_id}/contradictions")
+def report_contradictions(report_id: int, db: Session = Depends(get_db)):
+    report = get_or_404(db, Report, report_id)
+    return legal_contradiction_assessment(report.case)
+
+
+@router.get("/{report_id}/exportability")
+def report_exportability(report_id: int, db: Session = Depends(get_db)):
+    report = get_or_404(db, Report, report_id)
+    legal_probatory = legal_probatory_assessment(report.case)
+    exportability = report_exportability_assessment(report.case, legal_probatory, report=report)
+    contradictions = legal_contradiction_assessment(report.case)
+    return {
+        "report_id": report.id,
+        "exportability": exportability,
+        "contradictions": contradictions,
+        "can_export_final": exportability["level"] in {"Listo para revisión", "Apto para presentación"}
+        and not contradictions["blocking"],
+    }
+
+
 @router.put("/{report_id}", response_model=ReportRead)
 def update_report(
     report_id: int,
@@ -140,6 +172,34 @@ def update_report(
         setattr(report, key, value)
     db.add(snapshot_report(report, payload.author or report.author, "Edicion manual del informe"))
     write_audit(db, "update_report", "reports", current_user, case_id=report.case_id, entity_type="report", entity_id=str(report.id), details=report.title)
+    db.commit()
+    db.refresh(report)
+    return report
+
+
+@router.put("/{report_id}/executive-summary", response_model=ReportRead)
+def update_executive_summary(
+    report_id: int,
+    payload: ExecutiveSummaryUpdate,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser | None = Depends(get_optional_user),
+):
+    report = get_or_404(db, Report, report_id)
+    if not payload.executive_summary.strip():
+        raise HTTPException(status_code=400, detail="El resumen ejecutivo no puede quedar vacío")
+    report.markdown_content = replace_executive_summary(report, payload.executive_summary)
+    report.sections = populate_report_sections(report, report.markdown_content)
+    report.versions.append(snapshot_report(report, payload.author or report.author, "Edición manual del resumen ejecutivo"))
+    write_audit(
+        db,
+        "update_executive_summary",
+        "reports",
+        current_user,
+        case_id=report.case_id,
+        entity_type="report",
+        entity_id=str(report.id),
+        details=report.title,
+    )
     db.commit()
     db.refresh(report)
     return report

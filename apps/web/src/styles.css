@@ -406,6 +406,12 @@ h3 {
   text-decoration: none;
 }
 
+button.text-link {
+  background: transparent;
+  min-height: auto;
+  padding: 0;
+}
+
 .audit-list {
   display: grid;
   gap: 8px;
@@ -545,7 +551,7 @@ h3 {
 
 .record-grid {
   align-items: center;
-  grid-template-columns: 1fr auto auto auto auto;
+  grid-template-columns: 1fr auto auto auto auto auto;
 }
 
 .record a {
@@ -647,6 +653,101 @@ code {
   padding: 7px 9px;
 }
 
+.report-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.report-preview {
+  background: #f8fbff;
+  border: 1px solid #d8e4ee;
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  margin-bottom: 14px;
+  padding: 16px;
+}
+
+.preview-cover {
+  align-items: start;
+  border-bottom: 1px solid #d8e4ee;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  padding-bottom: 12px;
+}
+
+.preview-cover h3 {
+  margin: 4px 0;
+}
+
+.eyebrow {
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.badge {
+  background: #eef2f6;
+  border: 1px solid #d2dce8;
+  border-radius: 999px;
+  color: #29425d;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
+
+.badge.success {
+  background: #e8f6ef;
+  border-color: #b9dac9;
+  color: #12613f;
+}
+
+.editor-panel {
+  display: grid;
+  gap: 8px;
+}
+
+.editor-panel label {
+  color: #203147;
+  font-weight: 800;
+}
+
+.editor-panel textarea {
+  min-height: 190px;
+}
+
+.preview-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.preview-section {
+  background: #ffffff;
+  border: 1px solid #dce5ee;
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  margin-bottom: 8px;
+  padding: 12px;
+}
+
+.preview-section.warning {
+  border-color: #e9c98f;
+}
+
+.preview-section span,
+.preview-section small {
+  color: #52647a;
+  line-height: 1.45;
+}
+
 .search {
   display: grid;
   gap: 8px;
@@ -729,7 +830,8 @@ pre {
 
   .case-selector,
   .step-grid,
-  .detail-grid {
+  .detail-grid,
+  .preview-grid {
     grid-template-columns: 1fr;
   }
 

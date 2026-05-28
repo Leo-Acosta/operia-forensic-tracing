@@ -114,6 +114,29 @@ type ReportItem = {
   observations?: string;
 };
 
+type ReportPreview = {
+  report_id: number;
+  title: string;
+  author: string;
+  status: string;
+  review_score: number;
+  executive_summary: string;
+  can_export_final: boolean;
+  exportability: {
+    level: string;
+    score: number;
+    missing_items: string[];
+  };
+  contradictions: {
+    blocking: boolean;
+    count: number;
+    risk_level: string;
+    issues: Array<{ severity: string; norm_reference: string; legal_element: string; message: string; recommended_action: string }>;
+  };
+  sections: Array<{ title: string; word_count: number; excerpt: string; has_tables: boolean }>;
+  warnings: string[];
+};
+
 type LegalArticle = {
   id: number;
   code: string;
@@ -322,6 +345,14 @@ function prettySpanish(value = "") {
     .replace(/\bcriticas\b/g, "críticas");
 }
 
+function professionalReportStatus(status = "") {
+  const normalized = status.toLowerCase();
+  if (normalized.includes("cerrado") || normalized.includes("final")) return "Caso Cerrado";
+  if (normalized.includes("investigativo") || normalized.includes("enriquecido") || normalized.includes("ia")) return "En Proceso Investigativo";
+  if (normalized.includes("analisis") || normalized.includes("análisis")) return "En Proceso de Análisis";
+  return "Caso en Proceso de Inicio de Investigación";
+}
+
 function reportExportabilitySnapshot(
   selectedCase: CaseItem | undefined,
   evidence: EvidenceItem[],
@@ -475,6 +506,9 @@ export function App() {
   const [aiResult, setAiResult] = useState<unknown>(null);
   const [analystName, setAnalystName] = useState(localStorage.getItem("operia_analyst_name") || "");
   const [reviewResult, setReviewResult] = useState<unknown>(null);
+  const [reportPreview, setReportPreview] = useState<ReportPreview | null>(null);
+  const [executiveSummaryDraft, setExecutiveSummaryDraft] = useState("");
+  const [exportFinalResult, setExportFinalResult] = useState<unknown>(null);
   const [closureStatus, setClosureStatus] = useState<ClosureStatus | null>(null);
   const [closureNote, setClosureNote] = useState("Cierre operativo con evidencia preservada, informe revisado y PDF exportado.");
   const [aiSecurityResult, setAiSecurityResult] = useState<unknown>(null);
@@ -503,6 +537,8 @@ export function App() {
       setLegalQualityControl(null);
       setLegalElementSelection({});
       setLegalLinkDrafts({});
+      setReportPreview(null);
+      setExecutiveSummaryDraft("");
       setClosureStatus(null);
       return;
     }
@@ -539,6 +575,8 @@ export function App() {
     setLegalMappingEvidence(mappingEvidenceData);
     setLegalProbatoryMatrix(probatoryMatrixData);
     setLegalQualityControl(qualityControlData);
+    setReportPreview(null);
+    setExecutiveSummaryDraft("");
     setClosureStatus(await apiGet<ClosureStatus>(`/cases/${caseId}/closure-status`));
   }
 
@@ -872,6 +910,34 @@ export function App() {
     if (!latestReport) return;
     setReviewResult(await apiPost(`/reports/${latestReport.id}/review`));
     if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+  }
+
+  async function loadReportPreview(reportId = latestReport?.id) {
+    if (!reportId) return;
+    const preview = await apiGet<ReportPreview>(`/reports/${reportId}/preview`);
+    setReportPreview(preview);
+    setExecutiveSummaryDraft(preview.executive_summary);
+  }
+
+  async function saveExecutiveSummary() {
+    if (!latestReport || !executiveSummaryDraft.trim()) return;
+    const updated = await apiPut<ReportItem>(`/reports/${latestReport.id}/executive-summary`, {
+      executive_summary: executiveSummaryDraft,
+      author: analystName || latestReport.author
+    });
+    setReviewResult({ status: "executive_summary_updated", report_id: updated.id });
+    if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+    await loadReportPreview(updated.id);
+  }
+
+  async function requestFinalExport() {
+    if (!latestReport) return;
+    const readiness = await apiGet<{ can_export_final: boolean; exportability: { level: string; score: number }; contradictions: { count: number } }>(
+      `/reports/${latestReport.id}/exportability`
+    );
+    setExportFinalResult(readiness);
+    if (!readiness.can_export_final) return;
+    window.open(`${API_BASE}/exports/reports/${latestReport.id}/pdf?final=true`, "_blank");
   }
 
   async function closeCase() {
@@ -1234,7 +1300,7 @@ export function App() {
               <div className="editable-record" key={item.id}>
                 <div>
                   <strong>{item.title}</strong>
-                  <span>{item.status} | Score {item.review_score}</span>
+                  <span>{professionalReportStatus(item.status)} | Score {item.review_score}</span>
                   <small>Exportabilidad estimada: {exportabilitySnapshot.level} ({exportabilitySnapshot.score}/100)</small>
                 </div>
                 <a className="text-link" href={`${API_BASE}/exports/reports/${item.id}/pdf`} target="_blank">Exportar PDF</a>
@@ -1347,17 +1413,81 @@ export function App() {
         <div className="section-head">
           <div>
             <h2>Informes</h2>
-            <p>Generacion, revision y exportacion desde reportes canonicos.</p>
+            <p>Vista previa profesional, resumen editable, contradicciones y exportabilidad final.</p>
           </div>
           <button onClick={generateReport} disabled={!selectedCaseId}><FileText size={17} /> Generar informe</button>
         </div>
+        {latestReport && (
+          <div className="report-toolbar">
+            <button onClick={() => loadReportPreview()}><FileCheck2 size={16} /> Vista previa profesional</button>
+            <button onClick={reviewReport}><CheckCircle2 size={16} /> Revisar</button>
+            <button onClick={requestFinalExport} className={reportPreview?.can_export_final ? "" : "secondary"}>
+              <Download size={16} /> Exportar versiÃ³n final
+            </button>
+            <a className="download-button secondary" href={`${API_BASE}/exports/reports/${latestReport.id}/pdf`} target="_blank">
+              <Download size={16} /> Exportar borrador PDF
+            </a>
+          </div>
+        )}
+        {reportPreview && (
+          <div className="report-preview">
+            <div className="preview-cover">
+              <div>
+                <span className="eyebrow">Vista previa del informe</span>
+                <h3>{reportPreview.title}</h3>
+                <p>{prettySpanish(reportPreview.exportability.level)} · Score {reportPreview.exportability.score}/100 · RevisiÃ³n {reportPreview.review_score}</p>
+              </div>
+              <span className={`badge ${reportPreview.can_export_final ? "success" : ""}`}>
+                {reportPreview.can_export_final ? "Exportable como final" : "No exportable como final"}
+              </span>
+            </div>
+            {!!reportPreview.warnings.length && (
+              <div className="requirements">
+                <strong>Alertas de vista previa</strong>
+                {reportPreview.warnings.map((item) => <span key={item}>{prettySpanish(item)}</span>)}
+              </div>
+            )}
+            <div className="editor-panel">
+              <label>Resumen ejecutivo editable</label>
+              <textarea value={executiveSummaryDraft} onChange={(event) => setExecutiveSummaryDraft(event.target.value)} />
+              <button onClick={saveExecutiveSummary} disabled={!executiveSummaryDraft.trim()}>
+                <Save size={16} /> Guardar resumen ejecutivo
+              </button>
+            </div>
+            <div className="preview-grid">
+              <div>
+                <h4>Secciones renderizables</h4>
+                {reportPreview.sections.map((section) => (
+                  <div className="preview-section" key={section.title}>
+                    <strong>{prettySpanish(section.title)}</strong>
+                    <span>{section.word_count} palabras {section.has_tables ? "· contiene tabla" : ""}</span>
+                    <small>{prettySpanish(section.excerpt)}</small>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <h4>Contradicciones legal-probatorias</h4>
+                {reportPreview.contradictions.issues.map((issue, index) => (
+                  <div className="preview-section warning" key={`${issue.norm_reference}-${index}`}>
+                    <strong>{issue.norm_reference} · {prettySpanish(issue.legal_element)}</strong>
+                    <span>{prettySpanish(issue.severity)}</span>
+                    <small>{prettySpanish(issue.message)} {prettySpanish(issue.recommended_action)}</small>
+                  </div>
+                ))}
+                {!reportPreview.contradictions.issues.length && <EmptyState text="Sin contradicciones bloqueantes detectadas." />}
+              </div>
+            </div>
+          </div>
+        )}
+        <JsonPanel data={exportFinalResult} />
         <div className="table">
           {reports.map((item) => (
             <div className="record record-grid" key={item.id}>
               <strong>{item.title}</strong>
-              <span>{item.status}</span>
+              <span>{professionalReportStatus(item.status)}</span>
               <em>Score {item.review_score}</em>
               <span>{exportabilitySnapshot.level}</span>
+              <button className="text-link" onClick={() => loadReportPreview(item.id)}>Preview</button>
               <a href={`${API_BASE}/exports/reports/${item.id}/pdf`} target="_blank">PDF</a>
             </div>
           ))}
