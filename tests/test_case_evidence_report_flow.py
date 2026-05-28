@@ -86,6 +86,31 @@ def test_case_evidence_report_flow_with_audit(client, admin_headers):
     assert preview.json()["exportability"]["level"] in {"Informe preliminar", "Listo para revisión", "Apto para presentación"}
     assert preview.json()["contradictions"]["count"] >= 1
     assert preview.json()["can_export_final"] is False
+    assert preview.json()["final_checklist"]["ready"] is False
+    assert preview.json()["annexes"]["count"] >= 2
+
+    checklist = client.get(f"/api/reports/{report_id}/final-checklist", headers=admin_headers)
+    assert checklist.status_code == 200
+    assert "Hash SHA-256 de evidencia" in {item["label"] for item in checklist.json()["items"]}
+
+    annexes = client.post(f"/api/reports/{report_id}/annexes/refresh", headers=admin_headers)
+    assert annexes.status_code == 200
+    assert "Anexos reales" in annexes.json()["markdown_content"]
+
+    final_transition = client.post(
+        f"/api/reports/{report_id}/versions/transition",
+        json={"status": "final", "user": "Analista QA", "note": "Intento de cierre final"},
+        headers=admin_headers,
+    )
+    assert final_transition.status_code == 409
+
+    preliminar_transition = client.post(
+        f"/api/reports/{report_id}/versions/transition",
+        json={"status": "preliminar", "user": "Analista QA", "note": "Version preliminar"},
+        headers=admin_headers,
+    )
+    assert preliminar_transition.status_code == 200
+    assert preliminar_transition.json()["status"] == "preliminar"
 
     updated_summary = client.put(
         f"/api/reports/{report_id}/executive-summary",
@@ -141,6 +166,7 @@ def test_case_evidence_report_flow_with_audit(client, admin_headers):
     assert "cuenta receptora" in pdf_text
     assert "CONCLUSIÓN TÉCNICO-JURÍDICA SOBRE IMPOSIBILIDAD DE ATRIBUCIÓN" in pdf_text
     assert "La atribución técnica de un ciberataque" in pdf_text
+    assert "Anexos reales incorporados" in pdf_text
 
     final_pdf = client.get(f"/api/exports/reports/{report_id}/pdf?final=true", headers=admin_headers)
     assert final_pdf.status_code == 409

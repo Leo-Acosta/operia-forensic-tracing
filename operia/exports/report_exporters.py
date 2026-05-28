@@ -25,6 +25,7 @@ from operia.legal_report.services.report_service import (
     build_smart_executive_summary,
     exportability_markdown,
     legal_probatory_assessment,
+    report_annexes_payload,
     report_exportability_assessment,
 )
 from operia.core.config import settings
@@ -500,6 +501,26 @@ def export_pdf(report: Report) -> Path:
             styles["body"],
         )
     )
+    annexes = report_annexes_payload(report, legal_probatory)
+    if annexes["items"]:
+        story.append(Spacer(1, 8))
+        story.append(Paragraph("Anexos reales incorporados", styles["subheading"]))
+        story.append(
+            _data_table(
+                ["Tipo", "T\u00edtulo", "Hash / referencia", "Detalle"],
+                [
+                    [
+                        item.get("type", ""),
+                        item.get("title", ""),
+                        item.get("sha256") or item.get("hash_after") or item.get("version") or "",
+                        item.get("integrity_status") or item.get("detail") or f"Filas: {item.get('rows', '-')}",
+                    ]
+                    for item in annexes["items"]
+                ],
+                styles,
+                [82, 190, 120, 132],
+            )
+        )
 
     doc = SimpleDocTemplate(
         str(path),

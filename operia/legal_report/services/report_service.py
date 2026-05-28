@@ -593,6 +593,8 @@ def report_preview_payload(report: Report) -> dict[str, Any]:
     legal_probatory = legal_probatory_assessment(case)
     exportability = report_exportability_assessment(case, legal_probatory, report=report)
     contradictions = legal_contradiction_assessment(case)
+    checklist = final_pericial_checklist(report, legal_probatory, exportability, contradictions)
+    annexes = report_annexes_payload(report, legal_probatory)
     sections = _report_preview_sections(report.markdown_content or "")
     return {
         "report_id": report.id,
@@ -604,10 +606,11 @@ def report_preview_payload(report: Report) -> dict[str, Any]:
         "executive_summary": extract_markdown_section(report.markdown_content or "", "Resumen ejecutivo"),
         "exportability": exportability,
         "contradictions": contradictions,
+        "final_checklist": checklist,
+        "annexes": annexes,
         "sections": sections,
         "warnings": _preview_warnings(exportability, contradictions, sections),
-        "can_export_final": exportability["level"] in {"Listo para revisión", "Apto para presentación"}
-        and not contradictions["blocking"],
+        "can_export_final": checklist["ready"],
     }
 
 
@@ -692,6 +695,138 @@ def legal_contradiction_assessment(case: Case) -> dict[str, Any]:
         "risk_level": "crítico" if blocking else "alto" if issues else "bajo",
         "issues": issues,
     }
+
+
+def final_pericial_checklist(
+    report: Report,
+    legal_probatory: dict[str, Any] | None = None,
+    exportability: dict[str, Any] | None = None,
+    contradictions: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    case = report.case
+    legal_probatory = legal_probatory or legal_probatory_assessment(case)
+    exportability = exportability or report_exportability_assessment(case, legal_probatory, report=report)
+    contradictions = contradictions or legal_contradiction_assessment(case)
+    markdown = normalize_spanish(report.markdown_content or "").lower()
+    annexes = report_annexes_payload(report, legal_probatory)
+    checks = {
+        "evidencia_preservada": bool(case.evidence) and all(not item.was_altered for item in case.evidence),
+        "hash": bool(case.evidence) and all(item.sha256_hash for item in case.evidence),
+        "custodia": bool(case.actions),
+        "fuente_legal": legal_probatory["summary"]["approved_mappings"] > 0,
+        "analista": bool(normalize_spanish(report.author or "").strip()),
+        "revision": report.review_score >= 80,
+        "metadatos": bool(report.id and report.case_id and report.version and report.created_at),
+        "conclusion": "conclusi" in markdown and len(extract_markdown_section(report.markdown_content or "", "Conclusión jurídicamente defendible").split()) >= 20,
+        "anexos": annexes["count"] > 0,
+        "sin_contradicciones_bloqueantes": not contradictions["blocking"],
+        "exportabilidad_suficiente": exportability["level"] in {"Listo para revisión", "Apto para presentación"},
+    }
+    labels = {
+        "evidencia_preservada": "Evidencia preservada",
+        "hash": "Hash SHA-256 de evidencia",
+        "custodia": "Cadena de custodia",
+        "fuente_legal": "Fuente legal aprobada",
+        "analista": "Analista identificado",
+        "revision": "Revisión humana suficiente",
+        "metadatos": "Metadatos del informe",
+        "conclusion": "Conclusión técnico-jurídica",
+        "anexos": "Anexos reales",
+        "sin_contradicciones_bloqueantes": "Sin contradicciones bloqueantes",
+        "exportabilidad_suficiente": "Exportabilidad suficiente",
+    }
+    items = [
+        {
+            "key": key,
+            "label": label,
+            "ok": checks[key],
+            "required": True,
+            "message": "Cumplido" if checks[key] else _checklist_recommendation(key),
+        }
+        for key, label in labels.items()
+    ]
+    missing = [item["label"] for item in items if item["required"] and not item["ok"]]
+    return {
+        "ready": not missing,
+        "score": round(100 * sum(1 for item in items if item["ok"]) / len(items)),
+        "missing": missing,
+        "items": items,
+    }
+
+
+def report_annexes_payload(report: Report, legal_probatory: dict[str, Any] | None = None) -> dict[str, Any]:
+    case = report.case
+    legal_probatory = legal_probatory or legal_probatory_assessment(case)
+    evidence_annexes = [
+        {
+            "type": "evidencia",
+            "title": f"Evidencia #{item.id}: {item.description}",
+            "sha256": item.sha256_hash or "",
+            "md5": item.md5_hash or "",
+            "file_location": item.file_location or "",
+            "source": item.source or "",
+            "integrity_status": item.integrity_status,
+        }
+        for item in case.evidence
+    ]
+    custody_annexes = [
+        {
+            "type": "custodia",
+            "title": f"Custodia #{item.id}: {item.action_type}",
+            "detail": item.detailed_description,
+            "evidence_id": item.evidence_id,
+            "hash_after": item.hash_after or item.hash_before or "",
+        }
+        for item in case.actions
+    ]
+    legal_matrix_annex = {
+        "type": "matriz_legal_probatoria",
+        "title": "Matriz legal-probatoria",
+        "rows": len(legal_probatory["rows"]),
+        "score": legal_probatory["summary"]["score"],
+        "risk_level": legal_probatory["summary"]["risk_level"],
+    }
+    manifest_annex = {
+        "type": "manifiesto_exportacion",
+        "title": "Manifiesto de exportación",
+        "report_id": report.id,
+        "case_id": report.case_id,
+        "version": report.version,
+    }
+    annexes = evidence_annexes + custody_annexes
+    if legal_probatory["rows"]:
+        annexes.append(legal_matrix_annex)
+    annexes.append(manifest_annex)
+    return {"count": len(annexes), "items": annexes}
+
+
+def report_annexes_markdown(report: Report) -> str:
+    annexes = report_annexes_payload(report)
+    lines = ["## Anexos reales", ""]
+    for index, item in enumerate(annexes["items"], start=1):
+        lines.append(f"### Anexo {index}: {item['title']}")
+        for key, value in item.items():
+            if key in {"title"} or value is None or value == "" or value == []:
+                continue
+            lines.append(f"- {key.replace('_', ' ').title()}: {value}")
+        lines.append("")
+    return normalize_spanish("\n".join(lines).strip())
+
+
+def _checklist_recommendation(key: str) -> str:
+    return {
+        "evidencia_preservada": "Cargar evidencia y registrar que no fue alterada.",
+        "hash": "Completar hash SHA-256 para cada evidencia.",
+        "custodia": "Registrar al menos una acción de cadena de custodia.",
+        "fuente_legal": "Aprobar al menos una norma desde la biblioteca legal.",
+        "analista": "Informar el analista/operador interviniente.",
+        "revision": "Ejecutar revisión y obtener puntaje mínimo de 80.",
+        "metadatos": "Regenerar o guardar el informe para completar metadatos.",
+        "conclusion": "Completar conclusión técnico-jurídica sustancial.",
+        "anexos": "Incorporar anexos de evidencia, custodia, matriz o manifiesto.",
+        "sin_contradicciones_bloqueantes": "Resolver contradicciones críticas antes de exportar final.",
+        "exportabilidad_suficiente": "Completar pendientes hasta alcanzar nivel listo para revisión.",
+    }.get(key, "Completar requisito pendiente.")
 
 
 def _report_preview_sections(markdown: str) -> list[dict[str, Any]]:

@@ -16,8 +16,10 @@ from operia.exports.service import (
     register_export_manifest,
 )
 from operia.legal_report.services.report_service import (
+    final_pericial_checklist,
     legal_contradiction_assessment,
     legal_probatory_assessment,
+    report_annexes_payload,
     report_exportability_assessment,
 )
 from operia.identity.dependencies import CurrentUser, get_optional_user
@@ -145,7 +147,9 @@ def export_report(
     legal_probatory = legal_probatory_assessment(report.case)
     exportability = report_exportability_assessment(report.case, legal_probatory, report=report)
     contradictions = legal_contradiction_assessment(report.case)
-    can_export_final = exportability["level"] in {"Listo para revisión", "Apto para presentación"} and not contradictions["blocking"]
+    checklist = final_pericial_checklist(report, legal_probatory, exportability, contradictions)
+    annexes = report_annexes_payload(report, legal_probatory)
+    can_export_final = checklist["ready"]
     if final and not can_export_final:
         raise HTTPException(
             status_code=409,
@@ -153,6 +157,7 @@ def export_report(
                 "message": "El informe no cumple condiciones para exportación final.",
                 "exportability": exportability,
                 "contradictions": contradictions,
+                "checklist": checklist,
             },
         )
     if fmt == "json":
@@ -202,6 +207,8 @@ def export_report(
             "human_review_required": True,
             "exportability_level": exportability["level"],
             "exportability_score": exportability["score"],
+            "final_checklist_score": checklist["score"],
+            "annexes_count": annexes["count"],
             "final_requested": final,
         },
     )

@@ -7,7 +7,7 @@ from operia.audit.service import write_audit
 from operia.cases.models import Case
 from operia.core.database import get_db
 from operia.identity.dependencies import CurrentUser, get_optional_user
-from operia.reports.schemas import ExecutiveSummaryUpdate, ReportRead, ReportUpdate, ReviewResult
+from operia.reports.schemas import ExecutiveSummaryUpdate, ReportRead, ReportUpdate, ReportVersionTransition, ReviewResult
 from operia.exports.service import export_docx, export_html, export_markdown, export_pdf
 from operia.ai_assistant.ollama_client import OllamaUnavailable, generate_with_ollama
 from operia.ai_assistant.prompts import build_forensic_prompt
@@ -19,6 +19,9 @@ from operia.legal_report.services.report_service import (
     legal_contradiction_assessment,
     populate_report_sections,
     replace_executive_summary,
+    final_pericial_checklist,
+    report_annexes_markdown,
+    report_annexes_payload,
     report_preview_payload,
     report_exportability_assessment,
     legal_probatory_assessment,
@@ -160,6 +163,18 @@ def report_exportability(report_id: int, db: Session = Depends(get_db)):
     }
 
 
+@router.get("/{report_id}/final-checklist")
+def report_final_checklist(report_id: int, db: Session = Depends(get_db)):
+    report = get_or_404(db, Report, report_id)
+    return final_pericial_checklist(report)
+
+
+@router.get("/{report_id}/annexes")
+def report_annexes(report_id: int, db: Session = Depends(get_db)):
+    report = get_or_404(db, Report, report_id)
+    return report_annexes_payload(report)
+
+
 @router.put("/{report_id}", response_model=ReportRead)
 def update_report(
     report_id: int,
@@ -172,6 +187,61 @@ def update_report(
         setattr(report, key, value)
     db.add(snapshot_report(report, payload.author or report.author, "Edicion manual del informe"))
     write_audit(db, "update_report", "reports", current_user, case_id=report.case_id, entity_type="report", entity_id=str(report.id), details=report.title)
+    db.commit()
+    db.refresh(report)
+    return report
+
+
+@router.post("/{report_id}/annexes/refresh", response_model=ReportRead)
+def refresh_report_annexes(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser | None = Depends(get_optional_user),
+):
+    report = get_or_404(db, Report, report_id)
+    annex_block = report_annexes_markdown(report)
+    marker = "## Anexos reales"
+    current = report.markdown_content or ""
+    if marker in current:
+        report.markdown_content = current.split(marker, 1)[0].rstrip() + "\n\n" + annex_block + "\n"
+    else:
+        report.markdown_content = current.rstrip() + "\n\n" + annex_block + "\n"
+    report.sections = populate_report_sections(report, report.markdown_content)
+    report.versions.append(snapshot_report(report, current_user.email if current_user else report.author, "Actualización de anexos reales"))
+    write_audit(db, "refresh_report_annexes", "reports", current_user, case_id=report.case_id, entity_type="report", entity_id=str(report.id), details=report.title)
+    db.commit()
+    db.refresh(report)
+    return report
+
+
+@router.post("/{report_id}/versions/transition", response_model=ReportRead)
+def transition_report_version(
+    report_id: int,
+    payload: ReportVersionTransition,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser | None = Depends(get_optional_user),
+):
+    report = get_or_404(db, Report, report_id)
+    allowed = {"borrador", "preliminar", "revisado", "final", "corregido", "reabierto"}
+    next_status = payload.status.lower().strip()
+    if next_status not in allowed:
+        raise HTTPException(status_code=400, detail="Estado de versión no soportado")
+    if next_status == "final":
+        checklist = final_pericial_checklist(report)
+        if not checklist["ready"]:
+            raise HTTPException(status_code=409, detail={"message": "Checklist pericial final incompleto", "checklist": checklist})
+    report.status = next_status
+    if next_status in {"preliminar", "revisado", "final", "corregido", "reabierto"}:
+        base = len(report.versions) + 1
+        report.version = f"1.{base}"
+    report.versions.append(
+        snapshot_report(
+            report,
+            payload.user or (current_user.email if current_user else report.author),
+            payload.note or f"Cambio de estado a {next_status}",
+        )
+    )
+    write_audit(db, "transition_report_version", "reports", current_user, case_id=report.case_id, entity_type="report", entity_id=str(report.id), details=f"{report.title}: {next_status}")
     db.commit()
     db.refresh(report)
     return report

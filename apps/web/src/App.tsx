@@ -108,6 +108,7 @@ type ReportItem = {
   id: number;
   case_id: number;
   title: string;
+  version: string;
   status: string;
   author: string;
   review_score: number;
@@ -132,6 +133,16 @@ type ReportPreview = {
     count: number;
     risk_level: string;
     issues: Array<{ severity: string; norm_reference: string; legal_element: string; message: string; recommended_action: string }>;
+  };
+  final_checklist: {
+    ready: boolean;
+    score: number;
+    missing: string[];
+    items: Array<{ key: string; label: string; ok: boolean; message: string }>;
+  };
+  annexes: {
+    count: number;
+    items: Array<{ type: string; title: string; sha256?: string; detail?: string; integrity_status?: string; rows?: number; score?: number }>;
   };
   sections: Array<{ title: string; word_count: number; excerpt: string; has_tables: boolean }>;
   warnings: string[];
@@ -940,6 +951,26 @@ export function App() {
     window.open(`${API_BASE}/exports/reports/${latestReport.id}/pdf?final=true`, "_blank");
   }
 
+  async function refreshReportAnnexes() {
+    if (!latestReport) return;
+    const updated = await apiPost<ReportItem>(`/reports/${latestReport.id}/annexes/refresh`);
+    setReviewResult({ status: "annexes_refreshed", report_id: updated.id });
+    if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+    await loadReportPreview(updated.id);
+  }
+
+  async function transitionReportStatus(status: string) {
+    if (!latestReport) return;
+    const updated = await apiPost<ReportItem>(`/reports/${latestReport.id}/versions/transition`, {
+      status,
+      user: analystName || latestReport.author,
+      note: `Cambio de version a ${status}`
+    });
+    setReviewResult({ status: "version_transition", report_id: updated.id, next_status: updated.status, version: updated.version });
+    if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+    await loadReportPreview(updated.id);
+  }
+
   async function closeCase() {
     if (!selectedCaseId) return;
     const result = await apiPost<ClosureStatus>(`/cases/${selectedCaseId}/close`, { closure_note: closureNote });
@@ -1424,6 +1455,7 @@ export function App() {
             <button onClick={requestFinalExport} className={reportPreview?.can_export_final ? "" : "secondary"}>
               <Download size={16} /> Exportar versiÃ³n final
             </button>
+            <button onClick={refreshReportAnnexes} className="secondary"><FileText size={16} /> Actualizar anexos</button>
             <a className="download-button secondary" href={`${API_BASE}/exports/reports/${latestReport.id}/pdf`} target="_blank">
               <Download size={16} /> Exportar borrador PDF
             </a>
@@ -1456,6 +1488,32 @@ export function App() {
             </div>
             <div className="preview-grid">
               <div>
+                <h4>Checklist pericial final</h4>
+                <div className="summary-list">
+                  <span>Estado: {reportPreview.final_checklist.ready ? "Completo" : "Incompleto"}</span>
+                  <span>Score: {reportPreview.final_checklist.score}/100</span>
+                </div>
+                {reportPreview.final_checklist.items.map((item) => (
+                  <div className={`preview-section ${item.ok ? "" : "warning"}`} key={item.key}>
+                    <strong>{item.ok ? "Cumplido" : "Pendiente"} · {prettySpanish(item.label)}</strong>
+                    <small>{prettySpanish(item.message)}</small>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <h4>Versionado del informe</h4>
+                <div className="button-row">
+                  {["borrador", "preliminar", "revisado", "final", "corregido", "reabierto"].map((status) => (
+                    <button key={status} className="secondary" onClick={() => transitionReportStatus(status)}>
+                      {prettySpanish(status)}
+                    </button>
+                  ))}
+                </div>
+                <p className="notice">La versiÃ³n final solo se permite si el checklist pericial estÃ¡ completo.</p>
+              </div>
+            </div>
+            <div className="preview-grid">
+              <div>
                 <h4>Secciones renderizables</h4>
                 {reportPreview.sections.map((section) => (
                   <div className="preview-section" key={section.title}>
@@ -1475,6 +1533,18 @@ export function App() {
                   </div>
                 ))}
                 {!reportPreview.contradictions.issues.length && <EmptyState text="Sin contradicciones bloqueantes detectadas." />}
+              </div>
+            </div>
+            <div>
+              <h4>Anexos reales</h4>
+              <div className="preview-grid">
+                {reportPreview.annexes.items.map((item, index) => (
+                  <div className="preview-section" key={`${item.type}-${index}`}>
+                    <strong>{prettySpanish(item.title)}</strong>
+                    <span>{prettySpanish(item.type)} {item.sha256 ? `· SHA-256 ${item.sha256}` : ""}</span>
+                    <small>{prettySpanish(item.detail || item.integrity_status || `Elementos: ${item.rows || 1}`)}</small>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
