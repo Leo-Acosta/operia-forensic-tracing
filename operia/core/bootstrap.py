@@ -1,6 +1,7 @@
 from sqlalchemy import inspect, text
 
 from operia.core.database import Base, engine
+from operia.core.migrations import record_schema_version
 
 # Import model modules so SQLAlchemy registers their tables before create_all.
 from operia import ai_assistant, ai_security, audit, cases, evidence, exports, identity, legal_knowledge, reports  # noqa: F401
@@ -70,6 +71,7 @@ SQLITE_PLATFORM_COLUMNS: dict[str, dict[str, str]] = {
 def init_platform_schema() -> None:
     """Create tables and add additive SQLite columns needed by the modular platform."""
     Base.metadata.create_all(bind=engine)
+    record_schema_version(description="Esquema modular OPERIA con controles operativos base.")
     if engine.dialect.name != "sqlite":
         return
 

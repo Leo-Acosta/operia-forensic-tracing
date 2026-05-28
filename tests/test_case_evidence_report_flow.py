@@ -32,6 +32,14 @@ def test_case_evidence_report_flow_with_audit(client, admin_headers):
     assert evidence.json()["case_id"] == case_id
     evidence_id = evidence.json()["id"]
 
+    evidence_metadata = client.get(f"/api/evidence/{evidence_id}/metadata", headers=admin_headers)
+    assert evidence_metadata.status_code == 200
+    assert evidence_metadata.json()["sha256_hash"] == "abc123"
+
+    evidence_integrity = client.get(f"/api/evidence/{evidence_id}/integrity", headers=admin_headers)
+    assert evidence_integrity.status_code == 200
+    assert evidence_integrity.json()["ok"] is False
+
     seed = client.post("/api/legal-knowledge/articles/seed", headers=admin_headers)
     assert seed.status_code == 200
     articles = client.get("/api/legal-knowledge/articles", headers=admin_headers)
@@ -140,6 +148,11 @@ def test_case_evidence_report_flow_with_audit(client, admin_headers):
     assert reports.status_code == 200
     assert any(item["id"] == report_id for item in reports.json())
 
+    recommendations = client.post(f"/api/ai/case/{case_id}/recommendations", json={"focus": "phishing"}, headers=admin_headers)
+    assert recommendations.status_code == 200
+    assert recommendations.json()["external_api_used"] is False
+    assert recommendations.json()["human_review_required"] is True
+
     pdf = client.get(f"/api/exports/reports/{report_id}/pdf", headers=admin_headers)
     assert pdf.status_code == 200
     assert pdf.headers["x-operia-sha256"]
@@ -175,6 +188,24 @@ def test_case_evidence_report_flow_with_audit(client, admin_headers):
     assert logs.status_code == 200
     actions = {item["action"] for item in logs.json()}
     assert {"create_case", "create_evidence", "generate_report", "enrich_report", "export_report_pdf"}.issubset(actions)
+
+
+def test_operational_hardening_readiness_dashboard_and_ai_health(client, admin_headers):
+    readiness = client.get("/api/settings/readiness", headers=admin_headers)
+    assert readiness.status_code == 200
+    assert readiness.json()["database"]["schema_version"]
+    assert readiness.json()["saas_readiness"]["database_migrations"] is True
+
+    dashboard = client.get("/api/dashboard/", headers=admin_headers)
+    assert dashboard.status_code == 200
+    assert "ready_final_reports" in dashboard.json()["metrics"]
+    assert "cases_by_status" in dashboard.json()
+    assert "report_readiness" in dashboard.json()
+
+    ai_health = client.get("/api/ai/health?model_name=mistral", headers=admin_headers)
+    assert ai_health.status_code == 200
+    assert ai_health.json()["external_api_used"] is False
+    assert ai_health.json()["provider"] == "ollama"
 
 
 def test_advanced_case_management_participants_evidence_custody(client, admin_headers):

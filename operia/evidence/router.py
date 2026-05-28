@@ -1,7 +1,8 @@
 from pathlib import Path
 from shutil import copyfileobj
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
@@ -56,6 +57,64 @@ def create_evidence(
 @router.get("/{evidence_id}", response_model=EvidenceRead)
 def read_evidence(evidence_id: int, db: Session = Depends(get_db)):
     return get_or_404(db, Evidence, evidence_id)
+
+
+@router.get("/{evidence_id}/metadata")
+def evidence_metadata(evidence_id: int, db: Session = Depends(get_db)):
+    item = get_or_404(db, Evidence, evidence_id)
+    path = Path(item.file_location or "")
+    exists = path.exists() if item.file_location else False
+    return {
+        "id": item.id,
+        "case_id": item.case_id,
+        "description": item.description,
+        "type": item.evidence_type,
+        "source": item.source,
+        "file_location": item.file_location,
+        "file_exists": exists,
+        "file_size": path.stat().st_size if exists else None,
+        "sha256_hash": item.sha256_hash,
+        "md5_hash": item.md5_hash,
+        "integrity_status": item.integrity_status,
+        "preservation_method": item.preservation_method,
+        "tool_used": item.tool_used,
+        "custodian": item.custodian,
+        "responsible": item.responsible,
+    }
+
+
+@router.get("/{evidence_id}/integrity")
+def verify_evidence_integrity(evidence_id: int, db: Session = Depends(get_db)):
+    item = get_or_404(db, Evidence, evidence_id)
+    if not item.file_location:
+        return {"ok": False, "message": "La evidencia no posee archivo asociado.", "stored_sha256": item.sha256_hash}
+    path = Path(item.file_location)
+    if not path.exists():
+        return {"ok": False, "message": "Archivo no encontrado en storage.", "stored_sha256": item.sha256_hash}
+    actual_sha = file_sha256(path)
+    actual_md5 = file_md5(path)
+    ok = actual_sha == item.sha256_hash if item.sha256_hash else True
+    item.integrity_status = "integra" if ok else "hash_no_coincidente"
+    db.commit()
+    return {
+        "ok": ok,
+        "stored_sha256": item.sha256_hash,
+        "actual_sha256": actual_sha,
+        "stored_md5": item.md5_hash,
+        "actual_md5": actual_md5,
+        "integrity_status": item.integrity_status,
+    }
+
+
+@router.get("/{evidence_id}/download")
+def download_evidence(evidence_id: int, db: Session = Depends(get_db)):
+    item = get_or_404(db, Evidence, evidence_id)
+    if not item.file_location:
+        raise HTTPException(status_code=404, detail="La evidencia no posee archivo asociado")
+    path = Path(item.file_location)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Archivo de evidencia no encontrado")
+    return FileResponse(path, filename=path.name)
 
 
 @router.put("/{evidence_id}", response_model=EvidenceRead)

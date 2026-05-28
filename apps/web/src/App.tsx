@@ -261,6 +261,8 @@ type LegalQualityControl = {
 type DashboardPayload = {
   metrics?: Record<string, number>;
   alerts?: string[];
+  cases_by_status?: Record<string, number>;
+  report_readiness?: Array<{ report_id: number; title: string; status: string; review_score: number; ready_for_final: boolean }>;
 };
 
 type ClosureStatus = {
@@ -630,7 +632,7 @@ export function App() {
         geoProximity: "/geo/proximity/",
         identity: "/identity/",
         exports: "/exports/",
-        settings: "/settings/"
+        settings: "/settings/readiness"
       };
       if (paths[key]) setModulePayload(await apiGet(paths[key]));
     } catch (err) {
@@ -980,6 +982,16 @@ export function App() {
     await loadReportPreview(latestReport.id);
   }
 
+  async function runCaseRecommendations() {
+    if (!selectedCaseId) return;
+    setAiResult(await apiPost(`/ai/case/${selectedCaseId}/recommendations`, { focus: aiPrompt }));
+  }
+
+  async function verifyEvidenceIntegrity(evidenceId: number) {
+    setModulePayload(await apiGet(`/evidence/${evidenceId}/integrity`));
+    if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+  }
+
   async function refreshReportAnnexes() {
     if (!latestReport) return;
     const updated = await apiPost<ReportItem>(`/reports/${latestReport.id}/annexes/refresh`);
@@ -1237,6 +1249,33 @@ export function App() {
           <button className="icon-button" onClick={refreshCore} title="Actualizar"><RefreshCcw size={18} /></button>
         </div>
         {dashboard.metrics ? <MetricGrid metrics={dashboard.metrics} /> : <EmptyState text="Sin metricas cargadas." />}
+        <div className="preview-grid">
+          <div>
+            <h4>Casos por estado</h4>
+            <div className="summary-list">
+              {Object.entries(dashboard.cases_by_status || {}).map(([status, count]) => (
+                <span key={status}>{prettySpanish(status)}: {count}</span>
+              ))}
+              {!dashboard.cases_by_status && <span>Sin estados cargados.</span>}
+            </div>
+          </div>
+          <div>
+            <h4>Informes recientes</h4>
+            {(dashboard.report_readiness || []).slice(0, 6).map((item) => (
+              <div className={`preview-section ${item.ready_for_final ? "" : "warning"}`} key={item.report_id}>
+                <strong>{item.title}</strong>
+                <span>{prettySpanish(item.status)} | Score {item.review_score}</span>
+                <small>{item.ready_for_final ? "Listo para cierre sellado" : "Requiere completar checklist"}</small>
+              </div>
+            ))}
+          </div>
+        </div>
+        {!!dashboard.alerts?.length && (
+          <div className="requirements">
+            <strong>Alertas operativas</strong>
+            {dashboard.alerts.map((item) => <span key={item}>{prettySpanish(item)}</span>)}
+          </div>
+        )}
       </section>
     );
   }
@@ -1454,13 +1493,17 @@ export function App() {
           </div>
         </div>
         <div className="table">
-          {evidence.map((item) => (
-            <div className="record" key={item.id}>
-              <strong>{item.evidence_type}</strong>
-              <span>{item.description}</span>
-              <code>{item.sha256_hash || "hash pendiente"}</code>
-            </div>
-          ))}
+            {evidence.map((item) => (
+              <div className="record" key={item.id}>
+                <strong>{item.evidence_type}</strong>
+                <span>{item.description}</span>
+                <code>{item.sha256_hash || "hash pendiente"}</code>
+                <div className="button-row">
+                  <button className="secondary-button" onClick={() => verifyEvidenceIntegrity(item.id)}>Verificar integridad</button>
+                  <a className="download-button secondary" href={`${API_BASE}/evidence/${item.id}/download`} target="_blank">Descargar</a>
+                </div>
+              </div>
+            ))}
           {!evidence.length && <EmptyState text="Sin evidencia para el caso seleccionado." />}
         </div>
       </section>
@@ -1826,6 +1869,9 @@ export function App() {
           <div className="form">
             <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} />
             <button onClick={runAiAssist}><Bot size={17} /> Analizar caso</button>
+            <button className="secondary" onClick={runCaseRecommendations} disabled={!selectedCaseId}>
+              <FileCheck2 size={17} /> Recomendaciones del caso
+            </button>
           </div>
           <JsonPanel data={aiResult} />
         </div>
