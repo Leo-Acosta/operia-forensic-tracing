@@ -25,7 +25,7 @@ import {
   Users,
   Wrench
 } from "lucide-react";
-import { API_BASE, apiDelete, apiGet, apiPost, apiPostForm, apiPut } from "./api";
+import { API_BASE, apiDelete, apiGet, apiPost, apiPostForm, apiPut, getAuthToken, setAuthToken } from "./api";
 
 type ModuleKey =
   | "workflow"
@@ -298,6 +298,19 @@ type ExportManifest = {
   created_at: string;
 };
 
+type IdentitySession = {
+  authenticated: boolean;
+  user?: {
+    id: number;
+    organization_id?: number;
+    name: string;
+    email?: string;
+    role: string;
+  } | null;
+};
+
+type PermissionPayload = Record<string, string[]>;
+
 const modules: Array<{ key: ModuleKey; label: string; icon: typeof BarChart3 }> = [
   { key: "workflow", label: "Flujo Operativo", icon: CheckCircle2 },
   { key: "dashboard", label: "Dashboard", icon: BarChart3 },
@@ -495,6 +508,17 @@ export function App() {
   const [legalLinkDrafts, setLegalLinkDrafts] = useState<Record<number, Partial<LegalMappingEvidence>>>({});
   const [articles, setArticles] = useState<LegalArticle[]>([]);
   const [modulePayload, setModulePayload] = useState<unknown>(null);
+  const [authToken, setAuthTokenState] = useState(getAuthToken());
+  const [identitySession, setIdentitySession] = useState<IdentitySession>({ authenticated: false });
+  const [permissions, setPermissions] = useState<PermissionPayload>({});
+  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+  const [bootstrapForm, setBootstrapForm] = useState({
+    organization_name: "OPERIA Local",
+    organization_slug: "operia-local",
+    name: "OPERIA Admin",
+    email: "admin@operia.local",
+    password: "operia-admin-change-me"
+  });
   const [caseForm, setCaseForm] = useState(emptyCase);
   const [participantForm, setParticipantForm] = useState({
     participant_type: "damnificado",
@@ -624,6 +648,10 @@ export function App() {
         setArticles(await apiGet<LegalArticle[]>(`/legal-knowledge/articles?q=${encodeURIComponent(legalQuery)}`));
         return;
       }
+      if (key === "identity") {
+        await refreshIdentity();
+        return;
+      }
       const paths: Partial<Record<ModuleKey, string>> = {
         ai: "/ai/",
         aiSecurity: "/ai-security/",
@@ -647,8 +675,46 @@ export function App() {
   }, [active]);
 
   useEffect(() => {
+    refreshIdentity().catch(() => undefined);
+  }, [authToken]);
+
+  useEffect(() => {
     refreshCaseCollections(selectedCaseId).catch((err: Error) => setError(err.message));
   }, [selectedCaseId]);
+
+  async function refreshIdentity() {
+    const [session, permissionData] = await Promise.all([
+      apiGet<IdentitySession>("/identity/me"),
+      apiGet<PermissionPayload>("/identity/permissions")
+    ]);
+    setIdentitySession(session);
+    setPermissions(permissionData);
+    setModulePayload({ session, permissions: permissionData });
+  }
+
+  async function login(event: FormEvent) {
+    event.preventDefault();
+    const result = await apiPost<{ access_token: string; user: IdentitySession["user"] }>("/identity/login", loginForm);
+    setAuthToken(result.access_token);
+    setAuthTokenState(result.access_token);
+    setIdentitySession({ authenticated: true, user: result.user });
+    setLoginForm({ email: "", password: "" });
+  }
+
+  async function bootstrapAdmin(event: FormEvent) {
+    event.preventDefault();
+    const result = await apiPost<{ access_token: string; user: IdentitySession["user"] }>("/identity/bootstrap-admin", bootstrapForm);
+    setAuthToken(result.access_token);
+    setAuthTokenState(result.access_token);
+    setIdentitySession({ authenticated: true, user: result.user });
+  }
+
+  async function logout() {
+    await apiPost("/identity/logout", { token: authToken }).catch(() => undefined);
+    setAuthToken("");
+    setAuthTokenState("");
+    setIdentitySession({ authenticated: false });
+  }
 
   async function createCase(event: FormEvent) {
     event.preventDefault();
@@ -1894,6 +1960,63 @@ export function App() {
     );
   }
 
+  function renderIdentity() {
+    const currentRole = identitySession.user?.role || "";
+    const currentPermissions = currentRole ? permissions[currentRole] || [] : [];
+    return (
+      <section className="work-surface">
+        <div className="section-head">
+          <div>
+            <h2>Identidad y Permisos</h2>
+            <p>Login local con token bearer, usuario visible y permisos por rol.</p>
+          </div>
+          <button className="icon-button" onClick={refreshIdentity} title="Actualizar"><RefreshCcw size={18} /></button>
+        </div>
+
+        {identitySession.authenticated && identitySession.user ? (
+          <div className="preview-grid">
+            <div>
+              <h4>Sesion activa</h4>
+              <div className="summary-list">
+                <span>Usuario: {identitySession.user.name}</span>
+                <span>Email: {identitySession.user.email || "sin email"}</span>
+                <span>Rol: {identitySession.user.role}</span>
+                <span>Organizacion: {identitySession.user.organization_id || "local"}</span>
+              </div>
+              <button className="secondary" onClick={logout}>Cerrar sesion</button>
+            </div>
+            <div>
+              <h4>Permisos visibles</h4>
+              <div className="mini-list">
+                {currentPermissions.map((permission) => <span key={permission}>{permission}</span>)}
+                {!currentPermissions.length && <span>Sin permisos declarados para el rol.</span>}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="split">
+            <form className="form" onSubmit={login}>
+              <h3>Iniciar sesion</h3>
+              <input placeholder="Email" value={loginForm.email} onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })} />
+              <input placeholder="Password" type="password" value={loginForm.password} onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })} />
+              <button><Users size={17} /> Entrar</button>
+            </form>
+            <form className="form" onSubmit={bootstrapAdmin}>
+              <h3>Crear admin inicial</h3>
+              <input placeholder="Organizacion" value={bootstrapForm.organization_name} onChange={(e) => setBootstrapForm({ ...bootstrapForm, organization_name: e.target.value })} />
+              <input placeholder="Nombre" value={bootstrapForm.name} onChange={(e) => setBootstrapForm({ ...bootstrapForm, name: e.target.value })} />
+              <input placeholder="Email" value={bootstrapForm.email} onChange={(e) => setBootstrapForm({ ...bootstrapForm, email: e.target.value })} />
+              <input placeholder="Password" type="password" value={bootstrapForm.password} onChange={(e) => setBootstrapForm({ ...bootstrapForm, password: e.target.value })} />
+              <button className="secondary"><Shield size={17} /> Bootstrap admin</button>
+            </form>
+          </div>
+        )}
+
+        <JsonPanel data={{ authenticated: identitySession.authenticated, user: identitySession.user, permissions }} />
+      </section>
+    );
+  }
+
   function renderModuleStatus(title: string) {
     return (
       <section className="work-surface">
@@ -1918,6 +2041,7 @@ export function App() {
     if (active === "legalKnowledge") return renderLegalKnowledge();
     if (active === "ai") return renderAi();
     if (active === "aiSecurity") return renderAiSecurity();
+    if (active === "identity") return renderIdentity();
     return renderModuleStatus(modules.find((item) => item.key === active)?.label ?? "Modulo");
   }
 

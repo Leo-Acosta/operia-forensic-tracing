@@ -24,6 +24,8 @@ def readiness() -> dict[str, object]:
         "database": {
             "dialect": migrations["dialect"],
             "schema_version": migrations["current_schema_version"],
+            "alembic_heads": migrations["alembic_heads"],
+            "alembic_available": migrations["alembic_available"],
             "migrations": migrations["registered"],
             "postgres_ready": migrations["postgres_ready"],
         },
