@@ -263,3 +263,113 @@ def test_advanced_case_management_participants_evidence_custody(client, admin_he
         "create_custody_action",
         "update_custody_action",
     }.issubset(actions)
+
+
+def test_final_sealed_export_requires_ready_checklist_and_registers_manifest(client, admin_headers):
+    case = client.post(
+        "/api/cases",
+        json={
+            "case_code": "TEST-CASE-SEAL-001",
+            "title": "Caso sellado",
+            "description": "phishing con anuncio falso, perjuicio patrimonial y evidencia preservada",
+            "incident_type": "phishing",
+        },
+        headers=admin_headers,
+    )
+    assert case.status_code == 200
+    case_id = case.json()["id"]
+
+    evidence = client.post(
+        "/api/evidence",
+        json={
+            "case_id": case_id,
+            "evidence_type": "captura",
+            "description": "Anuncio phishing preservado",
+            "sha256_hash": "637485a60bba4801e00d255e51da725a7437121923e1af05bba56d960a353e73",
+            "md5_hash": "d41d8cd98f00b204e9800998ecf8427e",
+        },
+        headers=admin_headers,
+    )
+    assert evidence.status_code == 200
+    evidence_id = evidence.json()["id"]
+
+    custody = client.post(
+        "/api/evidence/custody-actions",
+        json={
+            "case_id": case_id,
+            "evidence_id": evidence_id,
+            "action_type": "preservacion",
+            "detailed_description": "Preservacion inicial y calculo de hashes.",
+            "hash_after": evidence.json()["sha256_hash"],
+            "user_responsible": "Analista Sellado",
+        },
+        headers=admin_headers,
+    )
+    assert custody.status_code == 200
+
+    seed = client.post("/api/legal-knowledge/articles/seed", headers=admin_headers)
+    assert seed.status_code == 200
+    articles = client.get("/api/legal-knowledge/articles", headers=admin_headers)
+    article_id = next(item["id"] for item in articles.json() if item["article_number"] == "172")
+    mapping = client.post(
+        "/api/legal-knowledge/mappings/decision",
+        json={
+            "case_id": case_id,
+            "article_id": article_id,
+            "decision_status": "aprobado",
+            "analyst_name": "Analista Sellado",
+            "analyst_rationale": "El anuncio falso sostiene ardid, error, disposicion y perjuicio.",
+            "legal_role": "ardid/perjuicio/nexo causal",
+        },
+        headers=admin_headers,
+    )
+    assert mapping.status_code == 200
+    link = client.post(
+        "/api/legal-knowledge/mappings/evidence",
+        json={
+            "case_id": case_id,
+            "legal_mapping_id": mapping.json()["id"],
+            "evidence_id": evidence_id,
+            "linked_by": "Analista Sellado",
+            "legal_element": "Ardid, error, disposicion patrimonial, perjuicio y nexo causal",
+            "element_status": "probado",
+            "probatory_strength": "alto",
+            "contradiction_risk": "bajo",
+            "recommended_measure": "Mantener evidencia y solicitar informes complementarios.",
+        },
+        headers=admin_headers,
+    )
+    assert link.status_code == 200
+
+    report = client.post(f"/api/reports/case/{case_id}/generate?author=Analista%20Sellado", headers=admin_headers)
+    assert report.status_code == 200
+    report_id = report.json()["id"]
+    annexes = client.post(f"/api/reports/{report_id}/annexes/refresh", headers=admin_headers)
+    assert annexes.status_code == 200
+    review = client.post(f"/api/reports/{report_id}/review", headers=admin_headers)
+    assert review.status_code == 200
+    assert review.json()["score"] >= 80
+
+    checklist = client.get(f"/api/reports/{report_id}/final-checklist", headers=admin_headers)
+    assert checklist.status_code == 200
+    assert checklist.json()["ready"] is True
+
+    sealed_pdf = client.post(
+        f"/api/exports/reports/{report_id}/pdf/seal-final",
+        json={"analyst_name": "Analista Sellado", "declaration": "Checklist pericial final verificado."},
+        headers=admin_headers,
+    )
+    assert sealed_pdf.status_code == 200
+    assert sealed_pdf.headers["x-operia-seal-id"].startswith("OPERIA-SEAL-")
+    assert sealed_pdf.headers["x-operia-export-manifest-id"]
+    assert sealed_pdf.headers["x-operia-sha256"]
+
+    pdf_text = "\n".join(page.extract_text() or "" for page in PdfReader(BytesIO(sealed_pdf.content)).pages)
+    assert "Sello pericial final" in pdf_text
+    assert "Analista Sellado" in pdf_text
+    assert "Estado documental" in pdf_text
+
+    updated_report = client.get(f"/api/reports/{report_id}", headers=admin_headers)
+    assert updated_report.status_code == 200
+    assert updated_report.json()["status"] == "final"
+    assert updated_report.json()["version"].startswith("final-")

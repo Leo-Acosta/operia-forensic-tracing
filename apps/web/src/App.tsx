@@ -144,6 +144,12 @@ type ReportPreview = {
     count: number;
     items: Array<{ type: string; title: string; sha256?: string; detail?: string; integrity_status?: string; rows?: number; score?: number }>;
   };
+  final_seal?: {
+    sealed: boolean;
+    seal_id: string;
+    observations: string;
+    report_version: string;
+  } | null;
   sections: Array<{ title: string; word_count: number; excerpt: string; has_tables: boolean }>;
   warnings: string[];
 };
@@ -948,7 +954,30 @@ export function App() {
     );
     setExportFinalResult(readiness);
     if (!readiness.can_export_final) return;
-    window.open(`${API_BASE}/exports/reports/${latestReport.id}/pdf?final=true`, "_blank");
+    const response = await fetch(`${API_BASE}/exports/reports/${latestReport.id}/pdf/seal-final`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        analyst_name: analystName || latestReport.author,
+        declaration: "Cierre pericial final con checklist verificado, anexos incorporados y exportacion sellada."
+      })
+    });
+    if (!response.ok) {
+      const detail = await response.text();
+      setExportFinalResult({ status: "blocked", detail });
+      return;
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    setExportFinalResult({
+      status: "sealed",
+      seal_id: response.headers.get("x-operia-seal-id"),
+      sha256: response.headers.get("x-operia-sha256"),
+      manifest_id: response.headers.get("x-operia-export-manifest-id")
+    });
+    window.open(url, "_blank");
+    if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+    await loadReportPreview(latestReport.id);
   }
 
   async function refreshReportAnnexes() {
@@ -1453,7 +1482,7 @@ export function App() {
             <button onClick={() => loadReportPreview()}><FileCheck2 size={16} /> Vista previa profesional</button>
             <button onClick={reviewReport}><CheckCircle2 size={16} /> Revisar</button>
             <button onClick={requestFinalExport} className={reportPreview?.can_export_final ? "" : "secondary"}>
-              <Download size={16} /> Exportar versiÃ³n final
+              <Download size={16} /> Sellar y exportar final
             </button>
             <button onClick={refreshReportAnnexes} className="secondary"><FileText size={16} /> Actualizar anexos</button>
             <a className="download-button secondary" href={`${API_BASE}/exports/reports/${latestReport.id}/pdf`} target="_blank">
@@ -1473,6 +1502,11 @@ export function App() {
                 {reportPreview.can_export_final ? "Exportable como final" : "No exportable como final"}
               </span>
             </div>
+            {reportPreview.final_seal && (
+              <div className="notice success">
+                Sello pericial final: {reportPreview.final_seal.seal_id} - Version {reportPreview.final_seal.report_version}
+              </div>
+            )}
             {!!reportPreview.warnings.length && (
               <div className="requirements">
                 <strong>Alertas de vista previa</strong>

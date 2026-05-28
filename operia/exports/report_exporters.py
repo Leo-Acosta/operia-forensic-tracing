@@ -808,20 +808,20 @@ def _professional_status(report: Report, case) -> str:
 
 def _export_metadata_text(report: Report) -> str:
     case = report.case
-    return normalize_spanish(
-        "\n".join(
-            [
-                f"Identificador del caso: {case.case_code}.",
-                f"Versión del informe: {report.version}.",
-                f"Fecha y hora de generación: {utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}.",
-                f"Autor/analista: {_visible_author(report) or 'No informado'}.",
-                f"Estado del caso: {_professional_status(report, case)}.",
-                f"Cantidad de evidencias: {len(case.evidence)}.",
-                f"Cantidad de acciones de custodia: {len(case.actions)}.",
-                "Hashes del PDF e identificador de manifiesto: registrados en los metadatos técnicos de exportación de la plataforma.",
-            ]
-        )
-    )
+    rows = [
+        f"Identificador del caso: {case.case_code}.",
+        f"Version del informe: {report.version}.",
+        f"Fecha y hora de generacion: {utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}.",
+        f"Autor/analista: {_visible_author(report) or 'No informado'}.",
+        f"Estado del caso: {_professional_status(report, case)}.",
+        f"Estado documental: {_display_value(report.status)}.",
+        f"Cantidad de evidencias: {len(case.evidence)}.",
+        f"Cantidad de acciones de custodia: {len(case.actions)}.",
+        "Hashes del PDF e identificador de manifiesto: registrados en los metadatos tecnicos de exportacion de la plataforma.",
+    ]
+    if report.observations:
+        rows.append(f"Observaciones de cierre: {report.observations}.")
+    return normalize_spanish("\n".join(rows))
 
 
 def _professional_conclusion(case) -> str:

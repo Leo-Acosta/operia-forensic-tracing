@@ -16,11 +16,13 @@ from operia.exports.service import (
     register_export_manifest,
 )
 from operia.legal_report.services.report_service import (
+    build_final_pericial_seal,
     final_pericial_checklist,
     legal_contradiction_assessment,
     legal_probatory_assessment,
     report_annexes_payload,
     report_exportability_assessment,
+    snapshot_report,
 )
 from operia.identity.dependencies import CurrentUser, get_optional_user
 from operia.reports.models import Report
@@ -43,6 +45,13 @@ def response_with_manifest(path: Path, manifest: ExportManifest) -> FileResponse
             "X-OPERIA-Manifest-Path": manifest.manifest_path,
         },
     )
+
+
+def response_with_manifest_and_seal(path: Path, manifest: ExportManifest, seal: dict) -> FileResponse:
+    response = response_with_manifest(path, manifest)
+    response.headers["X-OPERIA-Seal-Id"] = str(seal["seal_id"])
+    response.headers["X-OPERIA-Sealed-At"] = str(seal["sealed_at"])
+    return response
 
 
 @router.get("/")
@@ -97,6 +106,88 @@ def export_json(payload: dict, db: Session = Depends(get_db), current_user: Curr
     write_audit(db, "export_json", "exports", current_user, payload.get("case_id"), "export", str(manifest.id), details=path.name)
     db.commit()
     return response_with_manifest(path, manifest)
+
+
+@router.post("/reports/{report_id}/pdf/seal-final")
+def seal_final_report_pdf(
+    report_id: int,
+    payload: dict | None = None,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser | None = Depends(get_optional_user),
+):
+    report = get_or_404(db, Report, report_id)
+    payload = payload or {}
+    legal_probatory = legal_probatory_assessment(report.case)
+    exportability = report_exportability_assessment(report.case, legal_probatory, report=report)
+    contradictions = legal_contradiction_assessment(report.case)
+    checklist = final_pericial_checklist(report, legal_probatory, exportability, contradictions)
+    annexes = report_annexes_payload(report, legal_probatory)
+    if not checklist["ready"]:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "El informe no cumple condiciones para cierre pericial sellado.",
+                "exportability": exportability,
+                "contradictions": contradictions,
+                "checklist": checklist,
+            },
+        )
+
+    seal = build_final_pericial_seal(
+        report,
+        checklist,
+        analyst_name=str(payload.get("analyst_name") or ""),
+        declaration=str(payload.get("declaration") or ""),
+    )
+    report.status = "final"
+    if not str(report.version or "").startswith("final-"):
+        report.version = f"final-{len(report.versions) + 1}"
+    report.observations = "\n".join(
+        [
+            f"Sello pericial final: {seal['seal_id']}",
+            f"Fecha de sellado: {seal['sealed_at']}",
+            f"Analista responsable: {seal['sealed_by']}",
+            f"Declaracion de cierre: {seal['declaration']}",
+        ]
+    )
+    report.versions.append(snapshot_report(report, seal["sealed_by"], f"Cierre pericial sellado {seal['seal_id']}"))
+    path = export_pdf(report)
+    manifest = register_export_manifest(
+        db,
+        path,
+        "pdf",
+        current_user,
+        case_id=report.case_id,
+        report_id=report.id,
+        extra={
+            "report_title": report.title,
+            "report_status": report.status,
+            "report_version": report.version,
+            "template": "forensic_professional_final_sealed",
+            "sealed_final": True,
+            "seal_id": seal["seal_id"],
+            "sealed_at": seal["sealed_at"],
+            "sealed_by": seal["sealed_by"],
+            "declaration": seal["declaration"],
+            "exportability_level": exportability["level"],
+            "exportability_score": exportability["score"],
+            "final_checklist_score": checklist["score"],
+            "final_checklist_ready": checklist["ready"],
+            "annexes_count": annexes["count"],
+        },
+    )
+    write_audit(
+        db,
+        "seal_final_report_pdf",
+        "exports",
+        current_user,
+        report.case_id,
+        "export",
+        str(manifest.id),
+        details=f"{path.name} | {seal['seal_id']}",
+    )
+    db.commit()
+    return response_with_manifest_and_seal(path, manifest, seal)
 
 
 @router.post("/csv")

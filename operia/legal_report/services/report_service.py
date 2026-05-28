@@ -1,8 +1,10 @@
+from hashlib import sha256
 from typing import Any
 
 from operia.cases.models import Case
 from operia.reports.models import Report, ReportSection, ReportVersion
 from operia.legal_report.services.text_service import normalize_spanish
+from operia.shared.time import utcnow
 
 NO_ATTRIBUTION_TEXT = (
     "Del análisis efectuado no surgen elementos técnicos suficientes que permitan atribuir el ataque informático "
@@ -608,9 +610,56 @@ def report_preview_payload(report: Report) -> dict[str, Any]:
         "contradictions": contradictions,
         "final_checklist": checklist,
         "annexes": annexes,
+        "final_seal": report_final_seal_payload(report),
         "sections": sections,
         "warnings": _preview_warnings(exportability, contradictions, sections),
         "can_export_final": checklist["ready"],
+    }
+
+
+def build_final_pericial_seal(report: Report, checklist: dict[str, Any], analyst_name: str = "", declaration: str = "") -> dict[str, Any]:
+    sealed_at = utcnow().isoformat()
+    sealed_by = normalize_spanish(analyst_name or report.author or "").strip() or "Analista no informado"
+    declaration_text = normalize_spanish(declaration or "").strip() or (
+        "El analista interviniente deja constancia de que verifico el checklist pericial final, "
+        "la coherencia del informe, los anexos incorporados y las condiciones de exportacion final."
+    )
+    fingerprint = sha256(
+        "|".join(
+            [
+                str(report.id),
+                str(report.case_id),
+                report.version or "",
+                sealed_by,
+                sealed_at,
+                str(checklist.get("score", 0)),
+                declaration_text,
+            ]
+        ).encode("utf-8")
+    ).hexdigest()
+    return {
+        "seal_id": f"OPERIA-SEAL-{fingerprint[:16].upper()}",
+        "sealed_at": sealed_at,
+        "sealed_by": sealed_by,
+        "declaration": declaration_text,
+        "checklist_score": checklist.get("score", 0),
+        "report_id": report.id,
+        "case_id": report.case_id,
+        "report_version": report.version,
+    }
+
+
+def report_final_seal_payload(report: Report) -> dict[str, Any] | None:
+    observations = normalize_spanish(report.observations or "")
+    if "OPERIA-SEAL-" not in observations:
+        return None
+    seal_line = next((line for line in observations.splitlines() if "OPERIA-SEAL-" in line), "")
+    seal_id = seal_line.split(":", 1)[-1].strip() if ":" in seal_line else seal_line.strip()
+    return {
+        "sealed": report.status == "final",
+        "seal_id": seal_id,
+        "observations": observations,
+        "report_version": report.version,
     }
 
 
