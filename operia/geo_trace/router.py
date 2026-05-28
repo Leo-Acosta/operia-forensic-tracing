@@ -5,11 +5,12 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from operia.core.database import get_db
+from operia.cases.models import Case
 from operia.geo_trace.models import GeoTarget, GeoTraceAnalysis
 from operia.geo_trace.services import analyze_url, create_target_map, evidence_hash, extract_ips, extract_urls, geolocate_ip
-from operia.legal_report.models import Case, Report
-from operia.legal_report.services.export_service import export_pdf
+from operia.exports.service import export_pdf
 from operia.legal_report.services.report_service import populate_report_sections, snapshot_report
+from operia.reports.models import Report
 
 router = APIRouter()
 
@@ -55,7 +56,7 @@ def status() -> dict[str, object]:
         "module": "Geo Trace",
         "status": "migrated",
         "description": "IP/URL parsing, enrichment, forensic risk scoring, map generation, and shared PDF export.",
-        "shared_dependencies": ["cases", "common_database", "shared_config", "legal_report_export_pdf", "dashboard"],
+        "shared_dependencies": ["cases", "reports", "exports", "common_database", "shared_config", "dashboard"],
     }
 
 

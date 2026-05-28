@@ -1,8 +1,9 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from dataclasses import dataclass
 
-from operia.legal_report.models import Case, LegalMapping
+from operia.cases.models import Case
+from operia.legal_knowledge.models import LegalMapping
 from operia.legal_report.services.legal_knowledge_base import dogmatic_context, procedural_context
 from operia.legal_report.services.text_service import normalize_spanish
 
@@ -14,7 +15,7 @@ class LegalCandidate:
     analysis: str
     finding_id: int | None = None
     hypothesis_id: int | None = None
-    verification_status: str = "Fuente pendiente de verificaciÃ³n"
+    verification_status: str = "Fuente pendiente de verificación"
 
 
 def _has(text: str, *terms: str) -> bool:
@@ -39,20 +40,20 @@ def _case_text(case: Case) -> str:
 def classify_cybercrime(case: Case) -> list[str]:
     text = _case_text(case)
     labels: list[str] = []
-    if _has(text, "deepfake", "ia", "voz", "audio", "video manipulado", "engaÃ±o habilitado"):
-        labels.append("engaÃ±o habilitado por IA/deepfake")
-    if _has(text, "phishing", "correo", "link", "credencial", "suplantaciÃ³n"):
-        labels.append("phishing o suplantaciÃ³n digital")
-    if _has(text, "cripto", "wallet", "blockchain", "transacciÃ³n", "transferencia"):
+    if _has(text, "deepfake", "ia", "voz", "audio", "video manipulado", "engaño habilitado"):
+        labels.append("engaño habilitado por IA/deepfake")
+    if _has(text, "phishing", "correo", "link", "credencial", "suplantación"):
+        labels.append("phishing o suplantación digital")
+    if _has(text, "cripto", "wallet", "blockchain", "transacción", "transferencia"):
         labels.append("transferencia cripto fraudulenta")
-    if _has(text, "acceso no autorizado", "login", "ip", "log", "sesiÃ³n"):
+    if _has(text, "acceso no autorizado", "login", "ip", "log", "sesión"):
         labels.append("acceso no autorizado")
-    if _has(text, "ransomware", "cifrado", "rescate", "extorsiÃ³n"):
-        labels.append("ransomware o extorsiÃ³n digital")
-    if _has(text, "datos personales", "filtraciÃ³n", "dni", "base de datos", "privacidad"):
+    if _has(text, "ransomware", "cifrado", "rescate", "extorsión"):
+        labels.append("ransomware o extorsión digital")
+    if _has(text, "datos personales", "filtración", "dni", "base de datos", "privacidad"):
         labels.append("incidente de datos personales")
-    if _has(text, "daÃ±o informÃ¡tico", "borrado", "alteraciÃ³n", "indisponibilidad"):
-        labels.append("daÃ±o o afectaciÃ³n informÃ¡tica")
+    if _has(text, "daño informático", "borrado", "alteración", "indisponibilidad"):
+        labels.append("daño o afectación informática")
     if not labels:
         labels.append(normalize_spanish(case.incident_type or "incidente digital mixto"))
     return labels
@@ -60,13 +61,13 @@ def classify_cybercrime(case: Case) -> list[str]:
 
 def infer_competence(case: Case) -> list[str]:
     text = _case_text(case)
-    competence = ["JurisdicciÃ³n argentina indicada para el caso; competencia concreta sujeta a domicilio, lugar del hecho, plataforma interviniente y reglas procesales aplicables."]
-    if _has(text, "fraude", "transferencia", "cripto", "phishing", "suplantaciÃ³n", "deepfake"):
-        competence.append("Posible competencia penal si se investiga una maniobra defraudatoria, acceso indebido, suplantaciÃ³n, extorsiÃ³n o perjuicio patrimonial; la competencia concreta debe evaluarse con el CÃ³digo Procesal Penal de la NaciÃ³n, el CÃ³digo Procesal Penal Federal si correspondiera y las reglas territoriales/federales aplicables.")
+    competence = ["Jurisdicción argentina indicada para el caso; competencia concreta sujeta a domicilio, lugar del hecho, plataforma interviniente y reglas procesales aplicables."]
+    if _has(text, "fraude", "transferencia", "cripto", "phishing", "suplantación", "deepfake"):
+        competence.append("Posible competencia penal si se investiga una maniobra defraudatoria, acceso indebido, suplantación, extorsión o perjuicio patrimonial; la competencia concreta debe evaluarse con el Código Procesal Penal de la Nación, el Código Procesal Penal Federal si correspondiera y las reglas territoriales/federales aplicables.")
     if _has(text, "empresa", "cliente", "banco", "fintech", "exchange", "plataforma", "proveedor"):
-        competence.append("Posible vÃ­a civil o de consumo si intervino un proveedor digital, entidad financiera, plataforma, exchange o relaciÃ³n de consumo.")
-    if _has(text, "datos personales", "filtraciÃ³n", "privacidad", "dni"):
-        competence.append("Posible intervenciÃ³n de autoridad o vÃ­a vinculada a protecciÃ³n de datos personales, segÃºn afectaciÃ³n y sujetos responsables.")
+        competence.append("Posible vía civil o de consumo si intervino un proveedor digital, entidad financiera, plataforma, exchange o relación de consumo.")
+    if _has(text, "datos personales", "filtración", "privacidad", "dni"):
+        competence.append("Posible intervención de autoridad o vía vinculada a protección de datos personales, según afectación y sujetos responsables.")
     return competence
 
 
@@ -77,67 +78,67 @@ def build_legal_candidates(case: Case) -> list[LegalCandidate]:
     candidates = [
         LegalCandidate(
             "Prueba digital y cadena de custodia",
-            "CÃ³digo Procesal Penal de la NaciÃ³n; CÃ³digo Procesal Penal Federal si correspondiera; guÃ­as y protocolos argentinos sobre evidencia digital y cadena de custodia",
-            "La evidencia digital debe presentarse con preservaciÃ³n, hash, registro cronolÃ³gico de acciones, responsable, herramienta utilizada y lÃ­mites de inferencia. Desde la perspectiva procesal penal, el informe debe orientar medidas Ãºtiles: preservaciÃ³n urgente de datos, oficios a proveedores, bancos, billeteras, exchanges o plataformas, secuestro o extracciÃ³n forense cuando corresponda y documentaciÃ³n de integridad. La IA no debe convertir un dato tÃ©cnico aislado en conclusiÃ³n jurÃ­dica; debe preservar la secuencia dato tÃ©cnico, evidencia, hallazgo, hipÃ³tesis y conclusiÃ³n defendible.",
+            "Código Procesal Penal de la Nación; Código Procesal Penal Federal si correspondiera; guías y protocolos argentinos sobre evidencia digital y cadena de custodia",
+            "La evidencia digital debe presentarse con preservación, hash, registro cronológico de acciones, responsable, herramienta utilizada y límites de inferencia. Desde la perspectiva procesal penal, el informe debe orientar medidas útiles: preservación urgente de datos, oficios a proveedores, bancos, billeteras, exchanges o plataformas, secuestro o extracción forense cuando corresponda y documentación de integridad. La IA no debe convertir un dato técnico aislado en conclusión jurídica; debe preservar la secuencia dato técnico, evidencia, hallazgo, hipótesis y conclusión defendible.",
             finding_id=primary_finding,
-            verification_status="Fuente oficial cargada; aplicaciÃ³n sujeta a revisiÃ³n profesional",
+            verification_status="Fuente oficial cargada; aplicación sujeta a revisión profesional",
         ),
         LegalCandidate(
-            "CÃ³digo Procesal Penal de la NaciÃ³n y estrategia probatoria",
-            "CÃ³digo Procesal Penal de la NaciÃ³n, Ley 23.984, texto actualizado; CÃ³digo Procesal Penal Federal, Ley 27.063, si resultara aplicable por competencia o implementaciÃ³n",
-            "El caso debe traducirse en una estrategia procesal: denuncia o ampliaciÃ³n de denuncia, preservaciÃ³n de evidencia digital, solicitud de oficios a plataformas y entidades financieras, identificaciÃ³n de titulares y accesos, requerimiento de logs, IPs, dispositivos, movimientos de fondos, pericias sobre audio, metadatos y dispositivos, y resguardo de garantÃ­as. La finalidad no es declarar culpabilidad, sino producir prueba legalmente obtenida, pertinente, Ãºtil y controlable.",
+            "Código Procesal Penal de la Nación y estrategia probatoria",
+            "Código Procesal Penal de la Nación, Ley 23.984, texto actualizado; Código Procesal Penal Federal, Ley 27.063, si resultara aplicable por competencia o implementación",
+            "El caso debe traducirse en una estrategia procesal: denuncia o ampliación de denuncia, preservación de evidencia digital, solicitud de oficios a plataformas y entidades financieras, identificación de titulares y accesos, requerimiento de logs, IPs, dispositivos, movimientos de fondos, pericias sobre audio, metadatos y dispositivos, y resguardo de garantías. La finalidad no es declarar culpabilidad, sino producir prueba legalmente obtenida, pertinente, útil y controlable.",
             finding_id=primary_finding,
             hypothesis_id=primary_hypothesis,
-            verification_status="Fuente oficial cargada; aplicaciÃ³n sujeta a revisiÃ³n profesional",
+            verification_status="Fuente oficial cargada; aplicación sujeta a revisión profesional",
         ),
         LegalCandidate(
-            "Responsabilidad civil y daÃ±os",
-            "CÃ³digo Civil y Comercial de la NaciÃ³n",
-            "Corresponde analizar daÃ±o cierto, nexo causal adecuado, factor de atribuciÃ³n, previsibilidad, deber de prevenciÃ³n, medidas de mitigaciÃ³n y cuantificaciÃ³n econÃ³mica documentada con fuente, fÃ³rmula y evidencia de respaldo.",
+            "Responsabilidad civil y daños",
+            "Código Civil y Comercial de la Nación",
+            "Corresponde analizar daño cierto, nexo causal adecuado, factor de atribución, previsibilidad, deber de prevención, medidas de mitigación y cuantificación económica documentada con fuente, fórmula y evidencia de respaldo.",
             hypothesis_id=primary_hypothesis,
         ),
     ]
-    if _has(text, "fraude", "phishing", "suplantaciÃ³n", "transferencia", "cripto", "deepfake", "engaÃ±o"):
+    if _has(text, "fraude", "phishing", "suplantación", "transferencia", "cripto", "deepfake", "engaño"):
         candidates.append(LegalCandidate(
-            "Derecho penal informÃ¡tico y fraude digital",
-            "CÃ³digo Penal argentino; Ley 26.388 de delitos informÃ¡ticos",
-            "El patrÃ³n descrito puede ser compatible con una maniobra digital orientada a inducir error, disposiciÃ³n patrimonial o afectaciÃ³n de sistemas. El encuadre debe distinguir tipicidad objetiva y subjetiva, dolo directo o eventual, bien jurÃ­dico protegido, iter criminis, consumaciÃ³n o tentativa, autorÃ­a o participaciÃ³n, nexo causal e imputaciÃ³n objetiva. No corresponde inferir responsabilidad penal objetiva por el mero resultado ni afirmar autorÃ­a personal sin identificaciÃ³n tÃ©cnica y medidas complementarias.",
+            "Derecho penal informático y fraude digital",
+            "Código Penal argentino; Ley 26.388 de delitos informáticos",
+            "El patrón descrito puede ser compatible con una maniobra digital orientada a inducir error, disposición patrimonial o afectación de sistemas. El encuadre debe distinguir tipicidad objetiva y subjetiva, dolo directo o eventual, bien jurídico protegido, iter criminis, consumación o tentativa, autoría o participación, nexo causal e imputación objetiva. No corresponde inferir responsabilidad penal objetiva por el mero resultado ni afirmar autoría personal sin identificación técnica y medidas complementarias.",
             finding_id=primary_finding,
             hypothesis_id=primary_hypothesis,
-            verification_status="Fuente oficial cargada; requiere subsunciÃ³n profesional",
+            verification_status="Fuente oficial cargada; requiere subsunción profesional",
         ))
-    if _has(text, "cripto", "wallet", "blockchain", "transacciÃ³n"):
+    if _has(text, "cripto", "wallet", "blockchain", "transacción"):
         candidates.append(LegalCandidate(
-            "Blockchain, criptoactivos y trazabilidad econÃ³mica",
-            "CÃ³digo Civil y Comercial; reglas probatorias; normativa aplicable segÃºn plataforma o exchange",
-            "La trazabilidad blockchain puede respaldar compatibilidad econÃ³mica, recorrido de activos y cuantificaciÃ³n preliminar, pero no acredita por sÃ­ sola identidad personal del autor ni titularidad efectiva de una wallet. Debe diferenciarse entre trazabilidad del activo, atribuciÃ³n tÃ©cnica de una direcciÃ³n y atribuciÃ³n penal subjetiva.",
+            "Blockchain, criptoactivos y trazabilidad económica",
+            "Código Civil y Comercial; reglas probatorias; normativa aplicable según plataforma o exchange",
+            "La trazabilidad blockchain puede respaldar compatibilidad económica, recorrido de activos y cuantificación preliminar, pero no acredita por sí sola identidad personal del autor ni titularidad efectiva de una wallet. Debe diferenciarse entre trazabilidad del activo, atribución técnica de una dirección y atribución penal subjetiva.",
             finding_id=primary_finding,
         ))
-    if _has(text, "datos personales", "filtraciÃ³n", "privacidad", "dni", "correo"):
+    if _has(text, "datos personales", "filtración", "privacidad", "dni", "correo"):
         candidates.append(LegalCandidate(
-            "ProtecciÃ³n de datos personales",
-            "Ley 25.326 de ProtecciÃ³n de Datos Personales",
-            "Debe evaluarse si hubo tratamiento, exposiciÃ³n o afectaciÃ³n de datos personales, deberes de seguridad, confidencialidad, informaciÃ³n al titular y medidas de mitigaciÃ³n.",
+            "Protección de datos personales",
+            "Ley 25.326 de Protección de Datos Personales",
+            "Debe evaluarse si hubo tratamiento, exposición o afectación de datos personales, deberes de seguridad, confidencialidad, información al titular y medidas de mitigación.",
         ))
     if _has(text, "cliente", "consumidor", "banco", "fintech", "exchange", "plataforma", "proveedor"):
         candidates.append(LegalCandidate(
             "Defensa del consumidor y proveedores digitales",
             "Ley 24.240 de Defensa del Consumidor",
-            "Si existe relaciÃ³n de consumo, corresponde revisar deber de informaciÃ³n, seguridad, trato digno, gestiÃ³n de reclamos y eventual responsabilidad de bancos, fintech, plataformas, exchanges o proveedores digitales.",
+            "Si existe relación de consumo, corresponde revisar deber de información, seguridad, trato digno, gestión de reclamos y eventual responsabilidad de bancos, fintech, plataformas, exchanges o proveedores digitales.",
         ))
-    if _has(text, "ransomware", "extorsiÃ³n", "rescate"):
+    if _has(text, "ransomware", "extorsión", "rescate"):
         candidates.append(LegalCandidate(
-            "ExtorsiÃ³n digital y afectaciÃ³n de sistemas",
-            "CÃ³digo Penal argentino; Ley 26.388 de delitos informÃ¡ticos",
-            "El anÃ¡lisis debe separar intimidaciÃ³n, exigencia econÃ³mica, eventual engaÃ±o, vectores de acceso, identificaciÃ³n de cuentas receptoras y preservaciÃ³n de logs, sin atribuir autorÃ­a sin evidencia suficiente. En clave procesal, corresponde sugerir medidas urgentes de preservaciÃ³n y trazabilidad para evitar pÃ©rdida de registros o dispersiÃ³n de fondos.",
+            "Extorsión digital y afectación de sistemas",
+            "Código Penal argentino; Ley 26.388 de delitos informáticos",
+            "El análisis debe separar intimidación, exigencia económica, eventual engaño, vectores de acceso, identificación de cuentas receptoras y preservación de logs, sin atribuir autoría sin evidencia suficiente. En clave procesal, corresponde sugerir medidas urgentes de preservación y trazabilidad para evitar pérdida de registros o dispersión de fondos.",
             finding_id=primary_finding,
-            verification_status="Fuente oficial cargada; requiere subsunciÃ³n profesional",
+            verification_status="Fuente oficial cargada; requiere subsunción profesional",
         ))
-    if _has(text, "acceso no autorizado", "login", "ip", "log", "sesiÃ³n"):
+    if _has(text, "acceso no autorizado", "login", "ip", "log", "sesión"):
         candidates.append(LegalCandidate(
             "Acceso no autorizado",
-            "CÃ³digo Penal argentino; Ley 26.388 de delitos informÃ¡ticos",
-            "Logs, IPs y eventos de sesiÃ³n pueden sostener compatibilidad tÃ©cnica con acceso no habitual o no autorizado, pero requieren correlaciÃ³n temporal, integridad, contexto y descarte de hipÃ³tesis alternativas. La inferencia penal exige evaluar tipicidad, dolo, ausencia de autorizaciÃ³n, nexo de imputaciÃ³n y estÃ¡ndar probatorio suficiente.",
+            "Código Penal argentino; Ley 26.388 de delitos informáticos",
+            "Logs, IPs y eventos de sesión pueden sostener compatibilidad técnica con acceso no habitual o no autorizado, pero requieren correlación temporal, integridad, contexto y descarte de hipótesis alternativas. La inferencia penal exige evaluar tipicidad, dolo, ausencia de autorización, nexo de imputación y estándar probatorio suficiente.",
             finding_id=primary_finding,
         ))
     return candidates
@@ -154,20 +155,20 @@ def generate_automatic_legal_analysis(case: Case) -> dict:
 
     justification = (
         f"El caso se clasifica preliminarmente como {', '.join(labels)}. "
-        f"La evaluaciÃ³n se apoya en {evidence_count} evidencia(s), {finding_count} hallazgo(s), "
-        f"{hypothesis_count} hipÃ³tesis y una cuantificaciÃ³n econÃ³mica preliminar de {damage_total:.2f} ARS. "
-        "El anÃ¡lisis jurÃ­dico debe formularse con dogmÃ¡tica penal: principio de legalidad, tipicidad objetiva y subjetiva, "
-        "dolo o culpa cuando corresponda, antijuridicidad, culpabilidad, imputaciÃ³n objetiva, nexo causal, autorÃ­a o participaciÃ³n "
-        "y estÃ¡ndar probatorio. En derecho penal no basta el resultado daÃ±oso: debe evitarse toda responsabilidad penal objetiva. "
-        "La dimensiÃ³n procesal debe aplicar el CÃ³digo Procesal Penal de la NaciÃ³n y, si corresponde por competencia e implementaciÃ³n, "
-        "el CÃ³digo Procesal Penal Federal, para orientar denuncia, medidas de prueba, preservaciÃ³n de evidencia digital, oficios, "
+        f"La evaluación se apoya en {evidence_count} evidencia(s), {finding_count} hallazgo(s), "
+        f"{hypothesis_count} hipótesis y una cuantificación económica preliminar de {damage_total:.2f} ARS. "
+        "El análisis jurídico debe formularse con dogmática penal: principio de legalidad, tipicidad objetiva y subjetiva, "
+        "dolo o culpa cuando corresponda, antijuridicidad, culpabilidad, imputación objetiva, nexo causal, autoría o participación "
+        "y estándar probatorio. En derecho penal no basta el resultado dañoso: debe evitarse toda responsabilidad penal objetiva. "
+        "La dimensión procesal debe aplicar el Código Procesal Penal de la Nación y, si corresponde por competencia e implementación, "
+        "el Código Procesal Penal Federal, para orientar denuncia, medidas de prueba, preservación de evidencia digital, oficios, "
         "pericias, trazabilidad financiera y control de legalidad. "
-        "La conclusiÃ³n debe mantenerse en tÃ©rminos de compatibilidad tÃ©cnica, alcance y limitaciones, "
-        "sin afirmar autorÃ­a personal ni responsabilidad jurÃ­dica definitiva sin revisiÃ³n humana profesional."
+        "La conclusión debe mantenerse en términos de compatibilidad técnica, alcance y limitaciones, "
+        "sin afirmar autoría personal ni responsabilidad jurídica definitiva sin revisión humana profesional."
     )
     warnings = [
-        "La IA asiste y no reemplaza revisiÃ³n de abogado matriculado ni perito informÃ¡tico.",
-        "No se incorporan jurisprudencia ni doctrina no cargadas; toda fuente no verificada queda como Fuente pendiente de verificaciÃ³n.",
+        "La IA asiste y no reemplaza revisión de abogado matriculado ni perito informático.",
+        "No se incorporan jurisprudencia ni doctrina no cargadas; toda fuente no verificada queda como Fuente pendiente de verificación.",
         "La competencia concreta depende de hechos jurisdiccionales y procesales que deben validarse manualmente.",
     ]
     if not case.evidence:
@@ -175,7 +176,7 @@ def generate_automatic_legal_analysis(case: Case) -> dict:
     if any(not item.sha256_hash for item in case.evidence):
         warnings.append("Hay evidencia sin SHA-256; no conviene usarla como soporte fuerte.")
     if not case.findings:
-        warnings.append("No hay hallazgos; completar matriz dato tÃ©cnico â†’ evidencia â†’ hallazgo antes de cerrar conclusiones.")
+        warnings.append("No hay hallazgos; completar matriz dato técnico → evidencia → hallazgo antes de cerrar conclusiones.")
 
     return {
         "incident_classification": labels,
@@ -197,8 +198,8 @@ def generate_automatic_legal_analysis(case: Case) -> dict:
         "warnings": [normalize_spanish(item) for item in warnings],
         "defensible_conclusion": normalize_spanish(
             "Con el alcance y limitaciones indicadas, la evidencia disponible permite sostener una compatibilidad preliminar "
-            "con el incidente digital clasificado, sin afirmar autorÃ­a personal ni responsabilidad definitiva hasta completar "
-            "validaciÃ³n tÃ©cnica, jurÃ­dica y probatoria."
+            "con el incidente digital clasificado, sin afirmar autoría personal ni responsabilidad definitiva hasta completar "
+            "validación técnica, jurídica y probatoria."
         ),
     }
 

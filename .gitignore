@@ -22,6 +22,7 @@ storage/uploads/*
 storage/exports/*
 storage/maps/*
 storage/temp/*
+storage/test_runs/
 !storage/evidence/.gitkeep
 !storage/uploads/.gitkeep
 !storage/exports/.gitkeep
@@ -33,4 +34,3 @@ storage/temp/*
 Thumbs.db
 .vscode/
 .idea/
-

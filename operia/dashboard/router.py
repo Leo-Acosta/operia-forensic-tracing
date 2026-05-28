@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from operia.core.database import get_db
+from operia.cases.models import Case
 from operia.cybercrime.models import (
     BlockchainTransaction,
     CTFChallenge,
@@ -14,7 +15,8 @@ from operia.cybercrime.models import (
 )
 from operia.geo_proximity.models import GeoProximityQuery, LocationReference
 from operia.geo_trace.models import GeoTarget, GeoTraceAnalysis
-from operia.legal_report.models import Case, Evidence, Report
+from operia.evidence.models import Evidence
+from operia.reports.models import Report
 
 router = APIRouter()
 

@@ -1,10 +1,13 @@
 from typing import Any
+import ipaddress
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from operia.core.database import get_db
+from operia.cases.models import Case
 from operia.cybercrime.models import (
     BlockchainTransaction,
     CTFAnalysisStep,
@@ -19,11 +22,62 @@ from operia.cybercrime.models import (
     utcnow,
 )
 from operia.cybercrime.services import run_lab_command, verify_tool
-from operia.legal_report.models import Case, ChainOfCustodyAction, Evidence, Report
-from operia.legal_report.services.export_service import export_pdf
+from operia.evidence.models import ChainOfCustodyAction, Evidence
+from operia.exports.service import export_pdf
 from operia.legal_report.services.report_service import build_integral_markdown, populate_report_sections, snapshot_report
+from operia.reports.models import Report
 
 router = APIRouter()
+
+
+def analyze_indicator_value(indicator: str) -> dict[str, Any]:
+    value = indicator.strip()
+    parsed_url = urlparse(value if "://" in value else f"//{value}")
+    result: dict[str, Any] = {
+        "indicator": value,
+        "indicator_type": "unknown",
+        "risk_level": "medium",
+        "findings": [],
+        "recommended_actions": [
+            "Preservar evidencia original y trabajar sobre copia.",
+            "Registrar fuente, fecha de observacion y responsable.",
+            "Correlacionar con logs, cabeceras, DNS, WHOIS, geolocalizacion y evidencia del caso.",
+        ],
+        "human_review_required": True,
+    }
+    try:
+        ip = ipaddress.ip_address(value)
+        result["indicator_type"] = "ip"
+        result["findings"].append(f"Indicador reconocido como direccion IP version {ip.version}.")
+        if ip.is_private:
+            result["risk_level"] = "low"
+            result["findings"].append("La IP pertenece a un rango privado; no identifica por si sola un origen publico.")
+        elif ip.is_loopback or ip.is_link_local:
+            result["risk_level"] = "low"
+            result["findings"].append("La IP es loopback/link-local; requiere revisar el contexto local.")
+        else:
+            result["risk_level"] = "medium"
+            result["findings"].append("La IP es enrutable publicamente; requiere enriquecimiento OSINT controlado.")
+        return result
+    except ValueError:
+        pass
+
+    hostname = parsed_url.hostname or value
+    if "." in hostname:
+        result["indicator_type"] = "url" if parsed_url.scheme else "domain"
+        result["findings"].append(f"Host extraido: {hostname}.")
+        if parsed_url.scheme and parsed_url.scheme not in {"http", "https"}:
+            result["risk_level"] = "high"
+            result["findings"].append(f"Esquema poco comun detectado: {parsed_url.scheme}.")
+        if any(term in hostname.lower() for term in ["login", "verify", "secure", "account", "wallet"]):
+            result["risk_level"] = "high"
+            result["findings"].append("El host contiene terminos frecuentes en phishing o suplantacion.")
+        if len(hostname.split(".")) > 3:
+            result["findings"].append("El host usa multiples subdominios; verificar posible camuflaje.")
+        return result
+
+    result["findings"].append("Indicador no clasificado automaticamente; requiere enriquecimiento manual.")
+    return result
 
 
 def as_dict(obj: Any) -> dict[str, Any]:
@@ -72,8 +126,33 @@ def status() -> dict[str, object]:
         "module": "Cybercrime Intelligence Analyst",
         "status": "migrated",
         "description": "Operational cybercrime intelligence module using shared cases, evidence, reports, dashboard, config, and database.",
-        "shared_dependencies": ["cases", "evidence", "legal_report_export_pdf", "common_database", "shared_config"],
+        "shared_dependencies": ["cases", "evidence", "reports", "exports", "common_database", "shared_config"],
     }
+
+
+@router.post("/analyze-indicator")
+def analyze_indicator(payload: dict[str, Any], db: Session = Depends(get_db)):
+    indicator = str(payload.get("indicator") or "").strip()
+    if not indicator:
+        raise HTTPException(status_code=400, detail="Debe indicar una IP, dominio o URL.")
+    case_id = payload.get("case_id")
+    result = analyze_indicator_value(indicator)
+    if case_id:
+        case = db.get(Case, case_id)
+        if not case:
+            raise HTTPException(status_code=404, detail="Caso no encontrado")
+        db.add(
+            ChainOfCustodyAction(
+                case_id=case.id,
+                action_type="analisis cybercrime",
+                detailed_description=f"Analisis de indicador {result['indicator_type']}: {indicator}",
+                tool_used="OPERIA Cybercrime Indicator Analyzer",
+                result_obtained="; ".join(result["findings"]),
+                status="registrada",
+            )
+        )
+        db.commit()
+    return result
 
 
 @router.get("/dashboard")

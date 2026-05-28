@@ -1,11 +1,18 @@
 from fastapi import APIRouter
 
+from operia.ai_assistant.router import router as ai_assistant_router
+from operia.ai_security.router import router as ai_security_router
+from operia.audit.router import router as audit_router
+from operia.cases.router import router as cases_router
 from operia.cybercrime.router import router as cybercrime_router
 from operia.dashboard.router import router as dashboard_router
 from operia.evidence.router import router as evidence_router
 from operia.exports.router import router as exports_router
 from operia.geo_proximity.router import router as geo_proximity_router
 from operia.geo_trace.router import router as geo_trace_router
+from operia.identity.router import router as identity_router
+from operia.legal_knowledge.router import router as legal_knowledge_router
+from operia.legal_report.legal_router import router as legal_router
 from operia.legal_report.router import router as legal_report_router
 from operia.reports.router import router as reports_router
 from operia.settings.router import router as settings_router
@@ -20,13 +27,21 @@ def health() -> dict[str, str]:
 
 
 api_router.include_router(dashboard_router, prefix="/dashboard", tags=["dashboard"])
+api_router.include_router(identity_router, prefix="/identity", tags=["identity"])
+api_router.include_router(audit_router, prefix="/audit", tags=["audit"])
+api_router.include_router(cases_router, prefix="/cases", tags=["cases"])
 api_router.include_router(users_cases_router, prefix="/users-cases", tags=["users-cases"])
 api_router.include_router(evidence_router, prefix="/evidence", tags=["evidence"])
 api_router.include_router(cybercrime_router, prefix="/cybercrime", tags=["cybercrime"])
-api_router.include_router(legal_report_router, prefix="/legal-report", tags=["legal-report"])
-api_router.include_router(geo_trace_router, prefix="/geo-trace", tags=["geo-trace"])
-api_router.include_router(geo_proximity_router, prefix="/geo-proximity", tags=["geo-proximity"])
+api_router.include_router(legal_router, prefix="/legal", tags=["legal"])
+api_router.include_router(legal_report_router, prefix="/legal-report", tags=["legal-report-legacy"])
+api_router.include_router(legal_knowledge_router, prefix="/legal-knowledge", tags=["legal-knowledge"])
+api_router.include_router(ai_assistant_router, prefix="/ai", tags=["ai"])
+api_router.include_router(ai_security_router, prefix="/ai-security", tags=["ai-security"])
+api_router.include_router(geo_trace_router, prefix="/geo/trace", tags=["geo-trace"])
+api_router.include_router(geo_trace_router, prefix="/geo-trace", tags=["geo-trace-legacy"])
+api_router.include_router(geo_proximity_router, prefix="/geo/proximity", tags=["geo-proximity"])
+api_router.include_router(geo_proximity_router, prefix="/geo-proximity", tags=["geo-proximity-legacy"])
 api_router.include_router(reports_router, prefix="/reports", tags=["reports"])
 api_router.include_router(exports_router, prefix="/exports", tags=["exports"])
 api_router.include_router(settings_router, prefix="/settings", tags=["settings"])
-

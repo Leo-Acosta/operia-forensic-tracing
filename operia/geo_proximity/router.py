@@ -5,11 +5,12 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from operia.core.database import get_db
+from operia.cases.models import Case
 from operia.geo_proximity.models import GeoProximityQuery, LocationReference
 from operia.geo_proximity.services import distance_km
-from operia.legal_report.models import Case, Report
-from operia.legal_report.services.export_service import export_pdf
+from operia.exports.service import export_pdf
 from operia.legal_report.services.report_service import populate_report_sections, snapshot_report
+from operia.reports.models import Report
 
 router = APIRouter()
 
@@ -24,7 +25,7 @@ def status() -> dict[str, object]:
         "module": "Geo Proximity",
         "status": "migrated",
         "description": "Nearest-location lookup migrated from geo-apple-demo without Flask.",
-        "shared_dependencies": ["cases", "common_database", "shared_config", "legal_report_export_pdf", "dashboard"],
+        "shared_dependencies": ["cases", "reports", "exports", "common_database", "shared_config", "dashboard"],
     }
 
 
@@ -118,4 +119,3 @@ def export_query_pdf(query_id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(report)
     return FileResponse(export_pdf(report), filename=f"geo-proximity-query-{query_id}.pdf")
-

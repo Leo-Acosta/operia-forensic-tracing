@@ -1,43 +1,57 @@
 # OPERIA Forensic Tracing
 
-OPERIA Forensic Tracing is a modular forensic investigation platform that unifies cybercrime intelligence, legal-forensic reporting, geolocation tracing, evidence workflows, dashboards, and export pipelines into one professional application.
+OPERIA Forensic Tracing is a modular forensic investigation platform for cybercrime intelligence, legal-forensic reporting, geolocation tracing, evidence workflows, AI-assisted analysis, model safety evaluation, dashboards, and professional export pipelines.
 
-The project is currently in migration/refactor phase. Legacy backend logic from the original OPERIA prototypes has started to move into a single FastAPI + React architecture.
+The platform is built as a single FastAPI + React application, with a shared local database and modular backend packages.
 
-## Current Status
+## Current Capabilities
 
-Migrated backend modules:
+- Shared cases and technical data.
+- Evidence and chain-of-custody workflows.
+- Cybercrime Intelligence module.
+- Geo Trace module.
+- Geo Proximity module.
+- Legal Report module.
+- Argentine Legal Knowledge library.
+- Local AI Assistant prepared for Ollama/Mistral.
+- AI Security model risk evaluation.
+- SaaS-ready identity foundation.
+- Audit logs.
+- Canonical exports with SHA-256, MD5 and manifest files.
+- React frontend with operational screens.
+- Automated test suite.
 
-- Forensic Legal Report
-- Cybercrime Intelligence Analyst
-- Geo Trace
-- Geo Proximity
+## Quick Start On Windows
 
-Platform foundation:
+From the repository root:
 
-- FastAPI backend
-- React + TypeScript frontend shell
-- Shared SQLite database for local development
-- Shared configuration system
-- Shared storage layout
-- Shared PDF export pipeline
-- Shared dashboard metrics
+```powershell
+.\scripts\setup.ps1
+```
 
-Still pending:
+Start API:
 
-- Canonical domain refactor for cases, evidence, reports, exports, identity, and audit
-- Full frontend migration for each module
-- Authentication and authorization
-- Alembic migrations
-- SaaS/multi-tenant model
-- Production hardening
+```powershell
+.\scripts\start-api.ps1
+```
 
-## Quick Start
+Start frontend in another terminal:
+
+```powershell
+.\scripts\start-web.ps1
+```
+
+Open:
+
+- App: `http://127.0.0.1:5173`
+- API docs: `http://127.0.0.1:8020/docs`
+- Health: `http://127.0.0.1:8020/api/health`
+
+## Manual Start
 
 Backend:
 
 ```powershell
-cd new_unified_app
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
@@ -47,54 +61,86 @@ uvicorn apps.api.main:app --reload --host 127.0.0.1 --port 8020
 Frontend:
 
 ```powershell
-cd new_unified_app\apps\web
+cd apps\web
 npm install
-npm run dev
+npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
-API docs:
+## Tests
 
-- `http://127.0.0.1:8020/docs`
-- `http://127.0.0.1:8020/api/health`
+```powershell
+.\scripts\test.ps1
+```
+
+Equivalent:
+
+```powershell
+python -m pytest -q -p no:cacheprovider
+```
+
+## Optional Docker API
+
+```powershell
+docker compose up --build
+```
+
+The Docker setup currently runs the API only. The frontend remains local through Vite.
 
 ## Repository Layout
 
 ```text
 apps/
   api/                  FastAPI entry point
-  web/                  React frontend shell
+  web/                  React frontend
 
 operia/
-  core/                 Configuration, database, API router
-  shared/               Reusable services
-  legal_report/         Forensic Legal Report module
-  cybercrime/           Cybercrime Intelligence module
-  geo_trace/            IP/URL geolocation and risk tracing
-  geo_proximity/        Nearest-location/proximity module
+  core/                 Configuration, database, bootstrap, API router
+  shared/               Reusable utilities
+  identity/             Organizations, users, roles, auth
+  cases/                Cases, technical data, findings, hypotheses
+  evidence/             Evidence and chain of custody
+  reports/              Reports, sections, versions, presentations
+  exports/              Export manifests, hashes, PDF/JSON/CSV/Markdown
+  legal_knowledge/      Argentine legal library
+  legal_report/         Legal review and legacy compatibility workflows
+  ai_assistant/         Ollama/Mistral assistant
+  ai_security/          Model evaluation and risk scoring
+  cybercrime/           Cybercrime intelligence workflows
+  geo_trace/            IP/URL tracing and risk
+  geo_proximity/        Location proximity workflows
   dashboard/            Global metrics
-  settings/             Runtime settings API
-  evidence/             Placeholder for canonical evidence module
-  reports/              Placeholder for canonical reports module
-  exports/              Placeholder for canonical exports module
-  users_cases/          Placeholder for canonical users/cases module
+  settings/             Runtime settings
+  audit/                Audit logs
+
+docs/
+  Architecture, modules, AI, security, testing and deployment notes
 
 storage/
-  evidence/
-  uploads/
-  exports/
-  maps/
-  temp/
+  Local runtime data, ignored by git except placeholders
 ```
+
+## Important Notes
+
+- Ollama is optional. If Ollama/Mistral is unavailable, the app continues working and records `ollama_unavailable`.
+- Legal and AI outputs are assistive. They require human professional review.
+- Legacy aliases are kept while the frontend and workflows complete migration to canonical APIs.
+- The included SaaS security is a local foundation, not final production identity.
 
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
-- [Migration Plan](docs/MIGRATION_PLAN.md)
+- [API Routes](docs/API_ROUTES.md)
 - [Modules](docs/MODULES.md)
-- [Roadmap](docs/ROADMAP.md)
-- [Development Guide](docs/DEVELOPMENT.md)
+- [Legal Knowledge](docs/LEGAL_KNOWLEDGE.md)
+- [AI Assistant](docs/AI_ASSISTANT.md)
+- [AI Security](docs/AI_SECURITY.md)
+- [Exports](docs/EXPORTS.md)
+- [SaaS Readiness](docs/SAAS_READINESS.md)
+- [Testing](docs/TESTING.md)
+- [Deployment](docs/DEPLOYMENT.md)
+- [Migration Notes](docs/MIGRATION_NOTES.md)
 
-## Professional Disclaimer
+## Disclaimer
 
 OPERIA Forensic Tracing is an assistive forensic and legal-technical platform. It does not replace expert human review, professional legal judgment, forensic validation, or proper chain-of-custody procedures.
 

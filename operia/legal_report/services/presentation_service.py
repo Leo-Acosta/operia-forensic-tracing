@@ -1,4 +1,5 @@
-﻿from operia.legal_report.models import Case, Presentation, PresentationSlide, Report
+from operia.cases.models import Case
+from operia.reports.models import Presentation, PresentationSlide, Report
 from operia.legal_report.services.text_service import normalize_spanish
 
 
@@ -25,7 +26,7 @@ def build_presentation(case: Case, report: Report, presentation_type: str = "Pre
         title=f"Presentaci?n ejecutiva - {case.title}",
         presentation_type=presentation_type,
         author=report.author,
-        selected_fragments="Resumen ejecutivo; hallazgos principales; evidencia clave; cuantificaciÃ³n; conclusiÃ³n defendible.",
+        selected_fragments="Resumen ejecutivo; hallazgos principales; evidencia clave; cuantificación; conclusión defendible.",
     )
 
     slides = [
@@ -33,31 +34,31 @@ def build_presentation(case: Case, report: Report, presentation_type: str = "Pre
             1,
             "Portada profesional",
             normalize_spanish(f"{case.title}\nCaso {case.case_code}\nTipo de incidente: {case.incident_type}\nResponsable: {case.responsible or 'pendiente'}"),
-            "Abrir con alcance, rol profesional y advertencia de revisiÃ³n humana.",
+            "Abrir con alcance, rol profesional y advertencia de revisión humana.",
         ),
         make_slide(
             2,
             "Resumen ejecutivo",
-            normalize_spanish(f"Se analiza un incidente de {case.incident_type}. DaÃ±o econÃ³mico estimado: {total_damage:.2f} ARS. La conclusiÃ³n se formula con alcance preliminar y limitaciones expresas."),
-            "Explicar que la presentaciÃ³n resume el informe y no sustituye el documento completo.",
+            normalize_spanish(f"Se analiza un incidente de {case.incident_type}. Daño económico estimado: {total_damage:.2f} ARS. La conclusión se formula con alcance preliminar y limitaciones expresas."),
+            "Explicar que la presentación resume el informe y no sustituye el documento completo.",
         ),
         make_slide(
             3,
-            "TeorÃ­a del caso",
-            normalize_spanish(case.description) or "TeorÃ­a del caso pendiente de completar con datos tÃ©cnicos y evidencia preservada.",
-            "Conectar dato tÃ©cnico, evidencia, hallazgo, hipÃ³tesis y daÃ±o.",
+            "Teoría del caso",
+            normalize_spanish(case.description) or "Teoría del caso pendiente de completar con datos técnicos y evidencia preservada.",
+            "Conectar dato técnico, evidencia, hallazgo, hipótesis y daño.",
         ),
         make_slide(
             4,
             "L?nea de tiempo visual",
             normalize_spanish("\n".join(f"{a.action_at}: {a.action_type} - {a.detailed_description}" for a in case.actions[:6])) or "Sin eventos registrados.",
-            "Ordenar cronolÃ³gicamente y seÃ±alar puntos de preservaciÃ³n.",
+            "Ordenar cronológicamente y señalar puntos de preservación.",
         ),
         make_slide(
             5,
             "Mapa de evidencia",
             normalize_spanish("\n".join(f"Evidencia #{e.id}: {e.description}. Hash: {e.sha256_hash or 'pendiente'}" for e in evidence)) or "Sin evidencia cargada.",
-            "Aclarar que el hash verifica integridad, no autorÃ­a.",
+            "Aclarar que el hash verifica integridad, no autoría.",
         ),
         make_slide(
             6,
@@ -68,32 +69,32 @@ def build_presentation(case: Case, report: Report, presentation_type: str = "Pre
         make_slide(
             7,
             "Hip?tesis investigativa principal",
-            normalize_spanish("\n".join(f"{h.title}: {h.description}. Soporte: {h.support_degree}" for h in case.hypotheses[:3])) or "Sin hipÃ³tesis cargadas.",
-            "Presentar hipÃ³tesis como provisional si falta prueba complementaria.",
+            normalize_spanish("\n".join(f"{h.title}: {h.description}. Soporte: {h.support_degree}" for h in case.hypotheses[:3])) or "Sin hipótesis cargadas.",
+            "Presentar hipótesis como provisional si falta prueba complementaria.",
         ),
         make_slide(
             8,
-            "Encuadre jurÃ­dico preliminar",
-            normalize_spanish("\n".join(f"{m.legal_area}: {m.norm_reference}. {m.verification_status}" for m in legal)) or "Fuente pendiente de verificaciÃ³n.",
-            "Recordar que el encuadre requiere revisiÃ³n de abogado matriculado.",
+            "Encuadre jurídico preliminar",
+            normalize_spanish("\n".join(f"{m.legal_area}: {m.norm_reference}. {m.verification_status}" for m in legal)) or "Fuente pendiente de verificación.",
+            "Recordar que el encuadre requiere revisión de abogado matriculado.",
         ),
         make_slide(
             9,
-            "CuantificaciÃ³n econÃ³mica del daÃ±o",
-            normalize_spanish("\n".join(f"{d.concept}: {d.amount:.2f} {d.currency}. FÃ³rmula: {d.formula_used or 'pendiente'}" for d in damages)) or "Sin daÃ±os cargados.",
-            "Separar daÃ±o patrimonial directo, lucro cesante y otros conceptos.",
+            "Cuantificación económica del daño",
+            normalize_spanish("\n".join(f"{d.concept}: {d.amount:.2f} {d.currency}. Fórmula: {d.formula_used or 'pendiente'}" for d in damages)) or "Sin daños cargados.",
+            "Separar daño patrimonial directo, lucro cesante y otros conceptos.",
         ),
         make_slide(
             10,
-            "ConclusiÃ³n jurÃ­dicamente defendible",
-            "La evidencia resulta compatible con los hallazgos indicados, con el alcance y limitaciones del informe. No resulta posible afirmar autorÃ­a personal sin medidas complementarias.",
+            "Conclusión jurídicamente defendible",
+            "La evidencia resulta compatible con los hallazgos indicados, con el alcance y limitaciones del informe. No resulta posible afirmar autoría personal sin medidas complementarias.",
             "Cerrar con limites, proximos pasos y valor probatorio.",
         ),
         make_slide(
             11,
             "Preguntas esperables del jurado",
-            "Â¿QuÃ© demuestra el hash?\nÂ¿QuÃ© no puede concluirse todavÃ­a?\nÂ¿CÃ³mo se conecta la evidencia con el daÃ±o?\nÂ¿QuÃ© fuentes legales estÃ¡n verificadas?",
-            "Responder en lenguaje claro, breve y no categÃ³rico.",
+            "¿Qué demuestra el hash?\n¿Qué no puede concluirse todavía?\n¿Cómo se conecta la evidencia con el daño?\n¿Qué fuentes legales están verificadas?",
+            "Responder en lenguaje claro, breve y no categórico.",
         ),
     ]
     for slide in slides:

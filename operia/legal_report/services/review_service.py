@@ -1,38 +1,39 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import re
 
-from operia.legal_report.models import Case, Report
+from operia.cases.models import Case
+from operia.reports.models import Report
 from operia.legal_report.services.text_service import normalize_spanish
 
 
 REQUIRED_SECTIONS = [
-    "CarÃ¡tula",
+    "Carátula",
     "Datos del caso",
     "Objeto del informe",
-    "Alcance del anÃ¡lisis",
+    "Alcance del análisis",
     "Limitaciones",
-    "MetodologÃ­a utilizada",
+    "Metodología utilizada",
     "Resumen ejecutivo",
-    "DescripciÃ³n del incidente",
+    "Descripción del incidente",
     "Evidencia recibida",
     "Registro de cadena de custodia",
-    "LÃ­nea de tiempo de eventos",
-    "AnÃ¡lisis tÃ©cnico-forense",
-    "Matriz dato tÃ©cnico -> evidencia -> hallazgo",
+    "Línea de tiempo de eventos",
+    "Análisis técnico-forense",
+    "Matriz dato técnico -> evidencia -> hallazgo",
     "Hallazgos principales",
-    "HipÃ³tesis investigativas",
-    "EvaluaciÃ³n de hipÃ³tesis alternativas",
-    "Conclusiones tÃ©cnicas",
-    "Encuadre jurÃ­dico argentino",
+    "Hipótesis investigativas",
+    "Evaluación de hipótesis alternativas",
+    "Conclusiones técnicas",
+    "Encuadre jurídico argentino",
     "Responsabilidad penal preliminar",
     "Responsabilidad civil preliminar",
-    "ProtecciÃ³n de datos personales",
-    "CuantificaciÃ³n econÃ³mica del daÃ±o",
-    "ConclusiÃ³n jurÃ­dicamente defendible",
+    "Protección de datos personales",
+    "Cuantificación económica del daño",
+    "Conclusión jurídicamente defendible",
     "Recomendaciones",
     "Anexos",
-    "Glosario tÃ©cnico",
+    "Glosario técnico",
     "Preguntas y respuestas para testimonio experto",
 ]
 
@@ -51,22 +52,22 @@ RISKY_LANGUAGE = [
 DEFENSIBLE_LANGUAGE = [
     "la evidencia resulta compatible con",
     "con el alcance y limitaciones indicadas",
-    "no resulta posible afirmar autorÃ­a personal",
-    "requiere validaciÃ³n humana",
-    "sujeto a verificaciÃ³n",
+    "no resulta posible afirmar autoría personal",
+    "requiere validación humana",
+    "sujeto a verificación",
 ]
 
 INCIDENT_LEGAL_HINTS = {
-    "phishing": ["fraude", "CÃ³digo Penal", "Ley 26.388"],
-    "fraude": ["fraude", "CÃ³digo Penal", "Ley 26.388"],
-    "cripto": ["blockchain", "trazabilidad", "daÃ±o"],
-    "transferencia": ["fraude", "daÃ±o", "trazabilidad"],
+    "phishing": ["fraude", "Código Penal", "Ley 26.388"],
+    "fraude": ["fraude", "Código Penal", "Ley 26.388"],
+    "cripto": ["blockchain", "trazabilidad", "daño"],
+    "transferencia": ["fraude", "daño", "trazabilidad"],
     "datos": ["Ley 25.326", "datos personales"],
-    "filtraciÃ³n": ["Ley 25.326", "datos personales"],
-    "deepfake": ["engaÃ±o", "IA", "fraude"],
-    "ia": ["engaÃ±o", "IA", "fraude"],
+    "filtración": ["Ley 25.326", "datos personales"],
+    "deepfake": ["engaño", "IA", "fraude"],
+    "ia": ["engaño", "IA", "fraude"],
     "acceso": ["acceso no autorizado", "Ley 26.388"],
-    "ransomware": ["daÃ±o informÃ¡tico", "extorsiÃ³n", "Ley 26.388"],
+    "ransomware": ["daño informático", "extorsión", "Ley 26.388"],
 }
 
 
@@ -138,44 +139,44 @@ def review_report(report: Report, case: Case) -> dict:
     if findings_without_evidence:
         critical.append("Existen hallazgos sin evidencia vinculada ni respaldo textual.")
     if "limitaciones" not in content_lower:
-        critical.append("El informe no explicita limitaciones del anÃ¡lisis.")
+        critical.append("El informe no explicita limitaciones del análisis.")
     if case.findings and not case.evidence:
         critical.append("Hay hallazgos cargados sin evidencia preservada en el caso.")
 
     if data_without_evidence:
-        warnings.append(f"{len(data_without_evidence)} dato(s) tÃ©cnico(s) todavÃ­a no fueron convertidos o vinculados a evidencia.")
+        warnings.append(f"{len(data_without_evidence)} dato(s) técnico(s) todavía no fueron convertidos o vinculados a evidencia.")
     if evidence_without_finding:
-        warnings.append(f"{len(evidence_without_finding)} evidencia(s) no estÃ¡n usadas en ningÃºn hallazgo.")
+        warnings.append(f"{len(evidence_without_finding)} evidencia(s) no están usadas en ningún hallazgo.")
     if evidence_without_custody:
-        warnings.append(f"{len(evidence_without_custody)} evidencia(s) no tienen acciÃ³n especÃ­fica de cadena de custodia vinculada.")
+        warnings.append(f"{len(evidence_without_custody)} evidencia(s) no tienen acción específica de cadena de custodia vinculada.")
     if findings_without_data:
-        warnings.append(f"{len(findings_without_data)} hallazgo(s) no indican dato tÃ©cnico de origen.")
+        warnings.append(f"{len(findings_without_data)} hallazgo(s) no indican dato técnico de origen.")
     if draft_findings:
         warnings.append(f"{len(draft_findings)} hallazgo(s) siguen en borrador.")
     if case.findings and not case.hypotheses:
-        warnings.append("Existen hallazgos, pero todavÃ­a no hay hipÃ³tesis investigativas asociadas.")
+        warnings.append("Existen hallazgos, pero todavía no hay hipótesis investigativas asociadas.")
     if hypotheses_without_support:
-        warnings.append(f"{len(hypotheses_without_support)} hipÃ³tesis no tienen hallazgos o evidencia de soporte.")
+        warnings.append(f"{len(hypotheses_without_support)} hipótesis no tienen hallazgos o evidencia de soporte.")
     if hypotheses_without_limits:
-        warnings.append("Hay hipÃ³tesis sin alternativas, riesgos de error o hechos faltantes.")
+        warnings.append("Hay hipótesis sin alternativas, riesgos de error o hechos faltantes.")
     if not case.actions:
-        warnings.append("No hay acciones registradas en la bitÃ¡cora forense.")
+        warnings.append("No hay acciones registradas en la bitácora forense.")
     if legal_without_source:
-        warnings.append("Hay encuadres jurÃ­dicos con norma incompleta o fuente pendiente de verificaciÃ³n.")
+        warnings.append("Hay encuadres jurídicos con norma incompleta o fuente pendiente de verificación.")
     if not case.legal_mappings:
         warnings.append("El caso no tiene encuadre legal manual cargado.")
     if damages_without_formula:
-        warnings.append("Hay cÃ¡lculos econÃ³micos sin fÃ³rmula o fuente de valor.")
+        warnings.append("Hay cálculos económicos sin fórmula o fuente de valor.")
     if damages_without_support:
-        warnings.append("Hay conceptos de daÃ±o sin evidencia de respaldo.")
+        warnings.append("Hay conceptos de daño sin evidencia de respaldo.")
     if case.damage_items and any(item.amount <= 0 for item in case.damage_items):
-        warnings.append("Hay conceptos de daÃ±o con monto cero o negativo.")
+        warnings.append("Hay conceptos de daño con monto cero o negativo.")
 
     for phrase in RISKY_LANGUAGE:
         if phrase in content_lower:
-            warnings.append(f"Lenguaje demasiado categÃ³rico detectado: '{phrase}'.")
-    if "autorÃ­a" in content_lower and "no resulta posible afirmar autorÃ­a personal" not in content_lower:
-        warnings.append("El informe menciona autorÃ­a, pero no incluye una limitaciÃ³n expresa de atribuciÃ³n personal.")
+            warnings.append(f"Lenguaje demasiado categórico detectado: '{phrase}'.")
+    if "autoría" in content_lower and "no resulta posible afirmar autoría personal" not in content_lower:
+        warnings.append("El informe menciona autoría, pero no incluye una limitación expresa de atribución personal.")
 
     for evidence in case.evidence:
         if not _evidence_ref_present(content_lower, evidence.id):
@@ -193,15 +194,15 @@ def review_report(report: Report, case: Case) -> dict:
             break
 
     if incomplete:
-        suggestions.append("Completar secciones obligatorias antes de exportar una versiÃ³n final.")
+        suggestions.append("Completar secciones obligatorias antes de exportar una versión final.")
     if not any(term in content_lower for term in DEFENSIBLE_LANGUAGE):
-        suggestions.append("Agregar lenguaje defendible: compatibilidad tÃ©cnica, alcance, limitaciones y revisiÃ³n humana.")
-    if "fuente pendiente de verificaciÃ³n" in content_lower:
+        suggestions.append("Agregar lenguaje defendible: compatibilidad técnica, alcance, limitaciones y revisión humana.")
+    if "fuente pendiente de verificación" in content_lower:
         suggestions.append("Revisar fuentes normativas, doctrinarias o jurisprudenciales antes de presentar como final.")
     if damages_without_formula:
-        suggestions.append("Cada monto debe indicar fÃ³rmula, fuente del valor y evidencia que respalda el cÃ¡lculo.")
+        suggestions.append("Cada monto debe indicar fórmula, fuente del valor y evidencia que respalda el cálculo.")
     if hypotheses_without_support:
-        suggestions.append("Vincular cada hipÃ³tesis con hallazgos y evidencias concretas.")
+        suggestions.append("Vincular cada hipótesis con hallazgos y evidencias concretas.")
     if evidence_without_finding:
         suggestions.append("Usar la matriz probatoria para transformar evidencia preservada en hallazgos verificables.")
 
@@ -212,11 +213,11 @@ def review_report(report: Report, case: Case) -> dict:
     score -= min(15, len(unsupported) * 3)
     score = max(0, min(100, score))
     status = (
-        "listo para revisiÃ³n humana" if score >= 85
-        else "sÃ³lido" if score >= 70
+        "listo para revisión humana" if score >= 85
+        else "sólido" if score >= 70
         else "bueno" if score >= 55
         else "aceptable" if score >= 40
-        else "dÃ©bil"
+        else "débil"
     )
 
     return {
@@ -233,10 +234,10 @@ def review_report(report: Report, case: Case) -> dict:
         ],
         "unsupported_conclusions": [normalize_spanish(item) for item in unsupported],
         "drafting_recommendations": [
-            "Usar fÃ³rmulas como 'la evidencia resulta compatible con' y 'con el alcance y limitaciones indicadas'.",
-            "Distinguir hecho comprobado, inferencia tÃ©cnica, hipÃ³tesis, opiniÃ³n experta y conclusiÃ³n jurÃ­dica.",
-            "Evitar atribuciÃ³n penal personal si solo hay compatibilidad tÃ©cnica o trazabilidad parcial.",
-            "No citar jurisprudencia o doctrina que no estÃ© cargada o verificada.",
+            "Usar fórmulas como 'la evidencia resulta compatible con' y 'con el alcance y limitaciones indicadas'.",
+            "Distinguir hecho comprobado, inferencia técnica, hipótesis, opinión experta y conclusión jurídica.",
+            "Evitar atribución penal personal si solo hay compatibilidad técnica o trazabilidad parcial.",
+            "No citar jurisprudencia o doctrina que no esté cargada o verificada.",
         ],
     }
 
@@ -248,19 +249,19 @@ def review_presentation(slides: list) -> dict:
     risks: list[str] = []
     recommendations: list[str] = []
 
-    for required in ("resumen", "lÃ­nea", "evidencia", "hallazgos", "jurÃ­dico", "daÃ±o", "conclusiÃ³n"):
+    for required in ("resumen", "línea", "evidencia", "hallazgos", "jurídico", "daño", "conclusión"):
         if required not in titles and required not in text:
             score -= 5
-            recommendations.append(f"Incluir o reforzar pÃ¡gina de {required}.")
+            recommendations.append(f"Incluir o reforzar página de {required}.")
     if len(slides) < 5:
         score -= 10
-        risks.append("La presentaciÃ³n puede ser demasiado breve para sostener la exposiciÃ³n.")
+        risks.append("La presentación puede ser demasiado breve para sostener la exposición.")
     if len(slides) > 20:
         score -= 8
-        recommendations.append("Reducir extensiÃ³n para mantener claridad ejecutiva.")
+        recommendations.append("Reducir extensión para mantener claridad ejecutiva.")
     if any(phrase in text for phrase in RISKY_LANGUAGE):
         score -= 8
-        risks.append("La presentaciÃ³n contiene lenguaje categÃ³rico que puede ser vulnerable en exposiciÃ³n oral.")
+        risks.append("La presentación contiene lenguaje categórico que puede ser vulnerable en exposición oral.")
 
     return {
         "score": max(0, min(100, score)),
@@ -270,7 +271,7 @@ def review_presentation(slides: list) -> dict:
         "legal_solidity": max(0, min(100, score - 5)),
         "visual_quality": 80,
         "oral_exposure_risks": risks,
-        "recommendations": recommendations or ["Mantener lenguaje probabilÃ­stico y conectar cada afirmaciÃ³n fuerte con evidencia."],
+        "recommendations": recommendations or ["Mantener lenguaje probabilístico y conectar cada afirmación fuerte con evidencia."],
     }
 def _score(base: int, penalties: list[int], bonus: int = 0) -> int:
     return max(0, min(100, base - sum(penalties) + bonus))
@@ -290,7 +291,7 @@ def review_presentation(presentation_or_slides) -> dict:
     public_text = " ".join(
         normalize_spanish(slide.text or "").lower()
         for slide in slides
-        if normalize_spanish(slide.confidentiality_level).lower() == "pÃºblico"
+        if normalize_spanish(slide.confidentiality_level).lower() == "público"
     )
 
     critical: list[str] = []
@@ -300,15 +301,15 @@ def review_presentation(presentation_or_slides) -> dict:
     page_recommendations: list[str] = []
 
     required_topics = {
-        "resumen ejecutivo": ("resumen", "quÃ© ocurriÃ³"),
-        "teorÃ­a del caso": ("teorÃ­a", "hipÃ³tesis central"),
-        "lÃ­nea de tiempo": ("lÃ­nea de tiempo", "cronolog"),
+        "resumen ejecutivo": ("resumen", "qué ocurrió"),
+        "teoría del caso": ("teoría", "hipótesis central"),
+        "línea de tiempo": ("línea de tiempo", "cronolog"),
         "mapa de evidencia": ("evidencia", "hallazgo"),
         "hallazgos principales": ("hallazgos", "confianza"),
-        "hipÃ³tesis": ("hipÃ³tesis", "alternativa"),
-        "encuadre jurÃ­dico": ("jurÃ­dico", "norma"),
-        "cuantificaciÃ³n del daÃ±o": ("daÃ±o", "monto"),
-        "conclusiÃ³n defendible": ("conclusiÃ³n", "limitaciones"),
+        "hipótesis": ("hipótesis", "alternativa"),
+        "encuadre jurídico": ("jurídico", "norma"),
+        "cuantificación del daño": ("daño", "monto"),
+        "conclusión defendible": ("conclusión", "limitaciones"),
         "preguntas del jurado": ("preguntas", "jurado"),
     }
     missing_topics = [
@@ -316,91 +317,91 @@ def review_presentation(presentation_or_slides) -> dict:
         if not any(term in full_text for term in terms)
     ]
     if missing_topics:
-        warnings.append("Faltan o estÃ¡n dÃ©biles estos bloques de presentaciÃ³n: " + ", ".join(missing_topics) + ".")
+        warnings.append("Faltan o están débiles estos bloques de presentación: " + ", ".join(missing_topics) + ".")
 
     if not slides:
-        critical.append("La presentaciÃ³n no tiene pÃ¡ginas editables.")
+        critical.append("La presentación no tiene páginas editables.")
     if len(slides) < 5:
-        critical.append("La presentaciÃ³n es demasiado breve para una exposiciÃ³n defendible.")
+        critical.append("La presentación es demasiado breve para una exposición defendible.")
     if len(slides) > 18:
-        warnings.append("La presentaciÃ³n puede ser extensa para un deck ejecutivo; conviene separar versiÃ³n completa y versiÃ³n pÃºblica.")
+        warnings.append("La presentación puede ser extensa para un deck ejecutivo; conviene separar versión completa y versión pública.")
 
     for slide in slides:
         text = normalize_spanish(slide.text or "").strip()
         slide_notes = normalize_spanish(slide.speaker_notes or "").strip()
-        label = f"PÃ¡gina {slide.slide_number} ({normalize_spanish(slide.title)})"
+        label = f"Página {slide.slide_number} ({normalize_spanish(slide.title)})"
         if len(text) < 40:
             page_recommendations.append(f"{label}: ampliar contenido visual; hoy parece demasiado escueta.")
         if len(text) > 950:
-            warnings.append(f"{label}: contiene mucho texto para exposiciÃ³n oral; conviene dividir o resumir.")
+            warnings.append(f"{label}: contiene mucho texto para exposición oral; conviene dividir o resumir.")
         if not slide_notes:
             page_recommendations.append(f"{label}: agregar notas del expositor.")
         if any(phrase in text.lower() for phrase in RISKY_LANGUAGE):
-            risks.append(f"{label}: contiene lenguaje categÃ³rico que puede ser vulnerable en contraexamen.")
-        if normalize_spanish(slide.confidentiality_level).lower() == "pÃºblico":
-            sensitive_terms = ["wallet", "hash", "correo", "dni", "domicilio", "contraseÃ±a", "clave", "vÃ­ctima"]
+            risks.append(f"{label}: contiene lenguaje categórico que puede ser vulnerable en contraexamen.")
+        if normalize_spanish(slide.confidentiality_level).lower() == "público":
+            sensitive_terms = ["wallet", "hash", "correo", "dni", "domicilio", "contraseña", "clave", "víctima"]
             if any(term in text.lower() for term in sensitive_terms):
-                warnings.append(f"{label}: marcada como pÃºblica, pero contiene posibles datos sensibles.")
+                warnings.append(f"{label}: marcada como pública, pero contiene posibles datos sensibles.")
 
-    strong_claim_terms = ["responsable", "autorÃ­a", "culpable", "demuestra", "probado", "sin dudas"]
+    strong_claim_terms = ["responsable", "autoría", "culpable", "demuestra", "probado", "sin dudas"]
     if any(term in body for term in strong_claim_terms) and not _contains_any(full_text, ["compatible con", "limitaciones", "preliminar", "no resulta posible afirmar"]):
-        risks.append("Hay afirmaciones fuertes sin suficiente lenguaje de alcance, compatibilidad tÃ©cnica o limitaciÃ³n probatoria.")
+        risks.append("Hay afirmaciones fuertes sin suficiente lenguaje de alcance, compatibilidad técnica o limitación probatoria.")
 
-    if "daÃ±o" in full_text and not _contains_any(full_text, ["fÃ³rmula", "fuente", "certeza", "monto"]):
-        warnings.append("La cuantificaciÃ³n del daÃ±o aparece sin suficiente explicaciÃ³n de fÃ³rmula, fuente o nivel de certeza.")
-    if "jurÃ­dico" in full_text and not _contains_any(full_text, ["cÃ³digo penal", "ley", "fuente pendiente", "norma"]):
-        warnings.append("El encuadre jurÃ­dico necesita norma, fuente o marca de verificaciÃ³n pendiente.")
+    if "daño" in full_text and not _contains_any(full_text, ["fórmula", "fuente", "certeza", "monto"]):
+        warnings.append("La cuantificación del daño aparece sin suficiente explicación de fórmula, fuente o nivel de certeza.")
+    if "jurídico" in full_text and not _contains_any(full_text, ["código penal", "ley", "fuente pendiente", "norma"]):
+        warnings.append("El encuadre jurídico necesita norma, fuente o marca de verificación pendiente.")
     if "evidencia" in full_text and not _contains_any(full_text, ["sha-256", "hash", "cadena de custodia", "preserv"]):
-        warnings.append("La evidencia clave deberÃ­a mencionar hash, preservaciÃ³n o cadena de custodia.")
-    if "hipÃ³tesis" in full_text and "alternativa" not in full_text:
-        recommendations.append("Agregar hipÃ³tesis alternativas o explicar por quÃ© quedan pendientes.")
+        warnings.append("La evidencia clave debería mencionar hash, preservación o cadena de custodia.")
+    if "hipótesis" in full_text and "alternativa" not in full_text:
+        recommendations.append("Agregar hipótesis alternativas o explicar por qué quedan pendientes.")
     if source_text:
-        source_keywords = [word for word in re.findall(r"[a-zÃ¡Ã©Ã­Ã³ÃºÃ±]{7,}", source_text.lower())[:80]]
+        source_keywords = [word for word in re.findall(r"[a-záéíóúñ]{7,}", source_text.lower())[:80]]
         matched = sum(1 for word in set(source_keywords) if word in full_text)
         if matched < 8:
-            warnings.append("La presentaciÃ³n parece poco alineada con el informe fuente; revisar selecciÃ³n de fragmentos.")
+            warnings.append("La presentación parece poco alineada con el informe fuente; revisar selección de fragmentos.")
 
     if case:
         incident = normalize_spanish(case.incident_type or "").lower()
         if "deepfake" in incident and "deepfake" not in full_text and "ia" not in full_text:
-            recommendations.append("El tipo de incidente menciona deepfake/IA; la presentaciÃ³n debe explicarlo en lenguaje claro.")
-        if ("cripto" in incident or "blockchain" in incident) and not _contains_any(full_text, ["cripto", "blockchain", "wallet", "transacciÃ³n"]):
-            recommendations.append("El incidente tiene componente cripto; conviene sumar trazabilidad, wallet o transacciÃ³n relevante.")
+            recommendations.append("El tipo de incidente menciona deepfake/IA; la presentación debe explicarlo en lenguaje claro.")
+        if ("cripto" in incident or "blockchain" in incident) and not _contains_any(full_text, ["cripto", "blockchain", "wallet", "transacción"]):
+            recommendations.append("El incidente tiene componente cripto; conviene sumar trazabilidad, wallet o transacción relevante.")
 
     if public_text and _contains_any(public_text, ["confidencial", "reservado", "dni", "wallet", "hash"]):
-        risks.append("La versiÃ³n pÃºblica puede exponer informaciÃ³n sensible; revisar confidencialidad por pÃ¡gina.")
+        risks.append("La versión pública puede exponer información sensible; revisar confidencialidad por página.")
 
     if not _contains_any(full_text, ["con el alcance", "limitaciones", "preliminar", "compatible con"]):
-        recommendations.append("Incluir una diapositiva o cierre con lÃ­mites del anÃ¡lisis y conclusiÃ³n jurÃ­dicamente defendible.")
+        recommendations.append("Incluir una diapositiva o cierre con límites del análisis y conclusión jurídicamente defendible.")
     if not notes.strip():
         risks.append("No hay notas del expositor; la defensa oral queda menos preparada.")
 
     clarity = _score(92, [8 for slide in slides if len(normalize_spanish(slide.text or "")) > 950] + [4 for _ in missing_topics[:4]])
     evidentiary_strength = _score(90, [10 if "evidencia" not in full_text else 0, 8 if "hash" not in full_text and "sha-256" not in full_text else 0, 8 if "custodia" not in full_text else 0])
-    narrative_coherence = _score(88, [5 for _ in missing_topics], 5 if "lÃ­nea de tiempo" in full_text and "conclusiÃ³n" in full_text else 0)
-    legal_solidity = _score(86, [10 if "jurÃ­dico" not in full_text else 0, 8 if not _contains_any(full_text, ["ley", "cÃ³digo penal", "norma", "fuente pendiente"]) else 0])
+    narrative_coherence = _score(88, [5 for _ in missing_topics], 5 if "línea de tiempo" in full_text and "conclusión" in full_text else 0)
+    legal_solidity = _score(86, [10 if "jurídico" not in full_text else 0, 8 if not _contains_any(full_text, ["ley", "código penal", "norma", "fuente pendiente"]) else 0])
     visual_quality = _score(86, [6 for slide in slides if len(normalize_spanish(slide.text or "")) > 950] + [4 for slide in slides if len(normalize_spanish(slide.text or "")) < 40])
     score = round((clarity + evidentiary_strength + narrative_coherence + legal_solidity + visual_quality) / 5)
     score -= min(30, len(critical) * 12 + len(risks) * 5 + len(warnings) * 2)
     score = max(0, min(100, score))
 
     if critical:
-        status = "dÃ©bil"
+        status = "débil"
     elif score >= 85:
-        status = "lista para revisiÃ³n humana"
+        status = "lista para revisión humana"
     elif score >= 72:
-        status = "sÃ³lida"
+        status = "sólida"
     elif score >= 58:
         status = "buena"
     elif score >= 42:
         status = "aceptable"
     else:
-        status = "dÃ©bil"
+        status = "débil"
 
     if not recommendations:
-        recommendations.append("Mantener lenguaje probabilÃ­stico y conectar cada afirmaciÃ³n fuerte con evidencia preservada.")
+        recommendations.append("Mantener lenguaje probabilístico y conectar cada afirmación fuerte con evidencia preservada.")
     if not page_recommendations:
-        page_recommendations.append("Las pÃ¡ginas tienen estructura editable suficiente; revisar estilo visual antes del PDF premium.")
+        page_recommendations.append("Las páginas tienen estructura editable suficiente; revisar estilo visual antes del PDF premium.")
 
     return {
         "score": score,

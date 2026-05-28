@@ -1,6 +1,6 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
-from operia.legal_report.models import Report
+from operia.reports.models import Report
 from operia.legal_report.services.ai_legal_service import generate_automatic_legal_analysis
 from operia.legal_report.services.legal_knowledge_base import dogmatic_context, procedural_context
 from operia.legal_report.services.text_service import normalize_spanish
@@ -55,90 +55,90 @@ def evaluate_report_case(report: Report) -> dict:
     if case.evidence:
         strengths.append(f"El caso tiene {len(case.evidence)} evidencia(s) registrada(s), lo que permite iniciar una cadena probatoria verificable.")
     else:
-        weaknesses.append("No hay evidencia preservada; la evaluaciÃ³n queda en nivel preliminar bajo.")
+        weaknesses.append("No hay evidencia preservada; la evaluación queda en nivel preliminar bajo.")
     if any(item.sha256_hash for item in case.evidence):
-        strengths.append("Existe al menos una evidencia con hash SHA-256, Ãºtil para sostener integridad.")
+        strengths.append("Existe al menos una evidencia con hash SHA-256, útil para sostener integridad.")
     elif case.evidence:
         weaknesses.append("Las evidencias cargadas no tienen hash SHA-256 suficiente para soporte fuerte.")
 
     if case.findings:
-        strengths.append(f"Hay {len(case.findings)} hallazgo(s) que conectan evidencia con interpretaciÃ³n tÃ©cnica.")
+        strengths.append(f"Hay {len(case.findings)} hallazgo(s) que conectan evidencia con interpretación técnica.")
     else:
-        weaknesses.append("Faltan hallazgos tÃ©cnicos; no conviene avanzar a conclusiones jurÃ­dicas sin esa capa intermedia.")
+        weaknesses.append("Faltan hallazgos técnicos; no conviene avanzar a conclusiones jurídicas sin esa capa intermedia.")
     if case.hypotheses:
-        strengths.append(f"Hay {len(case.hypotheses)} hipÃ³tesis investigativa(s) registradas.")
+        strengths.append(f"Hay {len(case.hypotheses)} hipótesis investigativa(s) registradas.")
     else:
-        weaknesses.append("Faltan hipÃ³tesis investigativas y alternativas para evitar una lectura Ãºnica del caso.")
+        weaknesses.append("Faltan hipótesis investigativas y alternativas para evitar una lectura única del caso.")
     if case.legal_mappings:
         strengths.append(f"Hay {len(case.legal_mappings)} encuadre(s) legal(es) cargado(s) o generado(s).")
     else:
-        weaknesses.append("Falta encuadre legal argentino asociado a hallazgos o hipÃ³tesis.")
+        weaknesses.append("Falta encuadre legal argentino asociado a hallazgos o hipótesis.")
     if case.damage_items:
-        strengths.append(f"Se cuantificÃ³ un daÃ±o preliminar de {total_damage:.2f} ARS.")
+        strengths.append(f"Se cuantificó un daño preliminar de {total_damage:.2f} ARS.")
     else:
-        weaknesses.append("No hay cuantificaciÃ³n econÃ³mica del daÃ±o cargada.")
+        weaknesses.append("No hay cuantificación económica del daño cargada.")
 
-    if "fuente pendiente de verificaciÃ³n" in report_text.lower():
+    if "fuente pendiente de verificación" in report_text.lower():
         next_steps.append("Verificar manualmente fuentes normativas, doctrina o jurisprudencia antes de usar el informe como final.")
-    if "no resulta posible afirmar autorÃ­a personal" not in report_text.lower():
-        next_steps.append("Agregar limitaciÃ³n expresa sobre autorÃ­a personal si la evidencia solo permite compatibilidad tÃ©cnica.")
+    if "no resulta posible afirmar autoría personal" not in report_text.lower():
+        next_steps.append("Agregar limitación expresa sobre autoría personal si la evidencia solo permite compatibilidad técnica.")
     if not case.actions:
         next_steps.append("Registrar acciones de cadena de custodia para cada evidencia relevante.")
     if any(not item.formula_used or not item.value_source for item in case.damage_items):
-        next_steps.append("Completar fÃ³rmula y fuente de valor en cada rubro econÃ³mico.")
+        next_steps.append("Completar fórmula y fuente de valor en cada rubro económico.")
     if not next_steps:
-        next_steps.append("Revisar redacciÃ³n final, anexos y fuentes antes de exportar una versiÃ³n profesional.")
+        next_steps.append("Revisar redacción final, anexos y fuentes antes de exportar una versión profesional.")
 
     theory = (
-        f"La teorÃ­a preliminar del caso se orienta a {', '.join(legal['incident_classification'])}. "
-        "La hipÃ³tesis debe sostenerse mediante la secuencia dato tÃ©cnico â†’ evidencia preservada â†’ hallazgo verificable â†’ "
-        "hipÃ³tesis investigativa â†’ conclusiÃ³n jurÃ­dicamente defendible."
+        f"La teoría preliminar del caso se orienta a {', '.join(legal['incident_classification'])}. "
+        "La hipótesis debe sostenerse mediante la secuencia dato técnico → evidencia preservada → hallazgo verificable → "
+        "hipótesis investigativa → conclusión jurídicamente defendible."
     )
     legal_justification = (
-        f"{legal['justification']} La competencia y vÃ­a procesal deben validarse segÃºn domicilio, lugar del hecho, "
+        f"{legal['justification']} La competencia y vía procesal deben validarse según domicilio, lugar del hecho, "
         "sujetos intervinientes, plataforma utilizada y reglas procesales aplicables."
     )
     dogmatic_assessment = (
-        "Desde la dogmÃ¡tica penal, el caso debe explicarse sin saltar del daÃ±o a la culpabilidad. "
-        "Primero se identifica el hecho tÃ©cnicamente comprobado; luego la inferencia pericial; despuÃ©s la hipÃ³tesis investigativa; "
-        "y reciÃ©n entonces la posible relevancia jurÃ­dica. Deben analizarse legalidad, tipicidad objetiva, tipicidad subjetiva, "
-        "dolo directo o eventual, antijuridicidad, culpabilidad, autorÃ­a o participaciÃ³n, nexo causal e imputaciÃ³n objetiva. "
-        "La responsabilidad penal objetiva queda descartada como mÃ©todo de atribuciÃ³n: el informe solo puede sostener compatibilidad "
-        "o probabilidad si existe evidencia suficiente sobre conducta, conocimiento, voluntad, rol e intervenciÃ³n concreta. "
-        f"Criterios guÃ­a incorporados: {dogmatic_context().replace(chr(10), '; ')}."
+        "Desde la dogmática penal, el caso debe explicarse sin saltar del daño a la culpabilidad. "
+        "Primero se identifica el hecho técnicamente comprobado; luego la inferencia pericial; después la hipótesis investigativa; "
+        "y recién entonces la posible relevancia jurídica. Deben analizarse legalidad, tipicidad objetiva, tipicidad subjetiva, "
+        "dolo directo o eventual, antijuridicidad, culpabilidad, autoría o participación, nexo causal e imputación objetiva. "
+        "La responsabilidad penal objetiva queda descartada como método de atribución: el informe solo puede sostener compatibilidad "
+        "o probabilidad si existe evidencia suficiente sobre conducta, conocimiento, voluntad, rol e intervención concreta. "
+        f"Criterios guía incorporados: {dogmatic_context().replace(chr(10), '; ')}."
     )
     procedural_assessment = (
-        "Desde el CÃ³digo Procesal Penal de la NaciÃ³n, el informe debe transformarse en una hoja de ruta probatoria: "
-        "formular o ampliar denuncia, preservar de inmediato la evidencia digital, identificar quÃ© medidas requieren oficio, "
+        "Desde el Código Procesal Penal de la Nación, el informe debe transformarse en una hoja de ruta probatoria: "
+        "formular o ampliar denuncia, preservar de inmediato la evidencia digital, identificar qué medidas requieren oficio, "
         "requerir registros a proveedores de comunicaciones, plataformas, bancos, billeteras, fintech o exchanges, documentar "
-        "titularidad y movimientos de fondos, pedir pericias sobre audio, metadatos, dispositivos y registros de conexiÃ³n, "
-        "y conservar cadena de custodia. Si el caso puede ser federal o se encuentra alcanzado por implementaciÃ³n del CÃ³digo "
+        "titularidad y movimientos de fondos, pedir pericias sobre audio, metadatos, dispositivos y registros de conexión, "
+        "y conservar cadena de custodia. Si el caso puede ser federal o se encuentra alcanzado por implementación del Código "
         "Procesal Penal Federal, debe indicarse la necesidad de validar competencia material, territorial y funcional. "
-        "La aplicaciÃ³n procesal no prueba culpabilidad: ordena medios de prueba pertinentes, Ãºtiles, proporcionales y controlables. "
+        "La aplicación procesal no prueba culpabilidad: ordena medios de prueba pertinentes, útiles, proporcionales y controlables. "
         f"Criterios procesales incorporados: {procedural_context().replace(chr(10), '; ')}."
     )
     evidentiary_assessment = (
         f"El soporte probatorio actual obtiene un puntaje de {scores['evidence_score']}/100 en evidencia, "
         f"{scores['finding_score']}/100 en hallazgos y {scores['custody_score']}/100 en cadena de custodia. "
-        "La evaluaciÃ³n debe privilegiar evidencia con hash, bitÃ¡cora y vÃ­nculo explÃ­cito con hallazgos."
+        "La evaluación debe privilegiar evidencia con hash, bitácora y vínculo explícito con hallazgos."
     )
     conclusion = (
         "Con el alcance y limitaciones indicadas, la IA puede asistir en ordenar y justificar el caso, "
-        "pero la conclusiÃ³n final debe ser revisada por profesional humano. La evidencia disponible permite "
-        "formular compatibilidades tÃ©cnicas y jurÃ­dicas preliminares, no atribuciones personales definitivas."
+        "pero la conclusión final debe ser revisada por profesional humano. La evidencia disponible permite "
+        "formular compatibilidades técnicas y jurídicas preliminares, no atribuciones personales definitivas."
     )
 
     return {
         **scores,
-        "status": "sÃ³lido para revisiÃ³n humana" if scores["overall_score"] >= 80 else "requiere fortalecimiento" if scores["overall_score"] >= 55 else "dÃ©bil",
+        "status": "sólido para revisión humana" if scores["overall_score"] >= 80 else "requiere fortalecimiento" if scores["overall_score"] >= 55 else "débil",
         "case_theory": normalize_spanish(theory),
         "legal_justification": normalize_spanish(legal_justification),
         "dogmatic_assessment": normalize_spanish(dogmatic_assessment),
         "procedural_assessment": normalize_spanish(procedural_assessment),
         "evidentiary_assessment": normalize_spanish(evidentiary_assessment),
         "economic_assessment": normalize_spanish(
-            f"El daÃ±o econÃ³mico informado asciende preliminarmente a {total_damage:.2f} ARS. "
-            "Cada monto debe conservar fÃ³rmula, fuente, fecha base, evidencia de respaldo y nivel de certeza."
+            f"El daño económico informado asciende preliminarmente a {total_damage:.2f} ARS. "
+            "Cada monto debe conservar fórmula, fuente, fecha base, evidencia de respaldo y nivel de certeza."
         ),
         "strengths": [normalize_spanish(item) for item in strengths],
         "weaknesses": [normalize_spanish(item) for item in weaknesses],
@@ -153,44 +153,44 @@ def evaluation_to_markdown(evaluation: dict) -> str:
     def bullet(items: list[str]) -> str:
         return "\n".join(f"- {normalize_spanish(item)}" for item in items) or "- Sin elementos."
 
-    return normalize_spanish(f"""## EvaluaciÃ³n integral IA del caso
+    return normalize_spanish(f"""## Evaluación integral IA del caso
 
 ### Score integral
 
 **Score general:** {evaluation['overall_score']}/100  
 **Estado:** {evaluation['status']}
 
-| DimensiÃ³n | Score |
+| Dimensión | Score |
 | --- | ---: |
 | Evidencia | {evaluation['evidence_score']}/100 |
 | Hallazgos | {evaluation['finding_score']}/100 |
-| HipÃ³tesis | {evaluation['hypothesis_score']}/100 |
+| Hipótesis | {evaluation['hypothesis_score']}/100 |
 | Legal | {evaluation['legal_score']}/100 |
-| DaÃ±o econÃ³mico | {evaluation['economic_score']}/100 |
+| Daño económico | {evaluation['economic_score']}/100 |
 | Cadena de custodia | {evaluation['custody_score']}/100 |
 | Informe | {evaluation['report_score']}/100 |
 
-### TeorÃ­a preliminar del caso
+### Teoría preliminar del caso
 
 {evaluation['case_theory']}
 
-### JustificaciÃ³n legal asistida
+### Justificación legal asistida
 
 {evaluation['legal_justification']}
 
-### EvaluaciÃ³n dogmÃ¡tica penal
+### Evaluación dogmática penal
 
 {evaluation['dogmatic_assessment']}
 
-### AplicaciÃ³n procesal penal
+### Aplicación procesal penal
 
 {evaluation['procedural_assessment']}
 
-### EvaluaciÃ³n probatoria
+### Evaluación probatoria
 
 {evaluation['evidentiary_assessment']}
 
-### EvaluaciÃ³n econÃ³mica
+### Evaluación económica
 
 {evaluation['economic_assessment']}
 
@@ -202,14 +202,14 @@ def evaluation_to_markdown(evaluation: dict) -> str:
 
 {bullet(evaluation['weaknesses'])}
 
-### PrÃ³ximos pasos
+### Próximos pasos
 
 {bullet(evaluation['next_steps'])}
 
-### ConclusiÃ³n defendible sugerida
+### Conclusión defendible sugerida
 
 {evaluation['defensible_conclusion']}
 
-> Advertencia: esta evaluaciÃ³n es asistida por IA y requiere revisiÃ³n humana tÃ©cnica y jurÃ­dica. No inventa fuentes, doctrina ni jurisprudencia.
+> Advertencia: esta evaluación es asistida por IA y requiere revisión humana técnica y jurídica. No inventa fuentes, doctrina ni jurisprudencia.
 """)
 

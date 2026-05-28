@@ -1,11 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from operia.core.bootstrap import init_platform_schema
 from operia.core.config import settings
 from operia.core.router import api_router
 from operia.cybercrime.bootstrap import init_cybercrime_module
 from operia.geo_proximity.bootstrap import init_geo_proximity_module
 from operia.geo_trace.bootstrap import init_geo_trace_module
+from operia.legal_knowledge.bootstrap import init_legal_knowledge_module
 from operia.legal_report.bootstrap import init_legal_report_module
 
 
@@ -28,7 +30,9 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     def on_startup() -> None:
+        init_platform_schema()
         init_legal_report_module()
+        init_legal_knowledge_module()
         init_cybercrime_module()
         init_geo_trace_module()
         init_geo_proximity_module()

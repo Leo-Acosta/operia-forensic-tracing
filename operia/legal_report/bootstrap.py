@@ -1,11 +1,10 @@
-from operia.core.database import Base, SessionLocal, engine
-from operia.legal_report.models import LegalSource, Template
+from operia.core.database import SessionLocal
+from operia.legal_knowledge.models import LegalSource
+from operia.reports.models import Template
 from operia.legal_report.services.legal_knowledge_base import sync_official_sources
 
 
 def init_legal_report_module() -> None:
-    Base.metadata.create_all(bind=engine)
-
     template_names = [
         "Informe integral forense-juridico",
         "Informe tecnico preliminar",
@@ -82,4 +81,3 @@ def init_legal_report_module() -> None:
         db.commit()
     finally:
         db.close()
-

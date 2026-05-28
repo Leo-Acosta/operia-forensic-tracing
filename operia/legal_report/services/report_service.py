@@ -1,40 +1,50 @@
-﻿from operia.legal_report.models import Case, Report, ReportSection, ReportVersion
+from operia.cases.models import Case
+from operia.reports.models import Report, ReportSection, ReportVersion
 from operia.legal_report.services.text_service import normalize_spanish
 
 REPORT_SECTIONS = [
-    "CarÃ¡tula",
+    "Carátula",
     "Datos del caso",
+    "Personas y entidades vinculadas",
     "Objeto del informe",
-    "Alcance del anÃ¡lisis",
+    "Alcance del análisis",
     "Limitaciones",
-    "MetodologÃ­a utilizada",
+    "Metodología utilizada",
     "Resumen ejecutivo",
-    "DescripciÃ³n del incidente",
+    "Descripción del incidente",
     "Evidencia recibida",
     "Registro de cadena de custodia",
-    "LÃ­nea de tiempo de eventos",
-    "AnÃ¡lisis tÃ©cnico-forense",
-    "Matriz dato tÃ©cnico -> evidencia -> hallazgo",
+    "Línea de tiempo de eventos",
+    "Análisis técnico-forense",
+    "Matriz dato técnico -> evidencia -> hallazgo",
     "Hallazgos principales",
-    "HipÃ³tesis investigativas",
-    "EvaluaciÃ³n de hipÃ³tesis alternativas",
-    "Conclusiones tÃ©cnicas",
-    "Encuadre jurÃ­dico argentino",
+    "Hipótesis investigativas",
+    "Evaluación de hipótesis alternativas",
+    "Conclusiones técnicas",
+    "Encuadre jurídico argentino",
     "Responsabilidad penal preliminar",
     "Responsabilidad civil preliminar",
-    "ProtecciÃ³n de datos personales",
+    "Protección de datos personales",
     "Defensa del consumidor",
-    "CuantificaciÃ³n econÃ³mica del daÃ±o",
-    "ConclusiÃ³n jurÃ­dicamente defendible",
+    "Cuantificación económica del daño",
+    "Conclusión jurídicamente defendible",
     "Recomendaciones",
     "Anexos",
-    "Glosario tÃ©cnico",
+    "Glosario técnico",
     "Preguntas y respuestas para testimonio experto",
 ]
 
 
 def build_integral_markdown(case: Case) -> str:
     total_damage = sum(item.amount for item in case.damage_items)
+    participant_lines = "\n".join(
+        (
+            f"- {p.display_name} ({p.person_type}; rol: {p.participant_type}). "
+            f"Relacion: {p.relationship_to_case or p.role_description or 'pendiente'}. "
+            f"Sensibilidad: {p.sensitivity_level}."
+        )
+        for p in case.participants
+    ) or "- Sin personas o entidades vinculadas cargadas."
     evidence_lines = "\n".join(
         f"- Evidencia #{e.id}: {e.description}. SHA-256: `{e.sha256_hash or 'pendiente'}`. Integridad: {e.integrity_status}."
         for e in case.evidence
@@ -48,13 +58,13 @@ def build_integral_markdown(case: Case) -> str:
         for f in case.findings
     ) or "- Sin hallazgos cargados."
     hypothesis_lines = "\n".join(
-        f"- {h.title}: {h.description}. Soporte: {h.support_degree}. ConclusiÃ³n provisional: {h.provisional_conclusion or 'pendiente'}."
+        f"- {h.title}: {h.description}. Soporte: {h.support_degree}. Conclusión provisional: {h.provisional_conclusion or 'pendiente'}."
         for h in case.hypotheses
-    ) or "- Sin hipÃ³tesis cargadas."
+    ) or "- Sin hipótesis cargadas."
     legal_lines = "\n".join(
         f"- {m.legal_area}: {m.norm_reference}. {m.analysis}. Estado: {m.verification_status}."
         for m in case.legal_mappings
-    ) or "- Sin encuadre legal cargado. Fuente pendiente de verificaciÃ³n."
+    ) or "- Sin encuadre legal cargado. Fuente pendiente de verificación."
     damage_lines = "\n".join(
         f"| {d.concept} | {d.amount:.2f} {d.currency} | {d.formula_used or 'pendiente'} | {d.value_source or 'pendiente'} | {d.certainty_level} |"
         for d in case.damage_items
@@ -67,44 +77,48 @@ def build_integral_markdown(case: Case) -> str:
 
     markdown = f"""# Operia Forensic Legal Report
 
-## CarÃ¡tula
+## Carátula
 
 **Caso:** {case.title}  
 **ID:** {case.case_code}  
 **Responsable:** {case.responsible or 'pendiente'}  
-**Cliente/VÃ­ctima:** {case.client_or_victim or 'pendiente'}  
-**JurisdicciÃ³n:** {case.jurisdiction}
+**Cliente/Víctima:** {case.client_or_victim or 'pendiente'}  
+**Jurisdicción:** {case.jurisdiction}
 
 ## Datos del caso
 
 - Tipo de incidente: {case.incident_type}
 - Estado: {case.status}
-- DescripciÃ³n: {case.description or 'pendiente'}
+- Descripción: {case.description or 'pendiente'}
 - Observaciones: {case.general_observations or 'sin observaciones'}
+
+## Personas y entidades vinculadas
+
+{participant_lines}
 
 ## Objeto del informe
 
-Ordenar datos tÃ©cnicos, evidencia preservada, hallazgos, hipÃ³tesis, encuadre legal argentino y cuantificaciÃ³n econÃ³mica del daÃ±o para una conclusiÃ³n defendible.
+Ordenar datos técnicos, evidencia preservada, hallazgos, hipótesis, encuadre legal argentino y cuantificación económica del daño para una conclusión defendible.
 
-## Alcance del anÃ¡lisis
+## Alcance del análisis
 
-El alcance se limita a los datos, archivos, evidencias, fuentes legales y cÃ¡lculos cargados en la plataforma.
+El alcance se limita a los datos, archivos, evidencias, fuentes legales y cálculos cargados en la plataforma.
 
 ## Limitaciones
 
-La herramienta asiste, pero no reemplaza revisiÃ³n profesional humana. No se afirma autorÃ­a personal sin medidas complementarias.
+La herramienta asiste, pero no reemplaza revisión profesional humana. No se afirma autoría personal sin medidas complementarias.
 
-## MetodologÃ­a utilizada
+## Metodología utilizada
 
-Se preservaron datos tÃ©cnicos, se registraron acciones de cadena de custodia, se calcularon hashes cuando hubo archivos y se construyÃ³ la matriz dato tÃ©cnico -> evidencia -> hallazgo -> hipÃ³tesis -> conclusiÃ³n.
+Se preservaron datos técnicos, se registraron acciones de cadena de custodia, se calcularon hashes cuando hubo archivos y se construyó la matriz dato técnico -> evidencia -> hallazgo -> hipótesis -> conclusión.
 
 ## Resumen ejecutivo
 
-Se analiza un caso de {case.incident_type}. El daÃ±o econÃ³mico total estimado asciende preliminarmente a **{total_damage:.2f} ARS**, sujeto a fuentes, fÃ³rmulas y validaciÃ³n profesional.
+Se analiza un caso de {case.incident_type}. El daño económico total estimado asciende preliminarmente a **{total_damage:.2f} ARS**, sujeto a fuentes, fórmulas y validación profesional.
 
-## DescripciÃ³n del incidente
+## Descripción del incidente
 
-{case.description or 'DescripciÃ³n pendiente de ampliaciÃ³n.'}
+{case.description or 'Descripción pendiente de ampliación.'}
 
 ## Evidencia recibida
 
@@ -114,30 +128,30 @@ Se analiza un caso de {case.incident_type}. El daÃ±o econÃ³mico total estima
 
 {custody_lines}
 
-## LÃ­nea de tiempo de eventos
+## Línea de tiempo de eventos
 
 {custody_lines}
 
-## AnÃ¡lisis tÃ©cnico-forense
+## Análisis técnico-forense
 
 ### Deepfake / IA
-EvaluaciÃ³n pendiente segÃºn datos cargados.
+Evaluación pendiente según datos cargados.
 
 ### IoT / dispositivos conectados
-EvaluaciÃ³n pendiente segÃºn datos cargados.
+Evaluación pendiente según datos cargados.
 
 ### Blockchain / criptomonedas
-EvaluaciÃ³n pendiente segÃºn datos cargados.
+Evaluación pendiente según datos cargados.
 
 ### Logs, IPs, dominios y red
-EvaluaciÃ³n pendiente segÃºn datos cargados.
+Evaluación pendiente según datos cargados.
 
 ### OSINT y fuentes abiertas
-EvaluaciÃ³n pendiente segÃºn datos cargados.
+Evaluación pendiente según datos cargados.
 
-## Matriz dato tÃ©cnico -> evidencia -> hallazgo
+## Matriz dato técnico -> evidencia -> hallazgo
 
-| Dato tÃ©cnico | Evidencia | Hallazgo | Confianza | Relevancia jurÃ­dica |
+| Dato técnico | Evidencia | Hallazgo | Confianza | Relevancia jurídica |
 | --- | --- | --- | --- | --- |
 {matrix_lines}
 
@@ -145,69 +159,69 @@ EvaluaciÃ³n pendiente segÃºn datos cargados.
 
 {finding_lines}
 
-## HipÃ³tesis investigativas
+## Hipótesis investigativas
 
 {hypothesis_lines}
 
-## EvaluaciÃ³n de hipÃ³tesis alternativas
+## Evaluación de hipótesis alternativas
 
-Las hipÃ³tesis alternativas deben conservarse abiertas cuando existan hechos faltantes o riesgos de error.
+Las hipótesis alternativas deben conservarse abiertas cuando existan hechos faltantes o riesgos de error.
 
-## Conclusiones tÃ©cnicas
+## Conclusiones técnicas
 
-Con el alcance y limitaciones indicadas, los hallazgos permiten sostener preliminarmente compatibilidades tÃ©cnicas, no atribuciones personales definitivas.
+Con el alcance y limitaciones indicadas, los hallazgos permiten sostener preliminarmente compatibilidades técnicas, no atribuciones personales definitivas.
 
-## Encuadre jurÃ­dico argentino
+## Encuadre jurídico argentino
 
 {legal_lines}
 
 ## Responsabilidad penal preliminar
 
-Debe ser revisada por abogado matriculado. No se atribuye autorÃ­a penal sin evidencia suficiente.
+Debe ser revisada por abogado matriculado. No se atribuye autoría penal sin evidencia suficiente.
 
 ## Responsabilidad civil preliminar
 
-Debe ser evaluada segÃºn nexo causal, daÃ±o acreditado y sujetos intervinientes.
+Debe ser evaluada según nexo causal, daño acreditado y sujetos intervinientes.
 
-## ProtecciÃ³n de datos personales
+## Protección de datos personales
 
-Debe revisarse posible aplicaciÃ³n de Ley 25.326 cuando existan datos personales comprometidos.
+Debe revisarse posible aplicación de Ley 25.326 cuando existan datos personales comprometidos.
 
 ## Defensa del consumidor
 
-Debe evaluarse si existe relaciÃ³n de consumo, plataformas, bancos, fintech, exchanges o proveedores digitales involucrados.
+Debe evaluarse si existe relación de consumo, plataformas, bancos, fintech, exchanges o proveedores digitales involucrados.
 
-## CuantificaciÃ³n econÃ³mica del daÃ±o
+## Cuantificación económica del daño
 
 | Concepto | Monto | Formula | Fuente | Certeza |
 | --- | ---: | --- | --- | --- |
 {damage_lines}
 
-**DaÃ±o total estimado:** {total_damage:.2f} ARS.
+**Daño total estimado:** {total_damage:.2f} ARS.
 
-## ConclusiÃ³n jurÃ­dicamente defendible
+## Conclusión jurídicamente defendible
 
-La evidencia resulta compatible con los hallazgos indicados, con las limitaciones explicitadas. La conclusiÃ³n requiere validaciÃ³n humana tÃ©cnica y jurÃ­dica.
+La evidencia resulta compatible con los hallazgos indicados, con las limitaciones explicitadas. La conclusión requiere validación humana técnica y jurídica.
 
 ## Recomendaciones
 
-- Completar fuentes pendientes de verificaciÃ³n.
-- Validar hashes, bitÃ¡cora y anexos.
-- Reformular afirmaciones categÃ³ricas en tÃ©rminos tÃ©cnicos probabilÃ­sticos.
+- Completar fuentes pendientes de verificación.
+- Validar hashes, bitácora y anexos.
+- Reformular afirmaciones categóricas en términos técnicos probabilísticos.
 
 ## Anexos
 
-Anexos pendientes de selecciÃ³n y exportaciÃ³n.
+Anexos pendientes de selección y exportación.
 
-## Glosario tÃ©cnico
+## Glosario técnico
 
-- SHA-256: funciÃ³n criptogrÃ¡fica usada para verificar integridad.
-- Cadena de custodia: registro cronolÃ³gico de preservaciÃ³n y manipulaciÃ³n de evidencia.
+- SHA-256: función criptográfica usada para verificar integridad.
+- Cadena de custodia: registro cronológico de preservación y manipulación de evidencia.
 
 ## Preguntas y respuestas para testimonio experto
 
-**Pregunta:** Â¿QuÃ© demuestra un hash?  
-**Respuesta sugerida:** Permite verificar integridad del archivo analizado, pero no demuestra por sÃ­ solo autorÃ­a personal.
+**Pregunta:** ¿Qué demuestra un hash?  
+**Respuesta sugerida:** Permite verificar integridad del archivo analizado, pero no demuestra por sí solo autoría personal.
 """
     return normalize_spanish(markdown)
 
@@ -237,22 +251,22 @@ def snapshot_report(report: Report, user: str, summary: str) -> ReportVersion:
 def _incident_legal_basis(incident_type: str) -> list[str]:
     incident = incident_type.lower()
     basis = [
-        "CÃ³digo Penal argentino: posible relevancia penal preliminar segÃºn conducta, dolo, perjuicio y medios empleados. Fuente pendiente de verificaciÃ³n.",
-        "Ley 26.388: marco argentino de delitos informÃ¡ticos incorporado al CÃ³digo Penal. Fuente pendiente de verificaciÃ³n.",
-        "Reglas procesales sobre prueba digital y cadena de custodia aplicables segÃºn jurisdicciÃ³n. Fuente pendiente de verificaciÃ³n.",
+        "Código Penal argentino: posible relevancia penal preliminar según conducta, dolo, perjuicio y medios empleados. Fuente pendiente de verificación.",
+        "Ley 26.388: marco argentino de delitos informáticos incorporado al Código Penal. Fuente pendiente de verificación.",
+        "Reglas procesales sobre prueba digital y cadena de custodia aplicables según jurisdicción. Fuente pendiente de verificación.",
     ]
-    if any(term in incident for term in ["phishing", "fraude", "cripto", "transferencia", "suplantaciÃ³n"]):
-        basis.append("Fraude informÃ¡tico o maniobra defraudatoria digital: corresponde analizar ardid, error, disposiciÃ³n patrimonial y perjuicio econÃ³mico. Fuente pendiente de verificaciÃ³n.")
-    if any(term in incident for term in ["acceso", "ransomware", "daÃ±o informÃ¡tico", "filtraciÃ³n"]):
-        basis.append("Acceso no autorizado, afectaciÃ³n de sistemas, datos o disponibilidad: requiere vincular logs, hashes, trazabilidad y preservaciÃ³n de evidencia. Fuente pendiente de verificaciÃ³n.")
-    if any(term in incident for term in ["datos", "filtraciÃ³n", "identidad"]):
-        basis.append("Ley 25.326 de ProtecciÃ³n de Datos Personales: analizar tratamiento, exposiciÃ³n, deberes de seguridad y potencial afectaciÃ³n de titulares. Fuente pendiente de verificaciÃ³n.")
+    if any(term in incident for term in ["phishing", "fraude", "cripto", "transferencia", "suplantación"]):
+        basis.append("Fraude informático o maniobra defraudatoria digital: corresponde analizar ardid, error, disposición patrimonial y perjuicio económico. Fuente pendiente de verificación.")
+    if any(term in incident for term in ["acceso", "ransomware", "daño informático", "filtración"]):
+        basis.append("Acceso no autorizado, afectación de sistemas, datos o disponibilidad: requiere vincular logs, hashes, trazabilidad y preservación de evidencia. Fuente pendiente de verificación.")
+    if any(term in incident for term in ["datos", "filtración", "identidad"]):
+        basis.append("Ley 25.326 de Protección de Datos Personales: analizar tratamiento, exposición, deberes de seguridad y potencial afectación de titulares. Fuente pendiente de verificación.")
     if any(term in incident for term in ["consumidor", "banco", "fintech", "exchange", "plataforma", "cripto"]):
-        basis.append("Ley 24.240 de Defensa del Consumidor: revisar relaciÃ³n de consumo, deber de seguridad, informaciÃ³n y trato digno si intervienen proveedores digitales. Fuente pendiente de verificaciÃ³n.")
+        basis.append("Ley 24.240 de Defensa del Consumidor: revisar relación de consumo, deber de seguridad, información y trato digno si intervienen proveedores digitales. Fuente pendiente de verificación.")
     if any(term in incident for term in ["cripto", "blockchain", "wallet", "transferencia"]):
-        basis.append("Blockchain y criptoactivos: la trazabilidad tÃ©cnica puede aportar compatibilidad econÃ³mica, pero no acredita por sÃ­ sola identidad personal del autor. Fuente pendiente de verificaciÃ³n.")
+        basis.append("Blockchain y criptoactivos: la trazabilidad técnica puede aportar compatibilidad económica, pero no acredita por sí sola identidad personal del autor. Fuente pendiente de verificación.")
     if any(term in incident for term in ["deepfake", "ia"]):
-        basis.append("EngaÃ±o habilitado por IA/deepfake: analizar autenticidad, manipulaciÃ³n, inducciÃ³n a error, daÃ±o y lÃ­mites tÃ©cnicos de detecciÃ³n. Fuente pendiente de verificaciÃ³n.")
+        basis.append("Engaño habilitado por IA/deepfake: analizar autenticidad, manipulación, inducción a error, daño y límites técnicos de detección. Fuente pendiente de verificación.")
     return basis
 
 
@@ -264,7 +278,7 @@ def polish_report_markdown(report: Report) -> str:
         "sin dudas": "con el alcance y limitaciones indicadas",
         "el atacante fue": "el acceso o conducta analizada resulta compatible con",
         "demuestra que": "resulta compatible con",
-        "fue culpable": "podrÃ­a tener relevancia jurÃ­dica, sujeto a validaciÃ³n profesional",
+        "fue culpable": "podría tener relevancia jurídica, sujeto a validación profesional",
     }
     polished = markdown
     for source, target in replacements.items():
@@ -277,18 +291,18 @@ def polish_report_markdown(report: Report) -> str:
     legal_loaded = "\n".join(
         f"- {mapping.legal_area}: {mapping.norm_reference}. {mapping.analysis}. Estado: {mapping.verification_status}."
         for mapping in case.legal_mappings
-    ) or "- No hay fuentes legales manuales cargadas. Toda cita queda como fuente pendiente de verificaciÃ³n."
+    ) or "- No hay fuentes legales manuales cargadas. Toda cita queda como fuente pendiente de verificación."
 
     automatic_block = f"""
-## Encuadre automÃ¡tico IA para revisiÃ³n humana
+## Encuadre automático IA para revisión humana
 
 ### Tipo de cibercrimen analizado
 
-El caso se encuadra preliminarmente como **{case.incident_type}**. Esta clasificaciÃ³n se justifica por la descripciÃ³n del caso, los datos tÃ©cnicos cargados, la evidencia preservada y los hallazgos registrados. Al momento de esta revisiÃ³n existen {evidence_count} evidencias y {finding_count} hallazgos vinculados al caso.
+El caso se encuadra preliminarmente como **{case.incident_type}**. Esta clasificación se justifica por la descripción del caso, los datos técnicos cargados, la evidencia preservada y los hallazgos registrados. Al momento de esta revisión existen {evidence_count} evidencias y {finding_count} hallazgos vinculados al caso.
 
-### JustificaciÃ³n tÃ©cnico-jurÃ­dica
+### Justificación técnico-jurídica
 
-La lÃ­nea argumental defendible no salta de dato tÃ©cnico a conclusiÃ³n jurÃ­dica. Primero identifica datos tÃ©cnicos, luego evidencia preservada, despuÃ©s hallazgos verificables, hipÃ³tesis investigativas y finalmente conclusiones preliminares. Con ese alcance, la evidencia resulta compatible con un incidente digital que podrÃ­a tener relevancia penal, civil, probatoria, econÃ³mica y, segÃºn el caso, de consumo o protecciÃ³n de datos personales.
+La línea argumental defendible no salta de dato técnico a conclusión jurídica. Primero identifica datos técnicos, luego evidencia preservada, después hallazgos verificables, hipótesis investigativas y finalmente conclusiones preliminares. Con ese alcance, la evidencia resulta compatible con un incidente digital que podría tener relevancia penal, civil, probatoria, económica y, según el caso, de consumo o protección de datos personales.
 
 ### Normativa argentina orientativa
 
@@ -298,16 +312,16 @@ La lÃ­nea argumental defendible no salta de dato tÃ©cnico a conclusiÃ³n ju
 
 {legal_loaded}
 
-### Enfoque para competencia o exposiciÃ³n acadÃ©mica
+### Enfoque para competencia o exposición académica
 
-Para una competencia, jurado o audiencia simulada, la teorÃ­a del caso debe presentarse asÃ­: el incidente se describe de forma cronolÃ³gica; la evidencia clave se muestra con su hash o estado de integridad; los hallazgos se expresan en lenguaje probabilÃ­stico; las hipÃ³tesis alternativas se reconocen; el daÃ±o econÃ³mico estimado se informa como **{damage_total:.2f} ARS** sujeto a fÃ³rmula, fuente y validaciÃ³n; y la conclusiÃ³n se formula como jurÃ­dicamente defendible, no como atribuciÃ³n penal definitiva.
+Para una competencia, jurado o audiencia simulada, la teoría del caso debe presentarse así: el incidente se describe de forma cronológica; la evidencia clave se muestra con su hash o estado de integridad; los hallazgos se expresan en lenguaje probabilístico; las hipótesis alternativas se reconocen; el daño económico estimado se informa como **{damage_total:.2f} ARS** sujeto a fórmula, fuente y validación; y la conclusión se formula como jurídicamente defendible, no como atribución penal definitiva.
 
-### Advertencia de no invenciÃ³n
+### Advertencia de no invención
 
-Este encuadre automÃ¡tico no inventa jurisprudencia, doctrina ni citas. Cuando no hay fuente cargada o verificada, se conserva la leyenda **Fuente pendiente de verificaciÃ³n**.
+Este encuadre automático no inventa jurisprudencia, doctrina ni citas. Cuando no hay fuente cargada o verificada, se conserva la leyenda **Fuente pendiente de verificación**.
 """
 
-    marker = "## Encuadre automÃ¡tico IA para revisiÃ³n humana"
+    marker = "## Encuadre automático IA para revisión humana"
     if marker in polished:
         polished = polished.split(marker)[0].rstrip() + "\n\n" + automatic_block.strip() + "\n"
     else:

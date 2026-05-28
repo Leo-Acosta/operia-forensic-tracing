@@ -8,27 +8,11 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from operia.legal_report.config import UPLOAD_DIR
+from operia.cases.models import Case, DamageCalculation, DamageItem, Finding, Hypothesis, TechnicalData
 from operia.core.database import get_db
-from operia.legal_report.models import (
-    Case,
-    ChainOfCustodyAction,
-    DamageCalculation,
-    DamageItem,
-    Evidence,
-    Finding,
-    Hypothesis,
-    LegalMapping,
-    LegalSource,
-    Presentation,
-    PresentationReview,
-    PresentationSlide,
-    Report,
-    ReportReview,
-    ReportSection,
-    ReportVersion,
-    TechnicalData,
-    Template,
-)
+from operia.evidence.models import ChainOfCustodyAction, Evidence
+from operia.legal_knowledge.models import LegalMapping, LegalSource
+from operia.reports.models import Presentation, PresentationReview, PresentationSlide, Report, ReportReview, ReportSection, ReportVersion, Template
 from operia.legal_report.schemas.domain import (
     CaseEvaluationResult,
     CaseCreate,
@@ -58,7 +42,7 @@ from operia.legal_report.schemas.domain import (
     TechnicalDataCreate,
     TechnicalDataRead,
 )
-from operia.legal_report.services.export_service import export_docx, export_html, export_markdown, export_pdf, export_presentation_pdf
+from operia.exports.service import export_docx, export_html, export_markdown, export_pdf, export_presentation_pdf
 from operia.legal_report.services.hash_service import md5_file, sha256_file
 from operia.legal_report.services.ai_legal_service import apply_automatic_legal_mappings, generate_automatic_legal_analysis
 from operia.legal_report.services.ai_case_evaluation_service import evaluate_report_case, evaluation_to_markdown
