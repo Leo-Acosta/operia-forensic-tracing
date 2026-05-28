@@ -120,9 +120,40 @@ type LegalArticle = {
   article_number: string;
   subsection: string;
   title: string;
+  text?: string;
   objective_elements: string;
+  subjective_elements?: string;
   evidentiary_requirements: string;
   official_url: string;
+};
+
+type LegalRecommendation = {
+  article_id: number;
+  reference: string;
+  title: string;
+  legal_role: string;
+  text: string;
+  why: string;
+  subjective_elements: string;
+  evidence_needed: string;
+  applicability_to_case: string;
+  probatory_limits: string;
+  confidence: string;
+  source_url: string;
+  precedents: unknown[];
+  doctrine: unknown[];
+};
+
+type LegalRecommendationResponse = {
+  profile?: {
+    key: string;
+    label: string;
+    legal_theory: string;
+    required_evidence: string[];
+    recommended_measures: string[];
+  };
+  recommendations: LegalRecommendation[];
+  disclaimer?: string;
 };
 
 type DashboardPayload = {
@@ -291,7 +322,7 @@ export function App() {
   const [indicator, setIndicator] = useState("https://secure-login.example.com/verify");
   const [indicatorResult, setIndicatorResult] = useState<unknown>(null);
   const [legalQuery, setLegalQuery] = useState("phishing fraude acceso datos");
-  const [legalRecommendation, setLegalRecommendation] = useState<unknown>(null);
+  const [legalRecommendation, setLegalRecommendation] = useState<LegalRecommendationResponse | null>(null);
   const [aiPrompt, setAiPrompt] = useState("Analiza el caso, evidencia cargada, riesgos y proximos pasos. No inventes normas legales.");
   const [aiResult, setAiResult] = useState<unknown>(null);
   const [analystName, setAnalystName] = useState(localStorage.getItem("operia_analyst_name") || "");
@@ -532,7 +563,7 @@ export function App() {
   async function searchLegal() {
     const [found, recommended] = await Promise.all([
       apiGet<LegalArticle[]>(`/legal-knowledge/articles?q=${encodeURIComponent(legalQuery)}`),
-      apiPost("/legal-knowledge/articles/recommend", { incident_text: legalQuery })
+      apiPost<LegalRecommendationResponse>("/legal-knowledge/articles/recommend", { incident_text: legalQuery })
     ]);
     setArticles(found);
     setLegalRecommendation(recommended);
@@ -1070,6 +1101,49 @@ export function App() {
             <button className="icon-button" onClick={searchLegal} title="Buscar"><Search size={18} /></button>
           </div>
         </div>
+        {legalRecommendation?.profile && (
+          <div className="case-panel">
+            <div className="section-head compact-head">
+              <div>
+                <h3>{legalRecommendation.profile.label}</h3>
+                <p>{legalRecommendation.profile.legal_theory}</p>
+              </div>
+            </div>
+            <div className="split">
+              <div>
+                <strong>Evidencia requerida</strong>
+                <ul className="compact-list">
+                  {legalRecommendation.profile.required_evidence.map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </div>
+              <div>
+                <strong>Medidas recomendadas</strong>
+                <ul className="compact-list">
+                  {legalRecommendation.profile.recommended_measures.map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+        {legalRecommendation?.recommendations?.length ? (
+          <div className="article-list">
+            {legalRecommendation.recommendations.map((item) => (
+              <article key={`${item.reference}-${item.article_id}`}>
+                <div>
+                  <span>{item.reference} · {item.legal_role} · confianza {item.confidence}</span>
+                  <h3>{item.title}</h3>
+                </div>
+                <p>{item.text}</p>
+                <small>{item.applicability_to_case}</small>
+                <small>{item.probatory_limits}</small>
+                <small>Elementos: {item.why}</small>
+                <small>Evidencia: {item.evidence_needed}</small>
+                {item.precedents.length > 0 && <small>Jurisprudencia registrada: {item.precedents.length}</small>}
+                {item.doctrine.length > 0 && <small>Doctrina registrada: {item.doctrine.length}</small>}
+              </article>
+            ))}
+          </div>
+        ) : null}
         <div className="article-list">
           {articles.map((item) => (
             <article key={item.id}>

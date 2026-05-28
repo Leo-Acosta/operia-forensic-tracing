@@ -40,6 +40,8 @@ Legacy aliases are kept to avoid breaking existing migrated workflows while the 
 Additional legal knowledge routes:
 
 - `GET /api/legal-knowledge/attack-types`
+- `GET /api/legal-knowledge/attack-types/{attack_type}`
+- `GET /api/legal-knowledge/articles/{article_id}/context`
 - `POST /api/legal-knowledge/precedents`
 - `GET /api/legal-knowledge/precedents`
 - `POST /api/legal-knowledge/doctrine`

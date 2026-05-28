@@ -4,7 +4,7 @@ from datetime import date
 import requests
 from sqlalchemy.orm import Session
 
-from operia.legal_knowledge.models import LegalArticle, LegalSource
+from operia.legal_knowledge.models import LegalArticle, LegalDoctrine, LegalPrecedent, LegalSource
 
 
 @dataclass(frozen=True)
@@ -19,6 +19,28 @@ class LegalArticleSeed:
     subjective_elements: str
     evidentiary_requirements: str
     official_url: str
+
+
+@dataclass(frozen=True)
+class LegalArticleRef:
+    code: str
+    article_number: str
+    subsection: str = ""
+    role: str = "conexa"
+    applicability: str = ""
+    limits: str = ""
+    confidence: str = "medio"
+
+
+@dataclass(frozen=True)
+class AttackLegalProfile:
+    key: str
+    label: str
+    query: str
+    legal_theory: str
+    required_evidence: tuple[str, ...]
+    recommended_measures: tuple[str, ...]
+    article_refs: tuple[LegalArticleRef, ...]
 
 
 LEGAL_ARTICLE_SEEDS = [
@@ -324,6 +346,168 @@ LEGAL_ARTICLE_SEEDS = [
     ),
 ]
 
+ATTACK_PROFILES: dict[str, AttackLegalProfile] = {
+    "phishing": AttackLegalProfile(
+        key="phishing",
+        label="Phishing / fraude digital",
+        query="phishing fraude acceso datos consumidor",
+        legal_theory=(
+            "Maniobra defraudatoria digital basada en ardid, engaño o suplantación para captar datos, credenciales "
+            "o provocar una disposición patrimonial perjudicial."
+        ),
+        required_evidence=(
+            "Capturas del anuncio, perfil, enlace, correo, chat o comunicación falsa.",
+            "URL, dominio, cuenta, alias, wallet, CBU/CVU o identificador receptor.",
+            "Comprobantes de pago, transferencias, cargos o desplazamiento patrimonial.",
+            "Logs de acceso, cabeceras, metadatos y timestamps preservados.",
+            "Respuestas de plataformas, bancos, fintechs, registradores o proveedores.",
+        ),
+        recommended_measures=(
+            "Preservar comunicaciones completas con fecha, hora, URL y usuario visible.",
+            "Requerir información de titularidad y trazabilidad a plataformas y entidades financieras.",
+            "Correlacionar pagos, sesiones, IPs, dispositivos y cuentas receptoras.",
+            "Evitar atribución personal si solo existen URL, alias o IP sin corroboración externa.",
+        ),
+        article_refs=(
+            LegalArticleRef(
+                "CP",
+                "172",
+                role="principal",
+                applicability="Figura base cuando el engaño produce error, disposición patrimonial y perjuicio.",
+                limits="Requiere probar ardid, error, perjuicio y nexo causal; no basta la sospecha de cuenta falsa.",
+                confidence="alto",
+            ),
+            LegalArticleRef(
+                "CP",
+                "173",
+                "16",
+                "conexa",
+                "Relevante si la defraudación se ejecuta mediante manipulación informática o transmisión de datos.",
+                "Debe acreditarse la manipulación o intervención informática concreta.",
+                "medio",
+            ),
+            LegalArticleRef(
+                "CP",
+                "153 bis",
+                role="conexa",
+                applicability="Relevante si hubo acceso no autorizado a cuenta, sistema o dato de acceso restringido.",
+                limits="No se configura por el mero contacto con la víctima sin acceso restringido probado.",
+                confidence="medio",
+            ),
+            LegalArticleRef(
+                "LPDP",
+                "5",
+                role="complementaria",
+                applicability="Aplicable si se captaron o trataron datos personales sin base válida.",
+                limits="Es un plano de protección de datos, no atribuye por sí solo autoría penal.",
+            ),
+            LegalArticleRef(
+                "LDC",
+                "4",
+                role="complementaria",
+                applicability="Útil si intervino una relación de consumo o plataforma con deber de información.",
+                limits="No sustituye la calificación penal; orienta deberes de información y reclamos conexos.",
+            ),
+        ),
+    ),
+    "fraude digital": AttackLegalProfile(
+        key="fraude digital",
+        label="Fraude digital",
+        query="fraude estafa manipulacion informatica consumidor",
+        legal_theory="Defraudación patrimonial ejecutada o facilitada por medios digitales.",
+        required_evidence=("Comprobantes de operación.", "Comunicaciones.", "Trazabilidad financiera.", "Identificadores técnicos."),
+        recommended_measures=("Preservar pagos y comunicaciones.", "Solicitar titularidad de cuentas receptoras.", "Correlacionar timeline."),
+        article_refs=(
+            LegalArticleRef("CP", "172", role="principal", applicability="Base de estafa si hay ardid, error y perjuicio.", limits="Exige nexo causal probado.", confidence="alto"),
+            LegalArticleRef("CP", "173", "16", "conexa", "Relevante por manipulación informática.", "Debe probarse intervención informática.", "medio"),
+            LegalArticleRef("LDC", "40", role="complementaria", applicability="Responsabilidad de consumo si corresponde.", limits="Separar responsabilidad civil/consumo de autoría penal."),
+            LegalArticleRef("CCCN", "1716", role="complementaria", applicability="Base civil de reparación si hay daño probado.", limits="Requiere causalidad y cuantificación."),
+        ),
+    ),
+    "ransomware": AttackLegalProfile(
+        key="ransomware",
+        label="Ransomware",
+        query="ransomware extorsion dano informatico preservacion",
+        legal_theory="Bloqueo, cifrado, exfiltración o amenaza sobre sistemas/datos para exigir pago o causar daño.",
+        required_evidence=("Muestra o hash del artefacto.", "Nota extorsiva.", "Wallet/cuenta exigida.", "Logs de ejecución.", "Backups e impacto."),
+        recommended_measures=("Aislar sistemas.", "Preservar imagen forense.", "Registrar IOCs.", "Pedir preservación de datos a proveedores."),
+        article_refs=(
+            LegalArticleRef("CP", "168", role="principal", applicability="Principal si existe exigencia intimidatoria de pago o entrega.", limits="Requiere intimidación y exigencia verificable.", confidence="alto"),
+            LegalArticleRef("CP", "183", role="conexa", applicability="Daño informático por alteración, inutilización o cifrado.", limits="Debe probarse afectación técnica concreta."),
+            LegalArticleRef("CP", "184", "5/6", "conexa", "Agravantes si afecta sistemas públicos, servicios o datos especialmente protegidos.", "Depende del objeto afectado."),
+            LegalArticleRef("BUDAPEST", "16", role="procesal", applicability="Preservación rápida de datos informáticos almacenados.", limits="Medida de cooperación, no tipo penal."),
+            LegalArticleRef("BUDAPEST", "18", role="procesal", applicability="Orden de presentación de datos o información de abonado.", limits="Requiere autoridad competente y alcance definido."),
+        ),
+    ),
+    "acceso ilegitimo": AttackLegalProfile(
+        key="acceso ilegitimo",
+        label="Acceso ilegítimo",
+        query="acceso ilegitimo sistema dato informatico",
+        legal_theory="Ingreso sin autorización a sistema, cuenta o dato informático de acceso restringido.",
+        required_evidence=("Logs de autenticación.", "Timestamps.", "Usuarios afectados.", "IPs/sesiones.", "Política de permisos."),
+        recommended_measures=("Preservar logs originales.", "Verificar permisos.", "Correlacionar IP, usuario y dispositivo.", "Solicitar datos de abonado si corresponde."),
+        article_refs=(
+            LegalArticleRef("CP", "153 bis", role="principal", applicability="Tipo central para acceso sin autorización a sistema o dato restringido.", limits="Exige restricción de acceso y falta de autorización.", confidence="alto"),
+            LegalArticleRef("CP", "153", role="conexa", applicability="Puede aplicar si se afectan comunicaciones privadas.", limits="Depende del objeto comunicacional."),
+            LegalArticleRef("CP", "157 bis", role="conexa", applicability="Relevante si se accede o altera banco de datos personales.", limits="Requiere banco/archivo de datos y conducta específica."),
+        ),
+    ),
+    "dano informatico": AttackLegalProfile(
+        key="dano informatico",
+        label="Daño informático",
+        query="dano informatico sistemas datos",
+        legal_theory="Alteración, destrucción, inutilización o afectación de datos, programas o sistemas.",
+        required_evidence=("Imagen forense.", "Hashes antes/después.", "Logs.", "Artefactos maliciosos.", "Impacto operativo."),
+        recommended_measures=("Preservar estado afectado.", "Comparar integridad.", "Documentar indisponibilidad.", "Cuantificar daño."),
+        article_refs=(
+            LegalArticleRef("CP", "183", role="principal", applicability="Figura base de daño informático.", limits="Debe acreditarse daño o alteración concreta.", confidence="alto"),
+            LegalArticleRef("CP", "184", "5/6", "conexa", "Agravantes por objeto o servicio afectado.", "Depende de infraestructura y consecuencias."),
+            LegalArticleRef("CP", "197", role="conexa", applicability="Si hay interrupción o entorpecimiento de comunicaciones.", limits="Requiere impacto comunicacional probado."),
+        ),
+    ),
+    "filtracion de datos": AttackLegalProfile(
+        key="filtracion de datos",
+        label="Filtración de datos",
+        query="filtracion datos personales confidencialidad",
+        legal_theory="Acceso, exposición, revelación o tratamiento indebido de datos personales o información confidencial.",
+        required_evidence=("Muestra de datos expuestos.", "Origen del repositorio.", "Logs de acceso.", "Titularidad de datos.", "Alcance de difusión."),
+        recommended_measures=("Minimizar exposición de muestras.", "Preservar evidencia con hash.", "Notificar según política aplicable.", "Relevar titulares afectados."),
+        article_refs=(
+            LegalArticleRef("CP", "157 bis", role="principal", applicability="Relevante para acceso, revelación o alteración de datos personales.", limits="Exige banco/archivo o supuesto protegido.", confidence="alto"),
+            LegalArticleRef("LPDP", "9", role="complementaria", applicability="Evalúa deberes de seguridad de datos.", limits="Plano administrativo/civil salvo conexión penal."),
+            LegalArticleRef("LPDP", "10", role="complementaria", applicability="Deber de confidencialidad.", limits="Depende del rol de quien accedió o divulgó."),
+            LegalArticleRef("LPDP", "11", role="complementaria", applicability="Cesión de datos.", limits="Requiere analizar destinatarios y base legal."),
+        ),
+    ),
+    "extorsion": AttackLegalProfile(
+        key="extorsion",
+        label="Extorsión",
+        query="extorsion intimidacion datos ransomware",
+        legal_theory="Exigencia intimidatoria para obligar a entregar bienes, valores, datos o realizar una conducta.",
+        required_evidence=("Mensaje extorsivo.", "Exigencia concreta.", "Cuenta/wallet destino.", "Plazos/amenazas.", "Canal de contacto."),
+        recommended_measures=("Preservar mensajes completos.", "Documentar exigencias.", "Trazar cuentas receptoras.", "Evitar interacción no controlada."),
+        article_refs=(
+            LegalArticleRef("CP", "168", role="principal", applicability="Tipo central si existe intimidación y exigencia.", limits="Debe probarse la amenaza/exigencia y finalidad patrimonial.", confidence="alto"),
+            LegalArticleRef("BUDAPEST", "16", role="procesal", applicability="Preservación rápida de datos.", limits="No atribuye autoría."),
+            LegalArticleRef("BUDAPEST", "18", role="procesal", applicability="Orden de presentación.", limits="Requiere autoridad y alcance."),
+        ),
+    ),
+    "otro": AttackLegalProfile(
+        key="otro",
+        label="Otro incidente informático",
+        query="incidente informatico evidencia digital",
+        legal_theory="Perfil general para incidentes informáticos que requieren clasificación jurídica posterior.",
+        required_evidence=("Descripción del hecho.", "Evidencia digital preservada.", "Cadena de custodia.", "Timeline.", "Impacto."),
+        recommended_measures=("Completar clasificación.", "Preservar evidencia.", "Evitar atribución prematura.", "Consultar normas por hechos concretos."),
+        article_refs=(LegalArticleRef("CPPF", "129", role="procesal", applicability="Orienta pertinencia y utilidad probatoria.", limits="No define tipicidad penal."),),
+    ),
+}
+
+ATTACK_PROFILES["acceso ilegítimo"] = ATTACK_PROFILES["acceso ilegitimo"]
+ATTACK_PROFILES["daño informatico"] = ATTACK_PROFILES["dano informatico"]
+ATTACK_PROFILES["daño informático"] = ATTACK_PROFILES["dano informatico"]
+ATTACK_PROFILES["phishing / fraude digital"] = ATTACK_PROFILES["phishing"]
+
 INCIDENT_KEYWORDS: dict[str, list[str]] = {
     "phishing": ["172", "173", "153 bis", "4", "5"],
     "fraude": ["172", "173", "40", "1716", "1726"],
@@ -337,6 +521,35 @@ INCIDENT_KEYWORDS: dict[str, list[str]] = {
     "cripto": ["172", "173", "16", "18"],
     "preservacion": ["16", "18", "129"],
 }
+
+
+def list_attack_profiles() -> list[dict]:
+    unique: dict[str, AttackLegalProfile] = {}
+    for profile in ATTACK_PROFILES.values():
+        unique[profile.key] = profile
+    return [
+        {
+            "value": profile.key,
+            "label": profile.label,
+            "query": profile.query,
+            "legal_theory": profile.legal_theory,
+            "required_evidence": list(profile.required_evidence),
+            "recommended_measures": list(profile.recommended_measures),
+        }
+        for profile in sorted(unique.values(), key=lambda item: item.label)
+    ]
+
+
+def get_attack_profile(incident_text: str) -> AttackLegalProfile:
+    text = (incident_text or "").lower()
+    for key, profile in ATTACK_PROFILES.items():
+        if key in text:
+            return profile
+    for keyword in INCIDENT_KEYWORDS:
+        if keyword in text:
+            if keyword in ATTACK_PROFILES:
+                return ATTACK_PROFILES[keyword]
+    return ATTACK_PROFILES["otro"]
 
 
 def ensure_legal_articles(db: Session) -> int:
@@ -426,13 +639,71 @@ def search_articles(db: Session, query: str, limit: int = 20) -> list[LegalArtic
     return [article for value, article in sorted(ranked, key=lambda item: item[0], reverse=True) if value > 0][:limit]
 
 
+def get_article_by_ref(db: Session, ref: LegalArticleRef) -> LegalArticle | None:
+    return (
+        db.query(LegalArticle)
+        .filter_by(code=ref.code, article_number=ref.article_number, subsection=ref.subsection, active=True)
+        .first()
+    )
+
+
+def article_context(db: Session, article: LegalArticle, crime_type: str = "") -> dict:
+    source = db.get(LegalSource, article.source_id) if article.source_id else None
+    precedents = [
+        {
+            "title": item.title,
+            "court_or_authority": item.court_or_authority,
+            "decision_date": item.decision_date,
+            "source": item.source,
+            "url": item.url,
+            "summary": item.summary,
+            "applicable_criterion": item.applicable_criterion,
+        }
+        for item in db.query(LegalPrecedent)
+        .filter_by(article_id=article.id, verified=True)
+        .all()
+        if not crime_type or crime_type.lower() in (item.related_crime_type or "").lower()
+    ]
+    doctrine = [
+        {
+            "title": item.title,
+            "author": item.author,
+            "publication_date": item.publication_date,
+            "source": item.source,
+            "url": item.url,
+            "summary": item.summary,
+            "applicable_criterion": item.applicable_criterion,
+        }
+        for item in db.query(LegalDoctrine)
+        .filter_by(article_id=article.id, verified=True)
+        .all()
+        if not crime_type or crime_type.lower() in (item.related_crime_type or "").lower()
+    ]
+    return {
+        "source_title": source.title if source else "",
+        "source_citation": source.citation if source else "",
+        "source_verified": bool(source.verified) if source else False,
+        "source_url": (source.url if source and source.url else article.official_url),
+        "last_checked_at": article.last_checked_at,
+        "precedents": precedents,
+        "doctrine": doctrine,
+    }
+
+
 def recommend_articles_for_incident(db: Session, incident_text: str, limit: int = 12) -> list[dict]:
     text = incident_text.lower()
+    profile = get_attack_profile(incident_text)
     wanted_numbers: set[str] = set()
     for keyword, article_numbers in INCIDENT_KEYWORDS.items():
         if keyword in text:
             wanted_numbers.update(article_numbers)
     candidates = []
+    profile_refs: dict[tuple[str, str, str], LegalArticleRef] = {}
+    for ref in profile.article_refs:
+        article = get_article_by_ref(db, ref)
+        if article:
+            candidates.append(article)
+            profile_refs[(article.code, article.article_number, article.subsection)] = ref
     if wanted_numbers:
         candidates.extend(
             db.query(LegalArticle)
@@ -446,22 +717,54 @@ def recommend_articles_for_incident(db: Session, incident_text: str, limit: int 
         if article.id in seen:
             continue
         seen.add(article.id)
+        ref = profile_refs.get((article.code, article.article_number, article.subsection))
+        context = article_context(db, article, profile.key)
         recommendations.append(
             {
                 "article_id": article.id,
                 "reference": f"{article.code} art. {article.article_number}{' inc. ' + article.subsection if article.subsection else ''}",
                 "title": article.title,
+                "legal_role": ref.role if ref else "relacionada",
                 "text": article.text,
                 "why": article.objective_elements,
                 "subjective_elements": article.subjective_elements,
                 "evidence_needed": article.evidentiary_requirements,
-                "source_url": article.official_url,
+                "applicability_to_case": ref.applicability if ref else "Relevancia preliminar según coincidencia con el texto del incidente.",
+                "probatory_limits": ref.limits if ref else "Requiere verificación humana de hechos, fuente y nexo probatorio.",
+                "confidence": ref.confidence if ref else "medio",
+                "source_title": context["source_title"],
+                "source_citation": context["source_citation"],
+                "source_verified": context["source_verified"],
+                "source_url": context["source_url"],
+                "last_checked_at": context["last_checked_at"],
+                "precedents": context["precedents"],
+                "doctrine": context["doctrine"],
                 "requires_human_review": True,
             }
         )
         if len(recommendations) >= limit:
             break
     return recommendations
+
+
+def recommend_legal_profile(db: Session, incident_text: str, limit: int = 12) -> dict:
+    profile = get_attack_profile(incident_text)
+    return {
+        "incident_text": incident_text,
+        "profile": {
+            "key": profile.key,
+            "label": profile.label,
+            "legal_theory": profile.legal_theory,
+            "required_evidence": list(profile.required_evidence),
+            "recommended_measures": list(profile.recommended_measures),
+        },
+        "recommendations": recommend_articles_for_incident(db, incident_text, limit=limit),
+        "policy": {
+            "registered_sources_only": True,
+            "human_review_required": True,
+            "no_unregistered_jurisprudence_or_doctrine": True,
+        },
+    }
 
 
 def verify_source_url(url: str, timeout: int = 8) -> dict:

@@ -4,8 +4,11 @@ from sqlalchemy.orm import Session
 from operia.core.database import get_db
 from operia.legal_knowledge.models import LegalArticle, LegalDoctrine, LegalMapping, LegalPrecedent, LegalSource
 from operia.legal_knowledge.service import (
+    article_context,
     ensure_legal_articles,
-    recommend_articles_for_incident,
+    get_attack_profile,
+    list_attack_profiles,
+    recommend_legal_profile,
     search_articles,
     verify_registered_sources,
     verify_source_url,
@@ -87,6 +90,12 @@ def list_articles(source_id: int | None = None, q: str | None = None, db: Sessio
     return query.order_by(LegalArticle.code, LegalArticle.article_number).all()
 
 
+@router.get("/articles/{article_id}/context")
+def get_article_context(article_id: int, crime_type: str = "", db: Session = Depends(get_db)):
+    article = get_or_404(db, LegalArticle, article_id)
+    return {"article": article, "context": article_context(db, article, crime_type=crime_type)}
+
+
 @router.post("/articles/seed")
 def seed_articles(db: Session = Depends(get_db)):
     created = ensure_legal_articles(db)
@@ -97,25 +106,39 @@ def seed_articles(db: Session = Depends(get_db)):
 @router.post("/articles/recommend")
 def recommend_articles(payload: dict, db: Session = Depends(get_db)):
     incident_text = str(payload.get("incident_text") or payload.get("query") or "")
-    return {
-        "incident_text": incident_text,
-        "recommendations": recommend_articles_for_incident(db, incident_text),
-        "disclaimer": "Recomendacion automatizada preliminar. Requiere revision humana y verificacion de fuente oficial.",
-    }
+    result = recommend_legal_profile(db, incident_text)
+    result["disclaimer"] = "Recomendacion preliminar basada solo en biblioteca legal registrada. Requiere revision profesional."
+    return result
 
 
 @router.get("/attack-types")
 def attack_types() -> list[dict[str, object]]:
-    return [
-        {"value": "phishing / fraude digital", "label": "Phishing / fraude digital", "query": "phishing fraude acceso datos consumidor"},
-        {"value": "ransomware", "label": "Ransomware", "query": "ransomware extorsion dano informatico preservacion"},
-        {"value": "acceso ilegitimo", "label": "Acceso ilegítimo", "query": "acceso ilegitimo sistema dato informatico"},
-        {"value": "fraude digital", "label": "Fraude digital", "query": "fraude estafa manipulacion informatica consumidor"},
-        {"value": "dano informatico", "label": "Daño informático", "query": "dano informatico sistemas datos"},
-        {"value": "filtracion de datos", "label": "Filtración de datos", "query": "filtracion datos personales confidencialidad"},
-        {"value": "extorsion", "label": "Extorsión", "query": "extorsion intimidacion datos ransomware"},
-        {"value": "otro", "label": "Otro", "query": "incidente informatico evidencia digital"},
-    ]
+    return list_attack_profiles()
+
+
+@router.get("/attack-types/{attack_type}")
+def attack_type_profile(attack_type: str):
+    profile = get_attack_profile(attack_type)
+    return {
+        "value": profile.key,
+        "label": profile.label,
+        "query": profile.query,
+        "legal_theory": profile.legal_theory,
+        "required_evidence": list(profile.required_evidence),
+        "recommended_measures": list(profile.recommended_measures),
+        "article_refs": [
+            {
+                "code": ref.code,
+                "article_number": ref.article_number,
+                "subsection": ref.subsection,
+                "role": ref.role,
+                "applicability": ref.applicability,
+                "limits": ref.limits,
+                "confidence": ref.confidence,
+            }
+            for ref in profile.article_refs
+        ],
+    }
 
 
 @router.post("/mappings", response_model=LegalMappingRead)

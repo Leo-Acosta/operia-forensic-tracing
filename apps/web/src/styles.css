@@ -576,6 +576,29 @@ code {
   color: #12613f;
 }
 
+.case-panel {
+  background: #f7f9fc;
+  border: 1px solid #dce5ee;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 14px;
+}
+
+.compact-head {
+  margin-bottom: 0;
+  padding-bottom: 10px;
+}
+
+.compact-list {
+  color: #34465d;
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
 .requirements {
   background: #fff8eb;
   border: 1px solid #efd39d;

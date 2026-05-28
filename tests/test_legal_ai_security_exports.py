@@ -15,6 +15,40 @@ def test_legal_knowledge_search_and_recommend(client):
     assert recommend.json()["disclaimer"]
 
 
+def test_legal_knowledge_attack_profile_for_phishing(client):
+    seed = client.post("/api/legal-knowledge/articles/seed")
+    assert seed.status_code == 200
+
+    attack_types = client.get("/api/legal-knowledge/attack-types")
+    assert attack_types.status_code == 200
+    assert any(item["value"] == "phishing" for item in attack_types.json())
+
+    profile = client.get("/api/legal-knowledge/attack-types/phishing")
+    assert profile.status_code == 200
+    assert profile.json()["label"] == "Phishing / fraude digital"
+    assert "engaño" in profile.json()["legal_theory"] or "engano" in profile.json()["legal_theory"]
+    assert len(profile.json()["required_evidence"]) >= 3
+
+    recommendation = client.post(
+        "/api/legal-knowledge/articles/recommend",
+        json={"incident_text": "phishing por anuncio falso con pago y captura de datos"},
+    )
+    assert recommendation.status_code == 200
+    body = recommendation.json()
+    assert body["profile"]["key"] == "phishing"
+    principal = body["recommendations"][0]
+    assert principal["reference"] == "CP art. 172"
+    assert principal["legal_role"] == "principal"
+    assert principal["confidence"] == "alto"
+    assert principal["precedents"] == []
+    assert principal["doctrine"] == []
+
+    context = client.get(f"/api/legal-knowledge/articles/{principal['article_id']}/context?crime_type=phishing")
+    assert context.status_code == 200
+    assert context.json()["context"]["precedents"] == []
+    assert context.json()["context"]["doctrine"] == []
+
+
 def test_ai_assistant_gracefully_handles_unavailable_ollama(client):
     response = client.post("/api/ai/assist", json={"prompt": "Analiza phishing con acceso ilegitimo"})
     assert response.status_code == 200
@@ -53,4 +87,3 @@ def test_exports_create_manifest_and_hash(client, admin_headers):
     download = client.get(f"/api/exports/manifests/{manifest_id}/download", headers=admin_headers)
     assert download.status_code == 200
     assert b"OPERIA Forensic Tracing" in download.content
-

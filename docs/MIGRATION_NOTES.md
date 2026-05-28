@@ -259,3 +259,20 @@ Verification:
 - `python -m compileall operia apps\api tests` passed;
 - `python -m pytest -q -p no:cacheprovider` passed with `8 passed`;
 - `npm run build` passed.
+
+## Fase Operativa 6
+
+Completed:
+
+- added structured Argentine legal attack profiles for phishing, ransomware, illegitimate access, digital fraud, data leaks, extortion and general incidents;
+- upgraded legal recommendations to return principal/connected/complementary/procedural role, applicability, probatory limits and confidence level;
+- added legal context lookup per article with verified jurisprudence and doctrine placeholders;
+- kept jurisprudence/doctrine hidden unless registered and verified;
+- added frontend legal profile view with required evidence, recommended measures and ordered article cards;
+- added regression tests for phishing profile recommendations and empty verified jurisprudence/doctrine.
+
+Verification:
+
+- `python -m compileall operia apps\api tests` passed;
+- `python -m pytest -q -p no:cacheprovider` passed with `9 passed`;
+- `npm run build` passed.

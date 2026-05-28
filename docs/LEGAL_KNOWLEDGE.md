@@ -16,6 +16,29 @@ Current scope:
 - `LegalMapping`
 - `LegalCitation`
 - `LegalEvaluation`
+- `LegalPrecedent`
+- `LegalDoctrine`
+
+Fase Operativa 6 adds legal attack profiles for:
+
+- phishing / fraude digital;
+- ransomware;
+- acceso ilegitimo;
+- fraude digital;
+- dano informatico;
+- filtracion de datos;
+- extorsion;
+- otros incidentes informaticos.
+
+Each profile defines:
+
+- legal theory;
+- required evidence;
+- recommended investigative measures;
+- principal, connected, complementary and procedural norms;
+- applicability to the case;
+- probatory limits;
+- confidence level.
 
 Initial seeded coverage:
 
@@ -46,14 +69,23 @@ Canonical API:
 - `GET /api/legal-knowledge/articles?q=phishing`
 - `POST /api/legal-knowledge/articles/seed`
 - `POST /api/legal-knowledge/articles/recommend`
+- `GET /api/legal-knowledge/articles/{article_id}/context`
+- `GET /api/legal-knowledge/attack-types`
+- `GET /api/legal-knowledge/attack-types/{attack_type}`
 - `POST /api/legal-knowledge/sources/verify`
 - `POST /api/legal-knowledge/sources/verify-url`
 - `POST /api/legal-knowledge/mappings`
 - `GET /api/legal-knowledge/case/{case_id}/mappings`
+- `POST /api/legal-knowledge/precedents`
+- `GET /api/legal-knowledge/precedents`
+- `POST /api/legal-knowledge/doctrine`
+- `GET /api/legal-knowledge/doctrine`
 
 Update and verification policy:
 
 - automatic recommendations are preliminary;
 - source URLs must point to official or manually approved references;
 - verification checks only URL reachability and does not certify legal interpretation;
+- jurisprudence and doctrine are shown only when registered and verified;
+- unregistered jurisprudence, doctrine, norms or articles must not be generated;
 - every legal recommendation must remain subject to human review.
