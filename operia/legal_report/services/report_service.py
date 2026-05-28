@@ -213,6 +213,10 @@ Debe evaluarse si existe relación de consumo, plataformas, bancos, fintech, exc
 
 La evidencia resulta compatible con los hallazgos indicados, con las limitaciones explicitadas. La conclusión requiere validación humana técnica y jurídica.
 
+### Sintesis aplicada al caso
+
+{_incident_specific_conclusion(case)}
+
 ## Recomendaciones
 
 - Completar fuentes pendientes de verificación.
@@ -254,9 +258,7 @@ def _default_hypotheses_markdown(case: Case) -> str:
 
 def _legal_recommendation_markdown(recommendations: list[Any]) -> str:
     if not recommendations:
-        return normalize_spanish(
-            "- Sin encuadre legal cargado. Debe consultarse la biblioteca legal argentina y citar fuente, articulo, texto resumido, elementos objetivos, elementos subjetivos y evidencia requerida."
-        )
+        return ""
     lines = []
     for item in recommendations:
         if isinstance(item, dict):
@@ -325,6 +327,18 @@ def build_ai_enrichment_markdown(case: Case, legal_recommendations: list[Any], a
 4. Si falta fuente oficial, texto normativo completo o prueba de nexo causal, el informe debe declararlo expresamente.
 5. La conclusion final debe quedar sometida a revision humana tecnica y juridica antes de uso judicial, administrativo o institucional.
 """
+    )
+
+
+def _incident_specific_conclusion(case: Case) -> str:
+    incident = normalize_spanish(case.incident_type or "").lower()
+    description = normalize_spanish(case.description or "")
+    if "phishing" in incident or "fraude" in incident:
+        return normalize_spanish(
+            f"El caso se analiza como una hipotesis preliminar de phishing/fraude digital. El relato disponible ({description or 'sin descripcion ampliada'}) permite orientar la investigacion hacia una posible maniobra de captacion mediante anuncio, ardid o suplantacion. En terminos juridicos argentinos, la figura base a evaluar es el art. 172 del Codigo Penal, porque exige verificar ardid o engano, error de la victima, disposicion patrimonial, perjuicio y nexo causal. Si la maniobra incluyo alteracion, manipulacion o uso de sistemas informaticos para producir el desplazamiento patrimonial, tambien corresponde revisar el art. 173 inc. 16 del Codigo Penal. Si hubo ingreso a cuentas, casillas, perfiles o sistemas sin autorizacion, debe evaluarse el art. 153 bis. Si se captaron, usaron o expusieron datos personales, la Ley 25.326 aporta un plano adicional de proteccion de datos. Si intervino una plataforma, marketplace, banco, fintech o proveedor digital, la Ley 24.240 puede ser relevante para deberes de informacion, seguridad y responsabilidad de consumo. La conclusion defendible no es afirmar autoria personal, sino sostener que la teoria del caso es compatible con una maniobra defraudatoria digital que requiere preservar comunicaciones, anuncios, URLs, identificadores de cuenta, trazabilidad de pagos, logs, titulares de cuentas receptoras y respuestas de proveedores."
+        )
+    return normalize_spanish(
+        "La conclusion debe formularse como teoria preliminar: hechos, evidencia, hallazgos, normas aplicables y evidencia faltante. No corresponde cerrar autoria o responsabilidad definitiva sin preservacion, trazabilidad y revision profesional."
     )
 
 

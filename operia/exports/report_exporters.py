@@ -237,13 +237,6 @@ def export_pdf(report: Report) -> Path:
     story.append(Paragraph(_html(report.title), styles["cover_title"]))
     story.append(Spacer(1, 10))
     story.append(Paragraph(_html(f"Caso {case.case_code} | {case.incident_type}"), styles["subtitle"]))
-    story.append(Spacer(1, 12))
-    story.append(
-        _warning_box(
-            "Documento asistido por IA y herramientas automatizadas. No sustituye revisi\u00f3n humana profesional, "
-            "control de legalidad, validaci\u00f3n probatoria ni criterio pericial."
-        )
-    )
     story.append(Spacer(1, 20))
     story.append(
         _key_value_table(
@@ -297,8 +290,8 @@ def export_pdf(report: Report) -> Path:
         )
     )
 
-    _section(story, "2. Personas y entidades involucradas", styles)
     if case.participants:
+        _section(story, "2. Personas y entidades involucradas", styles)
         story.append(
             _data_table(
                 ["Rol", "Tipo", "Nombre", "Documento / CUIT", "Relaci\u00f3n", "Sensibilidad"],
@@ -317,11 +310,9 @@ def export_pdf(report: Report) -> Path:
                 [70, 62, 110, 84, 126, 72],
             )
         )
-    else:
-        story.append(Paragraph("No hay participantes cargados en el caso.", styles["muted"]))
 
-    _section(story, "3. Evidencia digital y control de integridad", styles)
     if case.evidence:
+        _section(story, "3. Evidencia digital y control de integridad", styles)
         story.append(
             _data_table(
                 ["ID", "Tipo", "Descripci\u00f3n", "SHA-256", "MD5", "Integridad"],
@@ -340,11 +331,9 @@ def export_pdf(report: Report) -> Path:
                 [28, 82, 160, 118, 70, 66],
             )
         )
-    else:
-        story.append(Paragraph("No hay evidencia digital cargada.", styles["muted"]))
 
-    _section(story, "4. Cadena de custodia", styles)
     if case.actions:
+        _section(story, "4. Cadena de custodia", styles)
         story.append(
             _data_table(
                 ["Fecha", "Acci\u00f3n", "Evidencia", "Responsable", "Detalle", "Hash posterior"],
@@ -363,11 +352,9 @@ def export_pdf(report: Report) -> Path:
                 [68, 62, 50, 86, 182, 76],
             )
         )
-    else:
-        story.append(Paragraph("No se registraron acciones de cadena de custodia.", styles["muted"]))
 
-    _section(story, "5. Hallazgos, hip\u00f3tesis y limitaciones", styles)
     if case.findings:
+        _section(story, "5. Hallazgos y limitaciones", styles)
         story.append(
             _data_table(
                 ["Hallazgo", "Confianza", "Soporte", "Limitaciones"],
@@ -384,9 +371,9 @@ def export_pdf(report: Report) -> Path:
                 [128, 68, 176, 152],
             )
         )
-    else:
-        story.append(Paragraph("No hay hallazgos estructurados cargados.", styles["muted"]))
     if case.hypotheses:
+        if not case.findings:
+            _section(story, "5. Hip\u00f3tesis investigativas", styles)
         story.append(Spacer(1, 8))
         story.append(
             _data_table(
@@ -397,7 +384,16 @@ def export_pdf(report: Report) -> Path:
             )
         )
 
-    _section(story, "6. Encuadre legal argentino", styles)
+    legal_content = _extract_named_sections(
+        report.markdown_content,
+        [
+            "Encuadre jur\u00eddico argentino",
+            "Fundamentacion legal argentina con articulos citados",
+            "Fundamentaci\u00f3n legal argentina con art\u00edculos citados",
+        ],
+    )
+    if case.legal_mappings or legal_content:
+        _section(story, "6. Encuadre legal argentino", styles)
     if case.legal_mappings:
         story.append(
             _data_table(
@@ -416,46 +412,35 @@ def export_pdf(report: Report) -> Path:
                 [78, 116, 190, 90, 50],
             )
         )
+    if legal_content:
+        _append_markdown_content(story, legal_content, styles)
+
+    analysis_content = _extract_named_sections(
+        report.markdown_content,
+        [
+            "Hip\u00f3tesis investigativas",
+            "Hipotesis investigativas reforzadas",
+            "An\u00e1lisis ampliado asistido por IA local",
+            "Analisis ampliado asistido por IA local",
+        ],
+    )
+    if analysis_content:
+        _section(story, "7. Hip\u00f3tesis y an\u00e1lisis del caso", styles)
+        _append_markdown_content(story, analysis_content, styles)
+
+    conclusion_content = _extract_named_sections(
+        report.markdown_content,
+        [
+            "Conclusi\u00f3n jur\u00eddicamente defendible",
+            "Conclusiones profundas y prudentes",
+            "Conclusiones t\u00e9cnicas",
+        ],
+    )
+    _section(story, "8. Conclusi\u00f3n t\u00e9cnico-jur\u00eddica", styles)
+    if conclusion_content:
+        _append_markdown_content(story, conclusion_content, styles)
     else:
-        story.append(
-            _warning_box(
-                "No hay encuadre legal validado cargado en el caso. La IA no debe inventar normas, art\u00edculos ni jurisprudencia; "
-                "toda recomendaci\u00f3n legal debe provenir de la biblioteca legal registrada."
-            )
-        )
-
-    _section(story, "7. Contenido del informe generado", styles)
-    for title, content in _markdown_sections(report.markdown_content):
-        if not content.strip():
-            continue
-        story.append(Paragraph(_html(title), styles["subheading"]))
-        _append_markdown_content(story, content, styles)
-
-    _section(story, "8. Conclusiones prudentes", styles)
-    story.append(
-        Paragraph(
-            _html(
-                "Las conclusiones deben interpretarse como asistidas y sujetas a verificaci\u00f3n humana. "
-                "La atribuci\u00f3n personal, la calificaci\u00f3n legal definitiva y la cuantificaci\u00f3n de da\u00f1o requieren evidencia adicional, "
-                "fuentes verificadas y revisi\u00f3n profesional."
-            ),
-            styles["body"],
-        )
-    )
-    story.append(Spacer(1, 8))
-    story.append(
-        _data_table(
-            ["Control", "Estado recomendado"],
-            [
-                ["Integridad", "Verificar hashes y correspondencia con archivos fuente."],
-                ["Cadena de custodia", "Validar responsables, fechas y procedimientos."],
-                ["Base legal", "Confirmar art\u00edculos y fuentes oficiales vigentes."],
-                ["IA", "Usar como asistencia, no como autoridad final."],
-            ],
-            styles,
-            [120, 404],
-        )
-    )
+        story.append(Paragraph(_html(_professional_conclusion(case)), styles["body"]))
 
     _section(story, "9. Anexo de exportaci\u00f3n", styles)
     story.append(
@@ -672,6 +657,52 @@ def _append_markdown_content(story: list, content: str, styles: dict[str, Paragr
             story.append(Paragraph(_html(_clean_markdown_text(line)), styles["body"]))
 
 
+def _extract_named_sections(markdown: str, titles: list[str]) -> str:
+    wanted = {normalize_spanish(title).lower() for title in titles}
+    parts = []
+    for title, content in _markdown_sections(markdown):
+        normalized_title = normalize_spanish(title).lower()
+        if normalized_title in wanted:
+            parts.append(content.strip())
+    return "\n\n".join(part for part in parts if _meaningful_content(part))
+
+
+def _meaningful_content(content: str) -> bool:
+    text = normalize_spanish(content).strip().lower()
+    if not text:
+        return False
+    empty_markers = [
+        "sin encuadre legal",
+        "no hay encuadre legal",
+        "sin evidencia cargada",
+        "sin acciones registradas",
+        "sin hallazgos",
+        "evaluacion pendiente",
+        "evaluación pendiente",
+    ]
+    return not any(marker in text for marker in empty_markers)
+
+
+def _professional_conclusion(case) -> str:
+    incident = normalize_spanish(case.incident_type or "").lower()
+    if "phishing" in incident or "fraude" in incident:
+        return (
+            "El caso presenta una hip\u00f3tesis preliminar compatible con phishing o fraude digital mediante captaci\u00f3n de v\u00edctimas por "
+            "enga\u00f1o, suplantaci\u00f3n o anuncio fraudulento. Desde la normativa argentina, el an\u00e1lisis debe concentrarse en la posible "
+            "relaci\u00f3n con el art. 172 del C\u00f3digo Penal, en tanto exige ardid o enga\u00f1o, error de la v\u00edctima, disposici\u00f3n patrimonial, "
+            "perjuicio y nexo causal; tambi\u00e9n puede evaluarse el art. 173 inc. 16 si existi\u00f3 manipulaci\u00f3n inform\u00e1tica, el art. 153 bis "
+            "si hubo acceso ileg\u00edtimo a cuentas o sistemas, la Ley 25.326 si se comprometieron datos personales y la Ley 24.240 si intervino "
+            "una plataforma, proveedor o relaci\u00f3n de consumo. La conclusi\u00f3n no debe cerrar autor\u00eda personal hasta contar con evidencia "
+            "t\u00e9cnica preservada, trazabilidad de comunicaciones, registros de pago, identificadores de cuenta, logs, oficios a proveedores y "
+            "validaci\u00f3n de cadena de custodia."
+        )
+    return (
+        "La conclusi\u00f3n debe formularse como hip\u00f3tesis t\u00e9cnico-jur\u00eddica preliminar. Para elevar su fuerza probatoria corresponde "
+        "conectar cada hecho con evidencia preservada, cada evidencia con un hallazgo verificable y cada hallazgo con una norma aplicable "
+        "citada desde la biblioteca legal registrada."
+    )
+
+
 def _short_hash(value: str) -> str:
     value = normalize_spanish(value or "")
     if not value:
@@ -694,7 +725,7 @@ def _report_page_footer(c: canvas.Canvas, doc) -> None:
     c.line(36, 36, width - 36, 36)
     c.setFont("Helvetica", 7)
     c.setFillColor(colors.HexColor("#64748b"))
-    c.drawString(36, 24, "OPERIA Forensic Tracing | Informe asistido por IA | Requiere revisi\u00f3n humana")
+    c.drawString(36, 24, "OPERIA Forensic Tracing | Informe forense profesional")
     c.drawRightString(width - 36, 24, f"P\u00e1gina {doc.page}")
     c.restoreState()
 

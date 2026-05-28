@@ -1,3 +1,8 @@
+from io import BytesIO
+
+from pypdf import PdfReader
+
+
 def test_case_evidence_report_flow_with_audit(client, admin_headers):
     case = client.post(
         "/api/cases",
@@ -49,6 +54,10 @@ def test_case_evidence_report_flow_with_audit(client, admin_headers):
     assert pdf.status_code == 200
     assert pdf.headers["x-operia-sha256"]
     assert len(pdf.content) > 2500
+    pdf_text = "\n".join(page.extract_text() or "" for page in PdfReader(BytesIO(pdf.content)).pages)
+    assert "Documento asistido por IA" not in pdf_text
+    assert "No hay encuadre legal" not in pdf_text
+    assert "CP art." in pdf_text
 
     logs = client.get(f"/api/audit/logs?case_id={case_id}", headers=admin_headers)
     assert logs.status_code == 200
