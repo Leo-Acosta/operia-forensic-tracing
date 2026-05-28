@@ -1355,14 +1355,24 @@ export function App() {
             <p>Sistema compartido de casos preparado para SaaS.</p>
           </div>
         </div>
-        <div className="table">
+        <div className="case-list">
+          <div className="case-list-header">
+            <span>Código</span>
+            <span>Expediente</span>
+            <span>Tipo</span>
+            <span>Estado</span>
+            <span>Acción</span>
+          </div>
           {cases.map((item) => (
-            <button className={`row-button ${selectedCaseId === item.id ? "selected" : ""}`} key={item.id} onClick={() => setSelectedCaseId(item.id)}>
-              <span>{item.case_code}</span>
+            <button className={`case-row ${selectedCaseId === item.id ? "selected" : ""}`} key={item.id} onClick={() => setSelectedCaseId(item.id)}>
+              <code>{item.case_code}</code>
               <strong>{item.title}</strong>
-              <em>{item.incident_type}</em>
+              <span>{prettySpanish(item.incident_type)}</span>
+              <em>{prettySpanish(item.status)}</em>
+              <small>{selectedCaseId === item.id ? "Seleccionado" : "Abrir"}</small>
             </button>
           ))}
+          {!cases.length && <EmptyState text="No hay casos registrados." />}
         </div>
       </section>
     );
