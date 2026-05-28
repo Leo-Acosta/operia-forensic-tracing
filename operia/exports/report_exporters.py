@@ -490,7 +490,15 @@ def export_pdf(report: Report) -> Path:
         story.append(Spacer(1, 6))
         story.append(Paragraph(_html(build_attribution_conclusion(case)), styles["body"]))
 
-    _section(story, "9. Anexo de exportaci\u00f3n", styles)
+    recommendations_content = _extract_named_sections(
+        report.markdown_content,
+        ["Recomendaciones procesales autom\u00e1ticas", "Recomendaciones"],
+    )
+    if recommendations_content:
+        _section(story, "9. Recomendaciones procesales", styles)
+        _append_markdown_content(story, recommendations_content, styles)
+
+    _section(story, "10. Anexo de exportaci\u00f3n", styles)
     story.append(
         Paragraph(
             _html(

@@ -364,3 +364,19 @@ Verification:
 - `python -m compileall operia apps\api tests` passed;
 - `python -m pytest -q -p no:cacheprovider` passed with `11 passed`;
 - `npm run build` passed.
+
+## Fase Operativa 7.1
+
+Completed:
+
+- added incident-specific conclusion frames for phishing/fraud, ransomware/extortion, unauthorized access, data leaks and computer damage;
+- added automatic procedural recommendations derived from incident type and legal-probatory gaps;
+- added recommendations to generated reports, enriched reports and PDF exports;
+- kept recommendations tied to evidence/matrix status instead of generic text;
+- added regression checks for phishing-specific conclusions and procedural recommendations.
+
+Verification:
+
+- `python -m compileall operia apps\api tests` passed;
+- `python -m pytest -q -p no:cacheprovider` passed with `11 passed`;
+- `npm run build` passed.

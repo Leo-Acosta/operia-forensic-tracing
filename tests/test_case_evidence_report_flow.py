@@ -39,6 +39,9 @@ def test_case_evidence_report_flow_with_audit(client, admin_headers):
     assert "CP art. 172" in report.json()["markdown_content"]
     assert "Matriz legal-probatoria aplicada" in report.json()["markdown_content"]
     assert "Semáforo de suficiencia legal" in report.json()["markdown_content"]
+    assert "Conclusión específica por phishing/fraude digital" in report.json()["markdown_content"]
+    assert "Recomendaciones procesales automáticas" in report.json()["markdown_content"]
+    assert "cuenta receptora" in report.json()["markdown_content"]
 
     enriched = client.post(
         f"/api/reports/{report_id}/ai-enrich",
@@ -48,6 +51,8 @@ def test_case_evidence_report_flow_with_audit(client, admin_headers):
     assert enriched.status_code == 200
     enriched_text = enriched.json()["markdown_content"]
     assert "Matriz legal-probatoria aplicada" in enriched_text
+    assert "Recomendaciones procesales automáticas" in enriched_text
+    assert "Conclusión específica por phishing/fraude digital" in enriched_text
     assert "Hipótesis y análisis del caso" in enriched_text
     assert "Conclusión técnico-jurídica" in enriched_text
     assert "CONCLUSIÓN TÉCNICO-JURÍDICA SOBRE IMPOSIBILIDAD DE ATRIBUCIÓN" in enriched_text
@@ -78,6 +83,8 @@ def test_case_evidence_report_flow_with_audit(client, admin_headers):
     assert "CP art. 172" in pdf_text
     assert "Matriz legal-probatoria aplicada" in pdf_text
     assert "semáforo de suficiencia legal" in pdf_text
+    assert "Recomendaciones procesales" in pdf_text
+    assert "cuenta receptora" in pdf_text
     assert "CONCLUSIÓN TÉCNICO-JURÍDICA SOBRE IMPOSIBILIDAD DE ATRIBUCIÓN" in pdf_text
     assert "La atribución técnica de un ciberataque" in pdf_text
 

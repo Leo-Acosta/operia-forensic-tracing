@@ -44,6 +44,7 @@ REPORT_SECTIONS = [
     "Cuantificación económica del daño",
     "Conclusión jurídicamente defendible",
     "Recomendaciones",
+    "Recomendaciones procesales automÃ¡ticas",
     "Anexos",
     "Glosario técnico",
     "Preguntas y respuestas para testimonio experto",
@@ -100,6 +101,7 @@ def build_integral_markdown(case: Case, legal_recommendations: list[Any] | None 
     legal_probatory = legal_probatory_assessment(case)
     legal_probatory_lines = _legal_probatory_matrix_markdown(legal_probatory)
     legal_sufficiency_lines = _legal_sufficiency_markdown(legal_probatory)
+    procedural_recommendations = _procedural_recommendations_markdown(case, legal_probatory)
 
     responsible_text = case.responsible or NO_ATTRIBUTION_TEXT
     client_or_victim = case.client_or_victim or ""
@@ -249,6 +251,8 @@ La evidencia resulta compatible con los hallazgos indicados, con las limitacione
 
 ### Sintesis aplicada al caso
 
+{_incident_conclusion_frame(case, legal_probatory)}
+
 {build_matrix_based_conclusion(case)}
 
 {_incident_specific_conclusion(case)}
@@ -258,6 +262,10 @@ La evidencia resulta compatible con los hallazgos indicados, con las limitacione
 - Completar fuentes pendientes de verificación.
 - Validar hashes, bitácora y anexos.
 - Reformular afirmaciones categóricas en términos técnicos probabilísticos.
+
+## Recomendaciones procesales automÃ¡ticas
+
+{procedural_recommendations}
 
 ## Anexos
 
@@ -457,10 +465,87 @@ def _normative_application_method(assessment: dict[str, Any]) -> str:
     return "La aplicacion normativa cuenta con soporte legal-probatorio consistente para una conclusion tecnica fortalecida, siempre sujeta a revision profesional y control jurisdiccional."
 
 
+def _incident_conclusion_frame(case: Case, assessment: dict[str, Any]) -> str:
+    incident = normalize_spanish(case.incident_type or "").lower()
+    summary = assessment["summary"]
+    mode = summary["conclusion_mode"]
+    if "phishing" in incident or "fraude" in incident:
+        if mode == "fortalecida":
+            return "Conclusión específica por phishing/fraude digital: la evidencia vinculada permite sostener una maniobra compatible con captación engañosa, inducción a error y posible desplazamiento patrimonial, sin confundir esa compatibilidad con atribución penal individual."
+        if mode == "insuficiente":
+            return "Conclusión específica por phishing/fraude digital: el caso conserva una hipótesis compatible con ardid o engaño, pero faltan elementos para afirmar error, perjuicio, nexo causal o titularidad de cuentas receptoras con suficiencia técnico-jurídica."
+        return "Conclusión específica por phishing/fraude digital: la matriz permite sostener una teoría prudente de captación engañosa, sujeta a corroboración de comunicaciones, URL, cuenta receptora, pago, identidad digital y nexo causal."
+    if "ransomware" in incident or "extors" in incident:
+        return "Conclusión específica por ransomware/extorsión: el análisis debe priorizar prueba de cifrado o bloqueo, nota extorsiva, trazabilidad de wallet o cuenta destino, impacto operativo y preservación de artefactos, sin atribuir autoría por la sola infraestructura utilizada."
+    if "acceso" in incident:
+        return "Conclusión específica por acceso ilegítimo: el eje probatorio se concentra en logs, permisos, autenticaciones, timestamps, IPs, sesiones y ausencia de autorización; la atribución personal exige corroboración externa adicional."
+    if "filtr" in incident or "datos" in incident:
+        return "Conclusión específica por filtración de datos: la suficiencia depende de acreditar datos personales o confidenciales afectados, origen de exposición, alcance, titulares involucrados, medidas de seguridad y cadena de custodia de las muestras."
+    if "daño" in incident or "dano" in incident:
+        return "Conclusión específica por daño informático: la matriz debe demostrar alteración, destrucción, inutilización o afectación de datos, programas o sistemas mediante hashes, imágenes forenses, logs, backups e impacto operativo verificable."
+    return "Conclusión específica por incidente digital: la matriz legal-probatoria define el alcance defendible de la conclusión según evidencia preservada, normas aprobadas, elementos faltantes y riesgos de contradicción."
+
+
+def _procedural_recommendations_markdown(case: Case, assessment: dict[str, Any]) -> str:
+    incident = normalize_spanish(case.incident_type or "").lower()
+    recommendations: list[str] = []
+    rows = assessment["rows"]
+    if any(row["element_status"] in {"faltante", "pendiente", "debil"} for row in rows):
+        recommendations.append("Incorporar evidencia directa o corroborante para los elementos legales marcados como faltantes, débiles o pendientes.")
+    if any(row["contradiction_risk"] in {"alto", "critico"} for row in rows):
+        recommendations.append("Resolver contradicciones probatorias antes de cerrar el informe o sostener una atribución.")
+    if "phishing" in incident or "fraude" in incident:
+        recommendations.extend(
+            [
+                "Preservar capturas completas del anuncio, perfil, enlace, chat, correo o comunicación engañosa con fecha, hora, URL e identificadores visibles.",
+                "Requerir a plataforma, marketplace, red social o proveedor la preservación de cuenta, logs, IPs, cambios de perfil y datos de registración.",
+                "Oficiar a entidad financiera, billetera virtual, exchange o procesador de pago para titularidad, movimientos, trazabilidad y cuenta receptora.",
+                "Correlacionar comprobantes de pago, conversaciones, timestamps, URLs y respuestas de proveedores para sostener ardid, error, perjuicio y nexo causal.",
+            ]
+        )
+    elif "ransomware" in incident or "extors" in incident:
+        recommendations.extend(
+            [
+                "Preservar nota extorsiva, wallets, direcciones de pago, muestras, hashes, extensiones cifradas y evidencia de indisponibilidad.",
+                "Generar imagen forense de sistemas afectados antes de restaurar o ejecutar herramientas de limpieza.",
+                "Requerir logs de firewall, EDR, VPN, correo y autenticación para reconstruir vector de ingreso y propagación.",
+            ]
+        )
+    elif "acceso" in incident:
+        recommendations.extend(
+            [
+                "Preservar logs originales de autenticación, sesiones, cambios de contraseña, 2FA, IPs, user agents y permisos.",
+                "Solicitar datos de abonado o preservación a proveedores solo cuando exista IP, cuenta o identificador temporalmente correlacionable.",
+                "Contrastar actividad del usuario legítimo, dispositivos autorizados y políticas de acceso para descartar falsos positivos.",
+            ]
+        )
+    elif "filtr" in incident or "datos" in incident:
+        recommendations.extend(
+            [
+                "Determinar alcance de datos afectados, categorías, titulares involucrados y fuente exacta de exposición.",
+                "Preservar muestras mínimas con hash, evitando reproducir datos sensibles innecesarios.",
+                "Relevar medidas de seguridad, permisos, responsables de tratamiento y registros de acceso.",
+            ]
+        )
+    elif "daño" in incident or "dano" in incident:
+        recommendations.extend(
+            [
+                "Comparar hashes, respaldos, imágenes forenses y estado previo/posterior del sistema afectado.",
+                "Documentar impacto operativo, indisponibilidad, archivos alterados y trazabilidad de restauración.",
+                "Identificar artefactos, scripts, malware o comandos vinculados a la alteración o inutilización.",
+            ]
+        )
+    if not recommendations:
+        recommendations.append("Mantener preservación integral, cadena de custodia, hash de evidencia y solicitudes de información a proveedores pertinentes.")
+    unique = list(dict.fromkeys(recommendations))
+    return normalize_spanish("\n".join(f"- {item}" for item in unique))
+
+
 def build_matrix_based_conclusion(case: Case) -> str:
     assessment = legal_probatory_assessment(case)
     summary = assessment["summary"]
     attribution = attribution_assessment(case)
+    incident_frame = _incident_conclusion_frame(case, assessment)
     if summary["approved_mappings"] == 0:
         return normalize_spanish(
             "No se incorporó un encuadre legal aprobado por analista. En consecuencia, el informe solo puede sostener una descripción técnico-forense preliminar y no una conclusión jurídico-penal estructurada."
@@ -482,6 +567,7 @@ def build_ai_enrichment_markdown(case: Case, legal_recommendations: list[Any], a
     legal_block = _legal_recommendation_markdown(legal_recommendations)
     hypotheses = _default_hypotheses_markdown(case)
     legal_probatory = legal_probatory_assessment(case)
+    procedural_recommendations = _procedural_recommendations_markdown(case, legal_probatory)
     evidence_summary = "\n".join(
         f"- Evidencia #{item.id}: {item.description}. Hash: {item.sha256_hash or 'pendiente'}. Integridad: {item.integrity_status}."
         for item in case.evidence[:8]
@@ -514,7 +600,13 @@ def build_ai_enrichment_markdown(case: Case, legal_recommendations: list[Any], a
 
 {build_matrix_based_conclusion(case)}
 
+{_incident_conclusion_frame(case, legal_probatory)}
+
 {build_attribution_conclusion(case)}
+
+## Recomendaciones procesales automÃ¡ticas
+
+{procedural_recommendations}
 """
     )
 
