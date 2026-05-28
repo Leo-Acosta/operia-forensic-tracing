@@ -22,6 +22,10 @@ from operia.legal_report.services.report_service import (
     attribution_assessment,
     build_attribution_conclusion,
     build_matrix_based_conclusion,
+    build_smart_executive_summary,
+    exportability_markdown,
+    legal_probatory_assessment,
+    report_exportability_assessment,
 )
 from operia.core.config import settings
 from operia.shared.time import utcnow
@@ -230,6 +234,8 @@ def export_pdf(report: Report) -> Path:
     styles = _report_styles()
     story: list = []
     total_damage = sum(item.amount for item in case.damage_items)
+    legal_probatory = legal_probatory_assessment(case)
+    exportability = report_exportability_assessment(case, legal_probatory, report=report)
 
     logo = _logo_path()
     if logo:
@@ -253,6 +259,7 @@ def export_pdf(report: Report) -> Path:
                 ("Autor del informe", _visible_author(report)),
                 ("Versi\u00f3n", report.version),
                 ("Estado del informe", _professional_status(report, case)),
+                ("Nivel de exportabilidad", exportability["level"]),
                 ("Puntaje de revisi\u00f3n", str(report.review_score or 0)),
             ],
             styles,
@@ -275,25 +282,11 @@ def export_pdf(report: Report) -> Path:
     story.append(PageBreak())
 
     _section(story, "1. Resumen ejecutivo", styles)
-    story.append(
-        Paragraph(
-            _html(
-                case.description
-                or "El caso requiere completar una narrativa ejecutiva con alcance, antecedentes, impacto y objetivo de investigaci\u00f3n."
-            ),
-            styles["body"],
-        )
-    )
-    story.append(Spacer(1, 10))
-    story.append(
-        Paragraph(
-            _html(
-                "Alcance: preservaci\u00f3n de evidencia, an\u00e1lisis t\u00e9cnico, trazabilidad, apoyo legal argentino, "
-                "generaci\u00f3n de informe y revisi\u00f3n humana previa a cualquier uso externo."
-            ),
-            styles["body"],
-        )
-    )
+    executive_summary = build_smart_executive_summary(case, legal_probatory, exportability)
+    _append_markdown_content(story, executive_summary, styles)
+    story.append(Spacer(1, 6))
+    story.append(Paragraph("Nivel de exportabilidad del informe", styles["subheading"]))
+    _append_markdown_content(story, exportability_markdown(exportability), styles)
 
     if case.participants:
         _section(story, "2. Personas y entidades involucradas", styles)

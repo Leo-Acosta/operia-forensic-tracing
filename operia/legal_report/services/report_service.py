@@ -102,6 +102,9 @@ def build_integral_markdown(case: Case, legal_recommendations: list[Any] | None 
     legal_probatory_lines = _legal_probatory_matrix_markdown(legal_probatory)
     legal_sufficiency_lines = _legal_sufficiency_markdown(legal_probatory)
     procedural_recommendations = _procedural_recommendations_markdown(case, legal_probatory)
+    exportability = report_exportability_assessment(case, legal_probatory)
+    executive_summary = build_smart_executive_summary(case, legal_probatory, exportability)
+    exportability_lines = exportability_markdown(exportability)
 
     responsible_text = case.responsible or NO_ATTRIBUTION_TEXT
     client_or_victim = case.client_or_victim or ""
@@ -121,6 +124,7 @@ def build_integral_markdown(case: Case, legal_recommendations: list[Any] | None 
 
 - Tipo de incidente: {case.incident_type}
 - Estado: {case.status}
+- Nivel de exportabilidad: {exportability['level']}
 - Descripción: {description_text}
 - Observaciones: {case.general_observations or 'sin observaciones'}
 
@@ -146,7 +150,11 @@ Se preservaron datos técnicos, se registraron acciones de cadena de custodia, s
 
 ## Resumen ejecutivo
 
-Se analiza un caso de {case.incident_type}. El daño económico total estimado asciende preliminarmente a **{total_damage:.2f} ARS**, sujeto a fuentes, fórmulas y validación profesional.
+{executive_summary}
+
+### Nivel de exportabilidad del informe
+
+{exportability_lines}
 
 ## Descripción del incidente
 
@@ -421,6 +429,163 @@ def legal_probatory_assessment(case: Case) -> dict[str, Any]:
             "conclusion_mode": conclusion_mode,
         },
     }
+
+
+def report_exportability_assessment(
+    case: Case,
+    legal_probatory: dict[str, Any] | None = None,
+    report: Report | None = None,
+) -> dict[str, Any]:
+    legal_probatory = legal_probatory or legal_probatory_assessment(case)
+    legal_summary = legal_probatory["summary"]
+    evidence_count = len(case.evidence)
+    custody_count = len(case.actions)
+    hashed_evidence_count = sum(1 for item in case.evidence if item.sha256_hash)
+    approved_legal_count = legal_summary["approved_mappings"]
+    proved_or_supported = legal_summary["proved"] + legal_summary["weak"]
+    review_score = report.review_score or 0 if report else 0
+
+    checklist = {
+        "analyst_present": bool(report and normalize_spanish(report.author or "").strip()),
+        "case_narrative": bool(normalize_spanish(case.description or "").strip()),
+        "evidence_present": evidence_count > 0,
+        "hashes_present": evidence_count > 0 and hashed_evidence_count == evidence_count,
+        "custody_present": custody_count > 0,
+        "approved_legal_mapping": approved_legal_count > 0,
+        "matrix_has_support": proved_or_supported > 0,
+        "critical_gaps_absent": legal_summary["missing"] == 0 and legal_summary["high_risk"] == 0,
+        "human_review_score": review_score >= 80,
+    }
+    weights = {
+        "analyst_present": 8,
+        "case_narrative": 8,
+        "evidence_present": 14,
+        "hashes_present": 12,
+        "custody_present": 12,
+        "approved_legal_mapping": 16,
+        "matrix_has_support": 14,
+        "critical_gaps_absent": 10,
+        "human_review_score": 6,
+    }
+    score = sum(weights[key] for key, value in checklist.items() if value)
+    if score >= 86 and checklist["critical_gaps_absent"] and checklist["human_review_score"]:
+        level = "Apto para presentación"
+    elif score >= 68 and checklist["approved_legal_mapping"] and checklist["evidence_present"]:
+        level = "Listo para revisión"
+    elif score >= 38 and checklist["evidence_present"]:
+        level = "Informe preliminar"
+    else:
+        level = "Borrador técnico"
+
+    missing_items = [
+        label
+        for key, label in {
+            "analyst_present": "Informar analista interviniente",
+            "case_narrative": "Completar narrativa del caso",
+            "evidence_present": "Cargar evidencia digital",
+            "hashes_present": "Completar hash SHA-256 de la evidencia",
+            "custody_present": "Registrar cadena de custodia",
+            "approved_legal_mapping": "Aprobar encuadre legal por analista",
+            "matrix_has_support": "Vincular normas con evidencia concreta",
+            "critical_gaps_absent": "Cerrar elementos legales faltantes o riesgos altos",
+            "human_review_score": "Completar revisión humana con puntaje suficiente",
+        }.items()
+        if not checklist[key]
+    ]
+    return {
+        "level": level,
+        "score": score,
+        "checklist": checklist,
+        "missing_items": missing_items,
+        "evidence_count": evidence_count,
+        "hashed_evidence_count": hashed_evidence_count,
+        "custody_count": custody_count,
+        "approved_legal_count": approved_legal_count,
+        "legal_score": legal_summary["score"],
+        "legal_risk_level": legal_summary["risk_level"],
+    }
+
+
+def exportability_markdown(exportability: dict[str, Any]) -> str:
+    checklist = exportability["checklist"]
+    labels = {
+        "analyst_present": "Analista identificado",
+        "case_narrative": "Narrativa del caso",
+        "evidence_present": "Evidencia cargada",
+        "hashes_present": "Hashes completos",
+        "custody_present": "Cadena de custodia",
+        "approved_legal_mapping": "Encuadre legal aprobado",
+        "matrix_has_support": "Normas vinculadas a evidencia",
+        "critical_gaps_absent": "Sin brechas legales críticas",
+        "human_review_score": "Revisión humana suficiente",
+    }
+    lines = [
+        f"- Nivel: **{exportability['level']}**.",
+        f"- Score de exportabilidad: **{exportability['score']} / 100**.",
+        f"- Evidencias con hash: {exportability['hashed_evidence_count']} de {exportability['evidence_count']}.",
+        f"- Acciones de custodia: {exportability['custody_count']}.",
+        f"- Normas aprobadas: {exportability['approved_legal_count']}.",
+        f"- Score legal-probatorio: {exportability['legal_score']} / 100 ({exportability['legal_risk_level']}).",
+    ]
+    lines.extend(f"- {label}: {'cumplido' if checklist[key] else 'pendiente'}." for key, label in labels.items())
+    if exportability["missing_items"]:
+        lines.append("- Pendientes principales: " + "; ".join(exportability["missing_items"][:6]) + ".")
+    return normalize_spanish("\n".join(lines))
+
+
+def build_smart_executive_summary(
+    case: Case,
+    legal_probatory: dict[str, Any] | None = None,
+    exportability: dict[str, Any] | None = None,
+) -> str:
+    legal_probatory = legal_probatory or legal_probatory_assessment(case)
+    exportability = exportability or report_exportability_assessment(case, legal_probatory)
+    legal_summary = legal_probatory["summary"]
+    total_damage = sum(item.amount for item in case.damage_items)
+    incident = normalize_spanish(case.incident_type or "incidente digital")
+    description = normalize_spanish(case.description or "").strip()
+    facts = description or f"se investiga un posible {incident}"
+    supported_elements = [
+        f"{row['norm_reference']} - {row['legal_element']}"
+        for row in legal_probatory["rows"]
+        if row["element_status"] in {"probado", "pendiente", "debil"} and row.get("evidence")
+    ]
+    approved_norms = list(
+        dict.fromkeys(
+            mapping.norm_reference
+            for mapping in case.legal_mappings
+            if getattr(mapping, "decision_status", "sugerido") != "descartado"
+        )
+    )
+    accredited = [
+        f"{len(case.evidence)} evidencia(s) digital(es) incorporada(s)",
+        f"{len(case.actions)} accion(es) de custodia registrada(s)",
+    ]
+    if supported_elements:
+        accredited.append(f"elementos legal-probatorios vinculados: {', '.join(supported_elements[:3])}")
+    if total_damage:
+        accredited.append(f"daño económico estimado preliminar de {total_damage:.2f} ARS")
+    missing = exportability["missing_items"][:5]
+    norms_text = ", ".join(approved_norms[:5]) if approved_norms else "sin normas aprobadas por analista"
+    missing_text = "; ".join(missing) if missing else "no se registran brechas críticas según la matriz actual"
+    attribution_text = (
+        "no se advierten elementos suficientes para atribución personal concluyente"
+        if not attribution_assessment(case)["sufficient"]
+        else "existen indicadores de atribución técnica preliminar que requieren valoración profesional"
+    )
+    return normalize_spanish(
+        "\n".join(
+            [
+                f"- Hecho investigado: {facts}.",
+                f"- Lectura ejecutiva: el caso se analiza como {incident}; la matriz actual lo ubica en nivel **{exportability['level']}** con score {exportability['score']} / 100.",
+                f"- Qué se pudo acreditar: {'; '.join(accredited)}.",
+                f"- Encuadre legal de trabajo: {norms_text}.",
+                f"- Qué no se pudo acreditar todavía: {missing_text}.",
+                f"- Atribución: {attribution_text}.",
+                f"- Estado legal-probatorio: score {legal_summary['score']} / 100, riesgo {legal_summary['risk_level']}, conclusión {legal_summary['conclusion_mode']}.",
+            ]
+        )
+    )
 
 
 def _legal_probatory_matrix_markdown(assessment: dict[str, Any]) -> str:

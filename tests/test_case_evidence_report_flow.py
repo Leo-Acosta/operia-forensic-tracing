@@ -39,6 +39,8 @@ def test_case_evidence_report_flow_with_audit(client, admin_headers):
     assert "CP art. 172" in report.json()["markdown_content"]
     assert "Matriz legal-probatoria aplicada" in report.json()["markdown_content"]
     assert "Semáforo de suficiencia legal" in report.json()["markdown_content"]
+    assert "Nivel de exportabilidad" in report.json()["markdown_content"]
+    assert "Qué se pudo acreditar" in report.json()["markdown_content"]
     assert "Conclusión específica por phishing/fraude digital" in report.json()["markdown_content"]
     assert "Recomendaciones procesales automáticas" in report.json()["markdown_content"]
     assert "cuenta receptora" in report.json()["markdown_content"]
@@ -80,6 +82,8 @@ def test_case_evidence_report_flow_with_audit(client, admin_headers):
     assert "Analista QA" in pdf_text
     assert "Del análisis efectuado no surgen elementos técnicos suficientes" in pdf_text
     assert "En Proceso de Análisis" in pdf_text
+    assert "Nivel de exportabilidad" in pdf_text
+    assert "Qué se pudo acreditar" in pdf_text
     assert "CP art. 172" in pdf_text
     assert "Matriz legal-probatoria aplicada" in pdf_text
     assert "semáforo de suficiencia legal" in pdf_text

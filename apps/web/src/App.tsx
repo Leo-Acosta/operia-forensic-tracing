@@ -322,6 +322,60 @@ function prettySpanish(value = "") {
     .replace(/\bcriticas\b/g, "críticas");
 }
 
+function reportExportabilitySnapshot(
+  selectedCase: CaseItem | undefined,
+  evidence: EvidenceItem[],
+  custody: CustodyAction[],
+  legalMappings: LegalMapping[],
+  legalProbatoryMatrix: LegalProbatoryMatrix | null,
+  legalQualityControl: LegalQualityControl | null,
+  latestReport?: ReportItem
+) {
+  const checklist = {
+    analyst_present: Boolean(latestReport?.author),
+    case_narrative: Boolean(selectedCase?.description),
+    evidence_present: evidence.length > 0,
+    hashes_present: evidence.length > 0 && evidence.every((item) => Boolean(item.sha256_hash)),
+    custody_present: custody.length > 0,
+    approved_legal_mapping: legalMappings.some((item) => item.decision_status !== "descartado"),
+    matrix_has_support: Boolean(legalProbatoryMatrix?.rows.some((row) => row.evidence_id || row.evidence_description)),
+    critical_gaps_absent: Boolean(legalQualityControl && legalQualityControl.risk_level === "bajo"),
+    human_review_score: Boolean(latestReport && latestReport.review_score >= 80)
+  };
+  const weights: Record<keyof typeof checklist, number> = {
+    analyst_present: 8,
+    case_narrative: 8,
+    evidence_present: 14,
+    hashes_present: 12,
+    custody_present: 12,
+    approved_legal_mapping: 16,
+    matrix_has_support: 14,
+    critical_gaps_absent: 10,
+    human_review_score: 6
+  };
+  const score = Object.entries(checklist).reduce((total, [key, value]) => total + (value ? weights[key as keyof typeof checklist] : 0), 0);
+  const level =
+    score >= 86 && checklist.critical_gaps_absent && checklist.human_review_score
+      ? "Apto para presentación"
+      : score >= 68 && checklist.approved_legal_mapping && checklist.evidence_present
+        ? "Listo para revisión"
+        : score >= 38 && checklist.evidence_present
+          ? "Informe preliminar"
+          : "Borrador técnico";
+  const missing = [
+    !checklist.analyst_present && "Analista",
+    !checklist.case_narrative && "Narrativa",
+    !checklist.evidence_present && "Evidencia",
+    !checklist.hashes_present && "Hashes",
+    !checklist.custody_present && "Custodia",
+    !checklist.approved_legal_mapping && "Mapeo legal",
+    !checklist.matrix_has_support && "Vínculo norma-evidencia",
+    !checklist.critical_gaps_absent && "Semáforo legal bajo",
+    !checklist.human_review_score && "Revisión humana"
+  ].filter(Boolean);
+  return { score, level: prettySpanish(level), missing };
+}
+
 function MetricGrid({ metrics }: { metrics: Record<string, number> }) {
   return (
     <div className="metric-grid">
@@ -430,6 +484,10 @@ export function App() {
   const selectedCase = useMemo(() => cases.find((item) => item.id === Number(selectedCaseId)), [cases, selectedCaseId]);
   const latestReport = reports[0];
   const latestEvidence = evidence[0];
+  const exportabilitySnapshot = useMemo(
+    () => reportExportabilitySnapshot(selectedCase, evidence, custody, legalMappings, legalProbatoryMatrix, legalQualityControl, latestReport),
+    [selectedCase, evidence, custody, legalMappings, legalProbatoryMatrix, legalQualityControl, latestReport]
+  );
 
   async function refreshCaseCollections(caseId: number | "") {
     if (!caseId) {
@@ -986,6 +1044,10 @@ export function App() {
             </div>
             <button onClick={generateReport} disabled={!selectedCaseId}><FileText size={17} /> Generar informe integral</button>
             {latestReport && <p className="notice">Ultimo informe: {latestReport.title}</p>}
+            <div className="summary-list">
+              <span>Nivel de exportabilidad: {exportabilitySnapshot.level}</span>
+              <span>Score de exportabilidad: {exportabilitySnapshot.score}/100</span>
+            </div>
           </StepCard>
 
           <StepCard number={9} title="Revisar informe" done={Boolean(reviewResult) && latestReport?.review_score !== undefined}>
@@ -1011,6 +1073,7 @@ export function App() {
               <span>Acciones de custodia: {custody.length}</span>
               <span>Informes del caso: {reports.length}</span>
               <span>Estado del caso: {selectedCase?.status || "sin caso"}</span>
+              <span>Exportabilidad: {exportabilitySnapshot.level}</span>
             </div>
           </StepCard>
 
@@ -1172,6 +1235,7 @@ export function App() {
                 <div>
                   <strong>{item.title}</strong>
                   <span>{item.status} | Score {item.review_score}</span>
+                  <small>Exportabilidad estimada: {exportabilitySnapshot.level} ({exportabilitySnapshot.score}/100)</small>
                 </div>
                 <a className="text-link" href={`${API_BASE}/exports/reports/${item.id}/pdf`} target="_blank">Exportar PDF</a>
               </div>
@@ -1293,6 +1357,7 @@ export function App() {
               <strong>{item.title}</strong>
               <span>{item.status}</span>
               <em>Score {item.review_score}</em>
+              <span>{exportabilitySnapshot.level}</span>
               <a href={`${API_BASE}/exports/reports/${item.id}/pdf`} target="_blank">PDF</a>
             </div>
           ))}
