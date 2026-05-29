@@ -1073,6 +1073,25 @@ button.text-link {
   margin: 5px 0 0;
 }
 
+.section-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.new-case-button {
+  background: #0f766e;
+  border-color: #0f766e;
+  box-shadow: 0 10px 26px rgba(15, 118, 110, 0.18);
+}
+
+.new-case-button:hover {
+  background: #115e59;
+  border-color: #115e59;
+}
+
 .icon-button {
   aspect-ratio: 1;
   min-height: 38px;
@@ -1779,6 +1798,10 @@ pre {
   .section-head {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .section-actions {
+    justify-content: flex-start;
   }
 
   .ai-hero-panel {

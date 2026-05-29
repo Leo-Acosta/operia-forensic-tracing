@@ -880,6 +880,53 @@ export function App() {
     setIdentitySession({ authenticated: false });
   }
 
+  function startNewCaseDraft() {
+    setSelectedCaseId("");
+    setCaseForm({ ...emptyCase });
+    setParticipantForm({
+      participant_type: "damnificado",
+      person_type: "persona_fisica",
+      display_name: "",
+      document_type: "",
+      document_number: "",
+      tax_id: "",
+      email: "",
+      phone: "",
+      address: "",
+      role_description: "",
+      relationship_to_case: "",
+      notes: "",
+      sensitivity_level: "reservado"
+    });
+    setEditingParticipant(null);
+    setEvidenceForm({ description: "", responsible: "", custodian: "" });
+    setEditingEvidence(null);
+    setEvidenceFile(null);
+    setCustodyForm({ action_type: "revision", detailed_description: "", user_responsible: "" });
+    setEditingCustody(null);
+    setIndicator("https://secure-login.example.com/verify");
+    setIndicatorResult(null);
+    setIndicatorFindingState("idle");
+    setIndicatorFindingMessage("");
+    setLegalQuery("phishing fraude acceso datos");
+    setLegalRecommendation(null);
+    setLegalTypification(null);
+    setLegalApplyState("idle");
+    setLegalApplyMessage("");
+    setAiResult(null);
+    setAiEnrichmentResult(null);
+    setReviewResult(null);
+    setReviewAudit(null);
+    setReportPreview(null);
+    setExecutiveSummaryDraft("");
+    setExportFinalResult(null);
+    setClosureStatus(null);
+    setClosureNote("Cierre operativo con evidencia preservada, informe revisado y PDF exportado.");
+    setModulePayload({ status: "nuevo_caso", message: "Formulario limpio. Los casos existentes permanecen guardados." });
+    setError("");
+    refreshCaseCollections("").catch((err: Error) => setError(err.message));
+  }
+
   async function createCase(event: FormEvent) {
     event.preventDefault();
     setLoading(true);
@@ -1661,9 +1708,14 @@ export function App() {
               <h2>Flujo Caso - Evidencia - Informe</h2>
               <p>Camino operativo de punta a punta para resolver un incidente con OPERIA.</p>
             </div>
-            <button className="icon-button" onClick={refreshCore} title="Actualizar">
-              <RefreshCcw size={18} />
-            </button>
+            <div className="section-actions">
+              <button className="new-case-button" onClick={startNewCaseDraft}>
+                <Briefcase size={17} /> Nuevo Caso
+              </button>
+              <button className="icon-button" onClick={refreshCore} title="Actualizar">
+                <RefreshCcw size={18} />
+              </button>
+            </div>
           </div>
           <div className="case-selector">
             <label>
