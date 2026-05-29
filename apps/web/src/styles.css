@@ -1295,6 +1295,33 @@ code {
   color: #12613f;
 }
 
+.action-feedback {
+  border-radius: 8px;
+  font-weight: 800;
+  margin: 0 0 8px;
+  padding: 11px 12px;
+}
+
+.action-feedback.saving,
+.action-feedback.applying {
+  background: #fff8ed;
+  border: 1px solid #f1d6aa;
+  color: #6d4a18;
+}
+
+.action-feedback.saved,
+.action-feedback.applied {
+  background: #e8f6ef;
+  border: 1px solid #b9dac9;
+  color: #12613f;
+}
+
+.action-feedback.error {
+  background: #fff0f0;
+  border: 1px solid #edb7b7;
+  color: #8d1f1f;
+}
+
 .case-panel {
   background: #f7f9fc;
   border: 1px solid #dce5ee;

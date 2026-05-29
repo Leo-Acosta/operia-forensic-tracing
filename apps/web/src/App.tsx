@@ -236,6 +236,19 @@ type LegalTypificationResult = {
   external_api_used: boolean;
 };
 
+type CaseAnalysisResult = {
+  case_id?: number;
+  incident_type?: string;
+  legal_profile?: LegalRecommendationResponse["profile"];
+  recommended_articles?: LegalRecommendation[];
+  operational_next_steps?: string[];
+  human_review_required?: boolean;
+  external_api_used?: boolean;
+  status?: string;
+  response?: string;
+  safety_notes?: string;
+};
+
 type LegalMapping = {
   id: number;
   case_id: number;
@@ -653,6 +666,8 @@ export function App() {
   const [editingCustody, setEditingCustody] = useState<CustodyAction | null>(null);
   const [indicator, setIndicator] = useState("https://secure-login.example.com/verify");
   const [indicatorResult, setIndicatorResult] = useState<CyberIndicatorResult | null>(null);
+  const [indicatorFindingState, setIndicatorFindingState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [indicatorFindingMessage, setIndicatorFindingMessage] = useState("");
   const [cyberDashboard, setCyberDashboard] = useState<CybercrimeDashboard | null>(null);
   const [cyberTools, setCyberTools] = useState<CyberTool[]>([]);
   const [cyberLabSessions, setCyberLabSessions] = useState<CyberLabSession[]>([]);
@@ -671,6 +686,8 @@ export function App() {
   const [aiResult, setAiResult] = useState<unknown>(null);
   const [aiEnrichmentResult, setAiEnrichmentResult] = useState<AiEnrichmentResult | null>(null);
   const [legalTypification, setLegalTypification] = useState<LegalTypificationResult | null>(null);
+  const [legalApplyState, setLegalApplyState] = useState<"idle" | "applying" | "applied" | "error">("idle");
+  const [legalApplyMessage, setLegalApplyMessage] = useState("");
   const [analystName, setAnalystName] = useState(localStorage.getItem("operia_analyst_name") || "");
   const [reviewResult, setReviewResult] = useState<unknown>(null);
   const [reviewAudit, setReviewAudit] = useState<ReportReviewResult | null>(null);
@@ -1003,6 +1020,8 @@ export function App() {
   }
 
   async function analyzeIndicator() {
+    setIndicatorFindingState("idle");
+    setIndicatorFindingMessage("");
     setIndicatorResult(await apiPost("/cybercrime/analyze-indicator", { case_id: selectedCaseId || undefined, indicator }));
     if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
     await refreshCybercrime();
@@ -1010,21 +1029,31 @@ export function App() {
 
   async function saveIndicatorAsFinding() {
     if (!selectedCaseId || !indicatorResult) return;
-    await apiPost(`/cases/${selectedCaseId}/findings`, {
-      case_id: selectedCaseId,
-      evidence_id: latestEvidence?.id,
-      title: `Indicador ${prettySpanish(indicatorResult.indicator_type)} analizado`,
-      technical_finding: indicatorResult.findings.join("\n"),
-      explanation: `El indicador ${indicatorResult.indicator} fue clasificado con riesgo ${prettySpanish(indicatorResult.risk_level)} y confianza ${prettySpanish(indicatorResult.confidence)}.`,
-      confidence_level: indicatorResult.confidence,
-      weaknesses_or_limitations: "El analisis de indicador no prueba autoria por si solo; requiere correlacion con evidencia preservada, fuentes externas verificables y revision humana.",
-      tools_used: "OPERIA Cybercrime Indicator Analyzer",
-      supporting_evidence: latestEvidence ? `Evidencia #${latestEvidence.id}: ${latestEvidence.description}` : "Pendiente de vincular con evidencia preservada.",
-      preliminary_legal_relevance: indicatorResult.legal_relevance,
-      status: "incorporado_al_caso"
-    });
-    await refreshCaseCollections(selectedCaseId);
-    setModulePayload({ status: "hallazgo_guardado", indicator: indicatorResult.indicator, case_id: selectedCaseId });
+    setIndicatorFindingState("saving");
+    setIndicatorFindingMessage("Guardando hallazgo tecnico en el caso...");
+    try {
+      const saved = await apiPost<{ id: number }>(`/cases/${selectedCaseId}/findings`, {
+        case_id: selectedCaseId,
+        evidence_id: latestEvidence?.id,
+        title: `Indicador ${prettySpanish(indicatorResult.indicator_type)} analizado`,
+        technical_finding: indicatorResult.findings.join("\n"),
+        explanation: `El indicador ${indicatorResult.indicator} fue clasificado con riesgo ${prettySpanish(indicatorResult.risk_level)} y confianza ${prettySpanish(indicatorResult.confidence)}.`,
+        confidence_level: indicatorResult.confidence,
+        weaknesses_or_limitations: "El analisis de indicador no prueba autoria por si solo; requiere correlacion con evidencia preservada, fuentes externas verificables y revision humana.",
+        tools_used: "OPERIA Cybercrime Indicator Analyzer",
+        supporting_evidence: latestEvidence ? `Evidencia #${latestEvidence.id}: ${latestEvidence.description}` : "Pendiente de vincular con evidencia preservada.",
+        preliminary_legal_relevance: indicatorResult.legal_relevance,
+        status: "validado"
+      });
+      await refreshCaseCollections(selectedCaseId);
+      setIndicatorFindingState("saved");
+      setIndicatorFindingMessage(`Hallazgo #${saved.id} incorporado al caso y disponible para informe.`);
+      setModulePayload({ status: "hallazgo_guardado", finding_id: saved.id, indicator: indicatorResult.indicator, case_id: selectedCaseId });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "No se pudo guardar el hallazgo.";
+      setIndicatorFindingState("error");
+      setIndicatorFindingMessage(message);
+    }
   }
 
   async function createCyberTool(event: FormEvent) {
@@ -1200,7 +1229,13 @@ export function App() {
       await loadReportPreview(enriched.id);
       return;
     }
-    const result = await apiPost("/ai/assist", { case_id: selectedCaseId || undefined, model_name: "mistral", prompt: aiPrompt });
+    if (selectedCaseId) {
+      const result = await apiPost<CaseAnalysisResult>(`/ai/case/${selectedCaseId}/recommendations`, { focus: aiPrompt });
+      setAiEnrichmentResult(null);
+      setAiResult(result);
+      return;
+    }
+    const result = await apiPost<CaseAnalysisResult>("/ai/assist", { model_name: "mistral", prompt: aiPrompt });
     setAiEnrichmentResult(null);
     setAiResult(result);
   }
@@ -1284,14 +1319,29 @@ export function App() {
       setError("Selecciona un caso antes de tipificar el incidente.");
       return;
     }
-    const result = await apiPost<LegalTypificationResult>(`/ai/case/${selectedCaseId}/legal-typification`, {
-      focus: focusOverride || aiPrompt,
-      create_suggestions: createSuggestions,
-      analyst_name: analystName
-    });
-    setLegalTypification(result);
-    setAiResult(result);
-    if (createSuggestions) await refreshCaseCollections(selectedCaseId);
+    setLegalApplyState(createSuggestions ? "applying" : "idle");
+    setLegalApplyMessage(createSuggestions ? "Aplicando tipificacion al caso..." : "");
+    try {
+      const result = await apiPost<LegalTypificationResult>(`/ai/case/${selectedCaseId}/legal-typification`, {
+        focus: focusOverride || aiPrompt,
+        create_suggestions: createSuggestions,
+        analyst_name: analystName
+      });
+      setLegalTypification(result);
+      if (createSuggestions) {
+        await refreshCaseCollections(selectedCaseId);
+        setLegalApplyState("applied");
+        setLegalApplyMessage(
+          result.suggested_mapping_ids.length
+            ? `Tipificacion aplicada: ${result.suggested_mapping_ids.length} norma(s) sugerida(s) incorporada(s) al caso.`
+            : "La tipificacion ya estaba incorporada al caso; no se duplicaron normas."
+        );
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "No se pudo aplicar la tipificacion al caso.";
+      setLegalApplyState("error");
+      setLegalApplyMessage(message);
+    }
   }
 
   async function searchAndTypifyLegal(createSuggestions = false) {
@@ -1384,9 +1434,14 @@ export function App() {
         <div className="notice">
           {prettySpanish(indicatorResult.legal_relevance)} Este resultado orienta la investigacion, pero debe vincularse con evidencia, custodia y fuentes verificables antes de sostener atribucion.
         </div>
+        {indicatorFindingMessage && (
+          <div className={`action-feedback ${indicatorFindingState}`}>
+            {indicatorFindingMessage}
+          </div>
+        )}
         <div className="button-row">
-          <button className="secondary-button" onClick={saveIndicatorAsFinding} disabled={!selectedCaseId}>
-            <FileCheck2 size={16} /> Guardar como hallazgo
+          <button className="secondary-button" onClick={saveIndicatorAsFinding} disabled={!selectedCaseId || indicatorFindingState === "saving"}>
+            <FileCheck2 size={16} /> {indicatorFindingState === "saving" ? "Guardando..." : indicatorFindingState === "saved" ? "Guardar otro hallazgo" : "Guardar como hallazgo"}
           </button>
           <button className="secondary-button" onClick={() => setActive("evidence")} disabled={!selectedCaseId}>
             <Fingerprint size={16} /> Ver evidencia
@@ -1430,6 +1485,75 @@ export function App() {
           </button>
           <button className="secondary-button" onClick={() => setActive("reports")}>
             <FileText size={16} /> Abrir informes
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderCaseAnalysisOutcome() {
+    const result = aiResult as CaseAnalysisResult | null;
+    if (!result) return <EmptyState text="Ejecuta el analisis para obtener una lectura operativa del caso." />;
+    const articles = result.recommended_articles || [];
+    const profile = result.legal_profile;
+    return (
+      <div className="forensic-outcome">
+        <div className="outcome-banner medium">
+          <div>
+            <span>Perfil del incidente</span>
+            <strong>{prettySpanish(profile?.label || selectedCase?.incident_type || "Incidente digital")}</strong>
+          </div>
+          <div>
+            <span>Normas sugeridas</span>
+            <strong>{articles.length}</strong>
+          </div>
+          <div>
+            <span>Revision</span>
+            <strong>{result.human_review_required === false ? "No requerida" : "Humana"}</strong>
+          </div>
+        </div>
+        {profile?.legal_theory && (
+          <div className="notice">
+            {prettySpanish(profile.legal_theory)}
+          </div>
+        )}
+        <div className="forensic-columns">
+          <div>
+            <h4>Encuadre sugerido</h4>
+            <div className="summary-list">
+              {articles.slice(0, 5).map((item) => (
+                <span key={`${item.article_id}-${item.reference}`}>
+                  {item.reference} - {prettySpanish(item.title)} ({prettySpanish(item.legal_role)})
+                </span>
+              ))}
+              {!articles.length && <span>Sin normas sugeridas para este analisis.</span>}
+            </div>
+          </div>
+          <div>
+            <h4>Que hacer ahora</h4>
+            <div className="summary-list">
+              {(result.operational_next_steps || []).map((item) => <span key={item}>{prettySpanish(item)}</span>)}
+              {!result.operational_next_steps?.length && <span>Completar revision humana y matriz legal-probatoria.</span>}
+            </div>
+          </div>
+        </div>
+        {profile?.recommended_measures?.length ? (
+          <div className="requirements">
+            <strong>Medidas recomendadas</strong>
+            {profile.recommended_measures.map((item) => <span key={item}>{prettySpanish(item)}</span>)}
+          </div>
+        ) : null}
+        {result.status && !result.response && (
+          <div className="notice">
+            No se generó texto adicional. Usá la tipificación legal y la matriz probatoria para sostener el informe.
+          </div>
+        )}
+        <div className="button-row">
+          <button className="secondary-button" onClick={() => searchAndTypifyLegal(true)} disabled={!selectedCaseId || legalApplyState === "applying"}>
+            <Gavel size={16} /> Aplicar encuadre al caso
+          </button>
+          <button className="secondary-button" onClick={() => setActive("legalKnowledge")}>
+            <BookOpen size={16} /> Ver biblioteca legal
           </button>
         </div>
       </div>
@@ -1618,10 +1742,15 @@ export function App() {
             <div className="compact-form">
               <input value={legalQuery} onChange={(e) => setLegalQuery(e.target.value)} />
               <button onClick={() => searchAndTypifyLegal(false)}><Gavel size={17} /> Tipificar y sugerir norma</button>
-              <button className="secondary-button" onClick={() => searchAndTypifyLegal(true)} disabled={!selectedCaseId}>
-                <CheckCircle2 size={17} /> Aplicar al caso
+              <button className="secondary-button" onClick={() => searchAndTypifyLegal(true)} disabled={!selectedCaseId || legalApplyState === "applying"}>
+                <CheckCircle2 size={17} /> {legalApplyState === "applying" ? "Aplicando..." : "Aplicar al caso"}
               </button>
             </div>
+            {legalApplyMessage && (
+              <div className={`action-feedback ${legalApplyState}`}>
+                {legalApplyMessage}
+              </div>
+            )}
             {legalTypification?.principal_typification ? (
               <div className="typification-card compact">
                 <span>{legalTypification.profile?.label || "Tipificacion asistida"}</span>
@@ -1655,7 +1784,7 @@ export function App() {
               <button onClick={runAiAssist}><Bot size={17} /> {latestReport ? "Ampliar informe" : "Analizar caso"}</button>
             </div>
             {latestReport && <p className="notice">Con informe generado, esta accion agrega hipotesis, conclusiones y fundamentacion legal al reporte.</p>}
-            {latestReport ? renderAiEnrichmentOutcome() : <JsonPanel data={aiResult} />}
+            {latestReport ? renderAiEnrichmentOutcome() : renderCaseAnalysisOutcome()}
           </StepCard>
 
           <StepCard number={8} title="Generar informe" done={reports.length > 0}>
@@ -2820,14 +2949,19 @@ export function App() {
             <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} />
             <div className="button-row">
               <button onClick={() => runLegalTypification(false)} disabled={!selectedCaseId}><Gavel size={17} /> Tipificar delito</button>
-              <button className="secondary-button" onClick={() => runLegalTypification(true)} disabled={!selectedCaseId}>
-                <CheckCircle2 size={17} /> Guardar sugerencias
+              <button className="secondary-button" onClick={() => runLegalTypification(true)} disabled={!selectedCaseId || legalApplyState === "applying"}>
+                <CheckCircle2 size={17} /> {legalApplyState === "applying" ? "Guardando..." : "Guardar sugerencias"}
               </button>
               <button className="secondary-button" onClick={runAiAssist}><Bot size={17} /> Ampliar analisis</button>
               <button className="secondary-button" onClick={runCaseRecommendations} disabled={!selectedCaseId}>
                 <FileCheck2 size={17} /> Proximos pasos
               </button>
             </div>
+            {legalApplyMessage && (
+              <div className={`action-feedback ${legalApplyState}`}>
+                {legalApplyMessage}
+              </div>
+            )}
           </div>
 
           <div className="detail-panel">
@@ -2898,11 +3032,11 @@ export function App() {
         <div className="detail-panel">
           <div className="panel-head">
             <div>
-              <h3>Salida tecnica JSON</h3>
-              <p>Disponible para auditoria, debugging y trazabilidad interna.</p>
+              <h3>3. Analisis operativo del caso</h3>
+              <p>Lectura accionable del incidente, sin exponer salida tecnica cruda.</p>
             </div>
           </div>
-          <JsonPanel data={aiResult} />
+          {renderCaseAnalysisOutcome()}
         </div>
       </section>
     );
