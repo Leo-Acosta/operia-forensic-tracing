@@ -312,6 +312,69 @@ type IdentitySession = {
 type PermissionPayload = Record<string, string[]>;
 type CaseDetailTab = "summary" | "participants" | "evidence" | "custody" | "legal" | "reports" | "audit";
 
+type CybercrimeDashboard = {
+  open_cases: number;
+  closed_cases: number;
+  evidence_count: number;
+  tools_available: number;
+  tools_missing: number;
+  lab_sessions: number;
+  ctf_events: number;
+  ctf_challenges: number;
+  deepfake_analyses: number;
+  iot_devices: number;
+  blockchain_transactions: number;
+  proof_matrix_rows: number;
+};
+
+type CyberIndicatorResult = {
+  indicator: string;
+  indicator_type: string;
+  risk_level: string;
+  confidence: string;
+  findings: string[];
+  observables: Record<string, unknown>;
+  recommended_actions: string[];
+  legal_relevance: string;
+  human_review_required: boolean;
+};
+
+type CyberTool = {
+  id: number;
+  name: string;
+  category: string;
+  executable_path?: string;
+  default_command?: string;
+  installed_status: string;
+  notes?: string;
+  website_url?: string;
+};
+
+type CyberLabSession = {
+  id: number;
+  session_code: string;
+  case_id?: number;
+  tool_id?: number;
+  title: string;
+  purpose: string;
+  command_status: string;
+  risk_level: string;
+  operator: string;
+  status: string;
+  result_summary?: string;
+};
+
+type CyberProofRow = {
+  id: number;
+  case_id: number;
+  defensible_conclusion: string;
+  legal_framing?: string;
+  confidence_level: string;
+  weakness?: string;
+  status: string;
+  risk_flag?: string;
+};
+
 const modules: Array<{ key: ModuleKey; label: string; icon: typeof BarChart3 }> = [
   { key: "workflow", label: "Flujo Operativo", icon: CheckCircle2 },
   { key: "dashboard", label: "Dashboard", icon: BarChart3 },
@@ -544,7 +607,19 @@ export function App() {
   const [custodyForm, setCustodyForm] = useState({ action_type: "revision", detailed_description: "", user_responsible: "" });
   const [editingCustody, setEditingCustody] = useState<CustodyAction | null>(null);
   const [indicator, setIndicator] = useState("https://secure-login.example.com/verify");
-  const [indicatorResult, setIndicatorResult] = useState<unknown>(null);
+  const [indicatorResult, setIndicatorResult] = useState<CyberIndicatorResult | null>(null);
+  const [cyberDashboard, setCyberDashboard] = useState<CybercrimeDashboard | null>(null);
+  const [cyberTools, setCyberTools] = useState<CyberTool[]>([]);
+  const [cyberLabSessions, setCyberLabSessions] = useState<CyberLabSession[]>([]);
+  const [cyberProofRows, setCyberProofRows] = useState<CyberProofRow[]>([]);
+  const [cyberToolForm, setCyberToolForm] = useState({ name: "", category: "osint", executable_path: "", default_command: "", notes: "" });
+  const [cyberLabForm, setCyberLabForm] = useState({ title: "", purpose: "analisis de indicador", risk_level: "medio", operator: "" });
+  const [cyberProofForm, setCyberProofForm] = useState({
+    defensible_conclusion: "",
+    legal_framing: "",
+    confidence_level: "medio",
+    weakness: ""
+  });
   const [legalQuery, setLegalQuery] = useState("phishing fraude acceso datos");
   const [legalRecommendation, setLegalRecommendation] = useState<LegalRecommendationResponse | null>(null);
   const [aiPrompt, setAiPrompt] = useState("Analiza el caso, evidencia cargada, riesgos y proximos pasos. No inventes normas legales.");
@@ -654,10 +729,13 @@ export function App() {
         await refreshIdentity();
         return;
       }
+      if (key === "cybercrime") {
+        await refreshCybercrime();
+        return;
+      }
       const paths: Partial<Record<ModuleKey, string>> = {
         ai: "/ai/",
         aiSecurity: "/ai-security/",
-        cybercrime: "/cybercrime/",
         geoTrace: "/geo/trace/",
         geoProximity: "/geo/proximity/",
         identity: "/identity/",
@@ -692,6 +770,21 @@ export function App() {
     setIdentitySession(session);
     setPermissions(permissionData);
     setModulePayload({ session, permissions: permissionData });
+  }
+
+  async function refreshCybercrime() {
+    const caseParam = selectedCaseId ? `?case_id=${selectedCaseId}` : "";
+    const [dashboardData, toolsData, labData, proofRowsData] = await Promise.all([
+      apiGet<CybercrimeDashboard>("/cybercrime/dashboard"),
+      apiGet<CyberTool[]>("/cybercrime/tools"),
+      apiGet<CyberLabSession[]>(`/cybercrime/lab/sessions${caseParam}`),
+      selectedCaseId ? apiGet<CyberProofRow[]>(`/cybercrime/proof-matrix${caseParam}`) : Promise.resolve([])
+    ]);
+    setCyberDashboard(dashboardData);
+    setCyberTools(toolsData);
+    setCyberLabSessions(labData);
+    setCyberProofRows(proofRowsData);
+    setModulePayload({ dashboard: dashboardData, tools: toolsData.length, lab_sessions: labData.length, proof_rows: proofRowsData.length });
   }
 
   async function login(event: FormEvent) {
@@ -860,6 +953,53 @@ export function App() {
   async function analyzeIndicator() {
     setIndicatorResult(await apiPost("/cybercrime/analyze-indicator", { case_id: selectedCaseId || undefined, indicator }));
     if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+    await refreshCybercrime();
+  }
+
+  async function createCyberTool(event: FormEvent) {
+    event.preventDefault();
+    await apiPost<CyberTool>("/cybercrime/tools", cyberToolForm);
+    setCyberToolForm({ name: "", category: "osint", executable_path: "", default_command: "", notes: "" });
+    await refreshCybercrime();
+  }
+
+  async function verifyCyberTool(toolId: number) {
+    await apiPost<CyberTool>(`/cybercrime/tools/${toolId}/verify`);
+    await refreshCybercrime();
+  }
+
+  async function createCyberLabSession(event: FormEvent) {
+    event.preventDefault();
+    if (!selectedCaseId) {
+      setError("Selecciona un caso antes de crear una sesión cybercrime.");
+      return;
+    }
+    await apiPost<CyberLabSession>("/cybercrime/lab/sessions", {
+      ...cyberLabForm,
+      case_id: Number(selectedCaseId),
+      operator: cyberLabForm.operator || analystName || identitySession.user?.name || "Analista local",
+      title: cyberLabForm.title || `Análisis cybercrime - ${indicator}`
+    });
+    setCyberLabForm({ title: "", purpose: "analisis de indicador", risk_level: "medio", operator: "" });
+    await refreshCybercrime();
+  }
+
+  async function createCyberProofRow(event: FormEvent) {
+    event.preventDefault();
+    if (!selectedCaseId) {
+      setError("Selecciona un caso antes de guardar una conclusión cybercrime.");
+      return;
+    }
+    await apiPost<CyberProofRow>("/cybercrime/proof-matrix", {
+      ...cyberProofForm,
+      case_id: Number(selectedCaseId),
+      defensible_conclusion:
+        cyberProofForm.defensible_conclusion ||
+        `El indicador ${indicator} fue clasificado como ${indicatorResult?.indicator_type || "dato técnico"} con riesgo ${indicatorResult?.risk_level || "medio"}.`,
+      legal_framing: cyberProofForm.legal_framing || "Requiere vinculación con evidencia preservada y encuadre legal aprobado por analista."
+    });
+    setCyberProofForm({ defensible_conclusion: "", legal_framing: "", confidence_level: "medio", weakness: "" });
+    await refreshCybercrime();
   }
 
   async function searchLegal() {
@@ -2065,6 +2205,170 @@ export function App() {
     );
   }
 
+  function renderCybercrime() {
+    return (
+      <section className="work-surface cyber-workbench">
+        <div className="section-head">
+          <div>
+            <h2>Cybercrime Workbench</h2>
+            <p>Analizador operativo de indicadores, laboratorio controlado y matriz técnica defensible por caso.</p>
+          </div>
+          <button className="secondary-button" onClick={refreshCybercrime}><RefreshCcw size={16} /> Actualizar</button>
+        </div>
+
+        {cyberDashboard && <MetricGrid metrics={cyberDashboard as unknown as Record<string, number>} />}
+
+        <div className="split">
+          <div className="form cyber-analysis-panel">
+            <h3>Analizar indicador</h3>
+            <p className="muted">IP, URL, dominio, correo o hash. El análisis no atribuye autoría por sí solo.</p>
+            <input value={indicator} onChange={(event) => setIndicator(event.target.value)} placeholder="IP, URL, dominio, email o hash" />
+            <button onClick={analyzeIndicator} disabled={!indicator.trim()}>
+              <Search size={17} /> Analizar indicador
+            </button>
+            {indicatorResult && (
+              <div className={`risk-card ${indicatorResult.risk_level}`}>
+                <div>
+                  <span>Tipo</span>
+                  <strong>{prettySpanish(indicatorResult.indicator_type)}</strong>
+                </div>
+                <div>
+                  <span>Riesgo</span>
+                  <strong>{prettySpanish(indicatorResult.risk_level)}</strong>
+                </div>
+                <div>
+                  <span>Confianza</span>
+                  <strong>{prettySpanish(indicatorResult.confidence)}</strong>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="detail-panel">
+            <div className="panel-head">
+              <h3>Resultado técnico</h3>
+            </div>
+            {indicatorResult ? (
+              <div className="cyber-result">
+                <strong>{indicatorResult.indicator}</strong>
+                <div className="summary-list">
+                  {indicatorResult.findings.map((item) => <span key={item}>{item}</span>)}
+                </div>
+                <h4>Acciones recomendadas</h4>
+                <div className="mini-list">
+                  {indicatorResult.recommended_actions.map((item) => <span key={item}>{item}</span>)}
+                </div>
+                <p className="notice">{indicatorResult.legal_relevance}</p>
+              </div>
+            ) : <EmptyState text="Sin análisis de indicador todavía." />}
+          </div>
+        </div>
+
+        <div className="detail-grid">
+          <form className="detail-panel" onSubmit={createCyberLabSession}>
+            <div className="panel-head">
+              <h3>Sesión de laboratorio</h3>
+            </div>
+            <input placeholder="Título de sesión" value={cyberLabForm.title} onChange={(e) => setCyberLabForm({ ...cyberLabForm, title: e.target.value })} />
+            <div className="inline-grid">
+              <input placeholder="Propósito" value={cyberLabForm.purpose} onChange={(e) => setCyberLabForm({ ...cyberLabForm, purpose: e.target.value })} />
+              <select value={cyberLabForm.risk_level} onChange={(e) => setCyberLabForm({ ...cyberLabForm, risk_level: e.target.value })}>
+                <option value="bajo">Riesgo bajo</option>
+                <option value="medio">Riesgo medio</option>
+                <option value="alto">Riesgo alto</option>
+              </select>
+            </div>
+            <input placeholder="Operador" value={cyberLabForm.operator} onChange={(e) => setCyberLabForm({ ...cyberLabForm, operator: e.target.value })} />
+            <button disabled={!selectedCaseId}><BrainCircuit size={17} /> Crear sesión controlada</button>
+          </form>
+
+          <form className="detail-panel" onSubmit={createCyberProofRow}>
+            <div className="panel-head">
+              <h3>Conclusión defensible</h3>
+            </div>
+            <textarea placeholder="Conclusión técnica prudente" value={cyberProofForm.defensible_conclusion} onChange={(e) => setCyberProofForm({ ...cyberProofForm, defensible_conclusion: e.target.value })} />
+            <textarea placeholder="Encuadre o relación legal preliminar" value={cyberProofForm.legal_framing} onChange={(e) => setCyberProofForm({ ...cyberProofForm, legal_framing: e.target.value })} />
+            <div className="inline-grid">
+              <select value={cyberProofForm.confidence_level} onChange={(e) => setCyberProofForm({ ...cyberProofForm, confidence_level: e.target.value })}>
+                <option value="bajo">Confianza baja</option>
+                <option value="medio">Confianza media</option>
+                <option value="alto">Confianza alta</option>
+              </select>
+              <input placeholder="Debilidad o límite probatorio" value={cyberProofForm.weakness} onChange={(e) => setCyberProofForm({ ...cyberProofForm, weakness: e.target.value })} />
+            </div>
+            <button disabled={!selectedCaseId}><FileCheck2 size={17} /> Guardar en matriz cybercrime</button>
+          </form>
+        </div>
+
+        <div className="detail-grid">
+          <div className="detail-panel">
+            <div className="panel-head">
+              <h3>Sesiones del caso</h3>
+            </div>
+            {cyberLabSessions.slice(0, 8).map((item) => (
+              <div className="editable-record single" key={item.id}>
+                <div>
+                  <strong>{item.session_code} · {item.title}</strong>
+                  <span>{prettySpanish(item.purpose)} | {prettySpanish(item.risk_level)} | {prettySpanish(item.status)}</span>
+                  <small>{item.result_summary || `Operador: ${item.operator}`}</small>
+                </div>
+              </div>
+            ))}
+            {!cyberLabSessions.length && <EmptyState text="Sin sesiones cybercrime asociadas." />}
+          </div>
+
+          <div className="detail-panel">
+            <div className="panel-head">
+              <h3>Matriz técnica</h3>
+            </div>
+            {cyberProofRows.slice(0, 8).map((item) => (
+              <div className="editable-record single" key={item.id}>
+                <div>
+                  <strong>{prettySpanish(item.confidence_level)} · {prettySpanish(item.status)}</strong>
+                  <span>{item.defensible_conclusion}</span>
+                  <small>{item.risk_flag || item.weakness || item.legal_framing || "Sin observaciones."}</small>
+                </div>
+              </div>
+            ))}
+            {!cyberProofRows.length && <EmptyState text="Sin conclusiones técnicas guardadas." />}
+          </div>
+        </div>
+
+        <div className="detail-grid">
+          <form className="detail-panel" onSubmit={createCyberTool}>
+            <div className="panel-head">
+              <h3>Registrar herramienta externa</h3>
+            </div>
+            <div className="inline-grid">
+              <input placeholder="Nombre" value={cyberToolForm.name} onChange={(e) => setCyberToolForm({ ...cyberToolForm, name: e.target.value })} required />
+              <input placeholder="Categoría" value={cyberToolForm.category} onChange={(e) => setCyberToolForm({ ...cyberToolForm, category: e.target.value })} />
+            </div>
+            <input placeholder="Ruta ejecutable o comando" value={cyberToolForm.executable_path} onChange={(e) => setCyberToolForm({ ...cyberToolForm, executable_path: e.target.value })} />
+            <textarea placeholder="Notas de uso seguro" value={cyberToolForm.notes} onChange={(e) => setCyberToolForm({ ...cyberToolForm, notes: e.target.value })} />
+            <button><Wrench size={17} /> Registrar herramienta</button>
+          </form>
+
+          <div className="detail-panel">
+            <div className="panel-head">
+              <h3>Herramientas registradas</h3>
+            </div>
+            {cyberTools.slice(0, 8).map((item) => (
+              <div className="editable-record" key={item.id}>
+                <div>
+                  <strong>{item.name}</strong>
+                  <span>{prettySpanish(item.category)} | {prettySpanish(item.installed_status)}</span>
+                  <small>{item.notes || item.executable_path || "Sin notas."}</small>
+                </div>
+                <button className="secondary-button" onClick={() => verifyCyberTool(item.id)}>Verificar</button>
+              </div>
+            ))}
+            {!cyberTools.length && <EmptyState text="Sin herramientas registradas." />}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   function renderAi() {
     return (
       <section className="work-surface">
@@ -2182,6 +2486,7 @@ export function App() {
     if (active === "evidence") return renderEvidence();
     if (active === "reports") return renderReports();
     if (active === "legalKnowledge") return renderLegalKnowledge();
+    if (active === "cybercrime") return renderCybercrime();
     if (active === "ai") return renderAi();
     if (active === "aiSecurity") return renderAiSecurity();
     if (active === "identity") return renderIdentity();

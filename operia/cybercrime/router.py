@@ -1,5 +1,6 @@
 from typing import Any
 import ipaddress
+import re
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -33,21 +34,66 @@ router = APIRouter()
 def analyze_indicator_value(indicator: str) -> dict[str, Any]:
     value = indicator.strip()
     parsed_url = urlparse(value if "://" in value else f"//{value}")
+    lowered = value.lower()
     result: dict[str, Any] = {
         "indicator": value,
         "indicator_type": "unknown",
         "risk_level": "medium",
+        "confidence": "medium",
         "findings": [],
+        "observables": {},
         "recommended_actions": [
             "Preservar evidencia original y trabajar sobre copia.",
             "Registrar fuente, fecha de observacion y responsable.",
             "Correlacionar con logs, cabeceras, DNS, WHOIS, geolocalizacion y evidencia del caso.",
         ],
+        "legal_relevance": "Puede tener relevancia probatoria si se vincula con evidencia preservada, trazabilidad temporal y contexto del caso.",
         "human_review_required": True,
     }
+
+    if re.fullmatch(r"[A-Fa-f0-9]{32}", value) or re.fullmatch(r"[A-Fa-f0-9]{40}", value) or re.fullmatch(r"[A-Fa-f0-9]{64}", value):
+        hash_type = {32: "MD5", 40: "SHA-1", 64: "SHA-256"}[len(value)]
+        result["indicator_type"] = "hash"
+        result["risk_level"] = "medium"
+        result["confidence"] = "high"
+        result["observables"] = {"hash_type": hash_type}
+        result["findings"].append(f"Indicador reconocido como hash {hash_type}.")
+        result["findings"].append("Un hash permite verificar integridad o correlacionar artefactos, pero no atribuye autoria por si solo.")
+        result["recommended_actions"].extend(
+            [
+                "Comparar contra hashes de evidencia preservada y repositorios internos autorizados.",
+                "Documentar ruta de archivo, origen, fecha de obtencion y herramienta de calculo.",
+            ]
+        )
+        return result
+
+    if re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", value):
+        local_part, domain = value.rsplit("@", 1)
+        result["indicator_type"] = "email"
+        result["risk_level"] = "medium"
+        result["confidence"] = "high"
+        result["observables"] = {"local_part": local_part, "domain": domain}
+        result["findings"].append(f"Indicador reconocido como correo electronico asociado al dominio {domain}.")
+        if any(term in local_part.lower() for term in ["support", "soporte", "secure", "verify", "admin", "login"]):
+            result["risk_level"] = "high"
+            result["findings"].append("La cuenta usa terminos frecuentes en suplantacion o soporte falso.")
+        result["recommended_actions"].extend(
+            [
+                "Preservar cabeceras completas del correo y cuerpo original.",
+                "Solicitar datos de registracion o proveedor solo por via legal correspondiente.",
+            ]
+        )
+        return result
     try:
         ip = ipaddress.ip_address(value)
         result["indicator_type"] = "ip"
+        result["confidence"] = "high"
+        result["observables"] = {
+            "ip_version": ip.version,
+            "is_private": ip.is_private,
+            "is_global": ip.is_global,
+            "is_loopback": ip.is_loopback,
+        }
         result["findings"].append(f"Indicador reconocido como direccion IP version {ip.version}.")
         if ip.is_private:
             result["risk_level"] = "low"
@@ -65,6 +111,13 @@ def analyze_indicator_value(indicator: str) -> dict[str, Any]:
     hostname = parsed_url.hostname or value
     if "." in hostname:
         result["indicator_type"] = "url" if parsed_url.scheme else "domain"
+        result["confidence"] = "medium" if result["indicator_type"] == "url" else "high"
+        result["observables"] = {
+            "scheme": parsed_url.scheme or "",
+            "hostname": hostname,
+            "path": parsed_url.path or "",
+            "query_present": bool(parsed_url.query),
+        }
         result["findings"].append(f"Host extraido: {hostname}.")
         if parsed_url.scheme and parsed_url.scheme not in {"http", "https"}:
             result["risk_level"] = "high"
@@ -72,8 +125,17 @@ def analyze_indicator_value(indicator: str) -> dict[str, Any]:
         if any(term in hostname.lower() for term in ["login", "verify", "secure", "account", "wallet"]):
             result["risk_level"] = "high"
             result["findings"].append("El host contiene terminos frecuentes en phishing o suplantacion.")
+        if any(term in lowered for term in ["token=", "session=", "password=", "redirect=", "verify", "login"]):
+            result["risk_level"] = "high"
+            result["findings"].append("La URL contiene parametros o rutas que requieren revisar posible captacion de credenciales.")
         if len(hostname.split(".")) > 3:
             result["findings"].append("El host usa multiples subdominios; verificar posible camuflaje.")
+        result["recommended_actions"].extend(
+            [
+                "Capturar DNS, certificado TLS, screenshots y codigo fuente de la pagina si corresponde.",
+                "Evitar acceder desde entorno productivo; usar entorno controlado y registrar hora exacta.",
+            ]
+        )
         return result
 
     result["findings"].append("Indicador no clasificado automaticamente; requiere enriquecimiento manual.")

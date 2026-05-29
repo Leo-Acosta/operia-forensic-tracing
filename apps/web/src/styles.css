@@ -462,6 +462,71 @@ h3 {
   color: #8d1f1f;
 }
 
+.muted {
+  color: #65758a;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.cyber-workbench {
+  display: grid;
+  gap: 16px;
+}
+
+.cyber-analysis-panel {
+  align-content: start;
+}
+
+.cyber-result {
+  display: grid;
+  gap: 12px;
+}
+
+.risk-card {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.risk-card div {
+  background: #f5f8fb;
+  border: 1px solid #dce5ee;
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+}
+
+.risk-card span {
+  color: #65758a;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.risk-card strong {
+  color: #172033;
+  font-size: 18px;
+}
+
+.risk-card.high div,
+.risk-card.alto div {
+  background: #fff0f0;
+  border-color: #edb7b7;
+}
+
+.risk-card.medium div,
+.risk-card.medio div {
+  background: #fff8ed;
+  border-color: #f1d6aa;
+}
+
+.risk-card.low div,
+.risk-card.bajo div {
+  background: #effaf3;
+  border-color: #b8dfc6;
+}
+
 .case-overview {
   display: grid;
   gap: 10px;
