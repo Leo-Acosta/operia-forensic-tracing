@@ -244,6 +244,34 @@ def test_ai_assistant_gracefully_handles_unavailable_ollama(client):
     assert response.json()["requires_human_review"] is True
 
 
+def test_ai_legal_typification_uses_registered_argentine_law(client, admin_headers):
+    client.post("/api/legal-knowledge/articles/seed", headers=admin_headers)
+    case = client.post(
+        "/api/cases",
+        json={
+            "case_code": "AI-TYP-001",
+            "title": "Phishing por anuncio falso",
+            "description": "Victima contacto un anuncio falso, entrego datos y realizo una transferencia.",
+            "incident_type": "phishing",
+            "jurisdiction": "Argentina",
+        },
+        headers=admin_headers,
+    )
+    assert case.status_code == 200
+    response = client.post(
+        f"/api/ai/case/{case.json()['id']}/legal-typification",
+        json={"focus": "fraude digital con ardid, error y perjuicio", "create_suggestions": True, "analyst_name": "Analista Local"},
+        headers=admin_headers,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["external_api_used"] is False
+    assert body["registered_sources_only"] is True
+    assert body["principal_typification"]["reference"] == "CP art. 172"
+    assert body["human_review_required"] is True
+    assert body["suggested_mapping_ids"]
+
+
 def test_ai_security_evaluation_and_report(client):
     response = client.post(
         "/api/ai-security/evaluations",

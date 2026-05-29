@@ -788,6 +788,99 @@ h3 {
   color: #153552;
 }
 
+.ai-legal-workbench {
+  display: grid;
+  gap: 14px;
+}
+
+.ai-hero-panel {
+  align-items: center;
+  background: #f8fbff;
+  border: 1px solid #d7e3ee;
+  border-radius: 8px;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 16px;
+}
+
+.ai-hero-panel h3 {
+  color: #10233d;
+  font-size: 22px;
+  margin: 4px 0;
+}
+
+.ai-hero-panel p {
+  color: #52647a;
+  margin: 0;
+}
+
+.ai-score-card {
+  background: #123351;
+  border-radius: 8px;
+  color: #ffffff;
+  display: grid;
+  gap: 4px;
+  min-width: 190px;
+  padding: 14px;
+}
+
+.ai-score-card span,
+.ai-score-card small {
+  color: #cdd9e6;
+}
+
+.ai-score-card strong {
+  font-size: 18px;
+}
+
+.ai-action-grid,
+.ai-result-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.typification-card {
+  background: #f7fafc;
+  border: 1px solid #d7e3ee;
+  border-radius: 8px;
+  display: grid;
+  gap: 9px;
+  padding: 14px;
+}
+
+.typification-card span {
+  color: #0d5d89;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.typification-card h3 {
+  color: #10233d;
+  font-size: 18px;
+  margin: 0;
+}
+
+.typification-card p {
+  color: #35465d;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.readiness-bar {
+  background: #dce6ef;
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.readiness-bar div {
+  background: #0f766e;
+  height: 100%;
+}
+
 .text-link {
   color: #0c5ea8;
   font-weight: 800;
@@ -1318,6 +1411,8 @@ pre {
   .step-grid,
   .detail-grid,
   .external-tools-layout,
+  .ai-action-grid,
+  .ai-result-grid,
   .preview-grid,
   .case-dossier-hero,
   .dossier-grid {
@@ -1338,6 +1433,11 @@ pre {
   }
 
   .section-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ai-hero-panel {
     align-items: stretch;
     flex-direction: column;
   }

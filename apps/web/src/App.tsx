@@ -197,6 +197,28 @@ type LegalRecommendationResponse = {
   disclaimer?: string;
 };
 
+type LegalTypificationResult = {
+  case_id: number;
+  case_code: string;
+  profile?: LegalRecommendationResponse["profile"];
+  principal_typification?: LegalRecommendation;
+  connected_typifications: LegalRecommendation[];
+  confidence: string;
+  readiness_score: number;
+  decision_level: string;
+  evidence_snapshot: {
+    evidence_count: number;
+    custody_actions: number;
+    approved_legal_mappings: number;
+  };
+  missing_for_stronger_typification: string[];
+  recommended_measures: string[];
+  suggested_mapping_ids: number[];
+  registered_sources_only: boolean;
+  human_review_required: boolean;
+  external_api_used: boolean;
+};
+
 type LegalMapping = {
   id: number;
   case_id: number;
@@ -630,6 +652,7 @@ export function App() {
   const [legalRecommendation, setLegalRecommendation] = useState<LegalRecommendationResponse | null>(null);
   const [aiPrompt, setAiPrompt] = useState("Analiza el caso, evidencia cargada, riesgos y proximos pasos. No inventes normas legales.");
   const [aiResult, setAiResult] = useState<unknown>(null);
+  const [legalTypification, setLegalTypification] = useState<LegalTypificationResult | null>(null);
   const [analystName, setAnalystName] = useState(localStorage.getItem("operia_analyst_name") || "");
   const [reviewResult, setReviewResult] = useState<unknown>(null);
   const [reportPreview, setReportPreview] = useState<ReportPreview | null>(null);
@@ -1208,6 +1231,21 @@ export function App() {
   async function runCaseRecommendations() {
     if (!selectedCaseId) return;
     setAiResult(await apiPost(`/ai/case/${selectedCaseId}/recommendations`, { focus: aiPrompt }));
+  }
+
+  async function runLegalTypification(createSuggestions = false) {
+    if (!selectedCaseId) {
+      setError("Selecciona un caso antes de tipificar el incidente.");
+      return;
+    }
+    const result = await apiPost<LegalTypificationResult>(`/ai/case/${selectedCaseId}/legal-typification`, {
+      focus: aiPrompt,
+      create_suggestions: createSuggestions,
+      analyst_name: analystName
+    });
+    setLegalTypification(result);
+    setAiResult(result);
+    if (createSuggestions) await refreshCaseCollections(selectedCaseId);
   }
 
   async function verifyEvidenceIntegrity(evidenceId: number) {
@@ -2492,20 +2530,119 @@ export function App() {
 
   function renderAi() {
     return (
-      <section className="work-surface">
+      <section className="work-surface ai-legal-workbench">
         <div className="section-head">
           <div>
-            <h2>Asistente de Analisis</h2>
-            <p>Apoyo tecnico-juridico interno para estructurar hipotesis, evidencia y normativa.</p>
+            <h2>Asistente de Analisis y Tipificacion</h2>
+            <p>Asistencia local para vincular incidente, evidencia y biblioteca legal argentina registrada.</p>
           </div>
         </div>
-        <div className="split">
-          <div className="form">
+
+        <div className="ai-hero-panel">
+          <div>
+            <span className="tool-kicker">Caso seleccionado</span>
+            <h3>{selectedCase ? `${selectedCase.case_code} · ${selectedCase.title}` : "Selecciona un caso para iniciar"}</h3>
+            <p>{selectedCase ? prettySpanish(selectedCase.incident_type) : "La tipificacion requiere un caso, una narrativa y biblioteca legal registrada."}</p>
+          </div>
+          <div className="ai-score-card">
+            <span>Modo</span>
+            <strong>RAG legal local</strong>
+            <small>Sin API externa por defecto</small>
+          </div>
+        </div>
+
+        <div className="ai-action-grid">
+          <div className="detail-panel">
+            <div className="panel-head">
+              <div>
+                <h3>1. Contexto para la asistencia</h3>
+                <p>Describe el incidente o agrega foco investigativo. La respuesta se limita a fuentes legales registradas.</p>
+              </div>
+            </div>
             <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} />
-            <button onClick={runAiAssist}><Bot size={17} /> Analizar caso</button>
-            <button className="secondary" onClick={runCaseRecommendations} disabled={!selectedCaseId}>
-              <FileCheck2 size={17} /> Recomendaciones del caso
-            </button>
+            <div className="button-row">
+              <button onClick={() => runLegalTypification(false)} disabled={!selectedCaseId}><Gavel size={17} /> Tipificar delito</button>
+              <button className="secondary-button" onClick={() => runLegalTypification(true)} disabled={!selectedCaseId}>
+                <CheckCircle2 size={17} /> Guardar sugerencias
+              </button>
+              <button className="secondary-button" onClick={runAiAssist}><Bot size={17} /> Ampliar analisis</button>
+              <button className="secondary-button" onClick={runCaseRecommendations} disabled={!selectedCaseId}>
+                <FileCheck2 size={17} /> Proximos pasos
+              </button>
+            </div>
+          </div>
+
+          <div className="detail-panel">
+            <div className="panel-head">
+              <div>
+                <h3>2. Resultado de tipificacion</h3>
+                <p>Delito sugerido, articulos conexos, confianza y evidencia faltante.</p>
+              </div>
+              {legalTypification && <span className={`badge ${legalTypification.confidence === "alto" ? "success" : ""}`}>Confianza {prettySpanish(legalTypification.confidence)}</span>}
+            </div>
+            {legalTypification?.principal_typification ? (
+              <div className="typification-card">
+                <span>{legalTypification.profile?.label || "Incidente digital"}</span>
+                <h3>{legalTypification.principal_typification.reference} · {prettySpanish(legalTypification.principal_typification.title)}</h3>
+                <p>{prettySpanish(legalTypification.principal_typification.applicability_to_case)}</p>
+                <div className="readiness-bar">
+                  <div style={{ width: `${legalTypification.readiness_score}%` }} />
+                </div>
+                <small>{prettySpanish(legalTypification.decision_level)} · Score {legalTypification.readiness_score}/100</small>
+              </div>
+            ) : (
+              <EmptyState text="Ejecuta 'Tipificar delito' para obtener una propuesta jurídica asistida." />
+            )}
+          </div>
+        </div>
+
+        {legalTypification && (
+          <div className="ai-result-grid">
+            <div className="detail-panel">
+              <h3>Elementos y evidencia necesaria</h3>
+              <div className="summary-list">
+                <span>Elementos objetivos: {prettySpanish(legalTypification.principal_typification?.why || "sin norma principal")}</span>
+                <span>Elemento subjetivo: {prettySpanish(legalTypification.principal_typification?.subjective_elements || "requiere revision")}</span>
+                <span>Evidencia requerida: {prettySpanish(legalTypification.principal_typification?.evidence_needed || "pendiente")}</span>
+                <span>Limites: {prettySpanish(legalTypification.principal_typification?.probatory_limits || "requiere validacion humana")}</span>
+              </div>
+            </div>
+            <div className="detail-panel">
+              <h3>Normas conexas</h3>
+              <div className="mini-list">
+                {legalTypification.connected_typifications.slice(0, 5).map((item) => (
+                  <span key={`${item.article_id}-${item.reference}`}>{item.reference} · {prettySpanish(item.title)} · {prettySpanish(item.legal_role)}</span>
+                ))}
+                {!legalTypification.connected_typifications.length && <span>Sin normas conexas registradas para este perfil.</span>}
+              </div>
+            </div>
+            <div className="detail-panel">
+              <h3>Estado probatorio</h3>
+              <div className="case-overview">
+                <div><span>Evidencias</span><strong>{legalTypification.evidence_snapshot.evidence_count}</strong></div>
+                <div><span>Custodia</span><strong>{legalTypification.evidence_snapshot.custody_actions}</strong></div>
+                <div><span>Mapeos aprobados</span><strong>{legalTypification.evidence_snapshot.approved_legal_mappings}</strong></div>
+              </div>
+              <ul className="compact-list">
+                {legalTypification.missing_for_stronger_typification.map((item) => <li key={item}>{prettySpanish(item)}</li>)}
+                {!legalTypification.missing_for_stronger_typification.length && <li>Base minima completa para revision del analista.</li>}
+              </ul>
+            </div>
+            <div className="detail-panel">
+              <h3>Medidas recomendadas</h3>
+              <ul className="compact-list">
+                {legalTypification.recommended_measures.map((item) => <li key={item}>{prettySpanish(item)}</li>)}
+              </ul>
+            </div>
+          </div>
+        )}
+
+        <div className="detail-panel">
+          <div className="panel-head">
+            <div>
+              <h3>Salida tecnica JSON</h3>
+              <p>Disponible para auditoria, debugging y trazabilidad interna.</p>
+            </div>
           </div>
           <JsonPanel data={aiResult} />
         </div>
