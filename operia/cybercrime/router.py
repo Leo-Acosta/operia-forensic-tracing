@@ -252,6 +252,144 @@ def create_tool(payload: dict[str, Any], db: Session = Depends(get_db)):
     return as_dict(create_row(db, ExternalTool, payload))
 
 
+FORENSIC_TOOL_PRESETS: list[dict[str, Any]] = [
+    {
+        "name": "whois",
+        "category": "dominios/osint",
+        "default_command": "whois <dominio>",
+        "result_import_formats": "TXT",
+        "notes": "Consulta registral de dominios. Usar como orientacion; preservar fecha de consulta y fuente.",
+        "safety_notes": "No atribuye autoria por si sola. Puede requerir oficio o fuente registral verificable.",
+    },
+    {
+        "name": "nslookup",
+        "category": "dns/red",
+        "default_command": "nslookup <dominio>",
+        "result_import_formats": "TXT",
+        "notes": "Resolucion DNS basica para dominios, subdominios y registros.",
+        "safety_notes": "Registrar fecha/hora porque DNS puede variar.",
+    },
+    {
+        "name": "dig",
+        "category": "dns/red",
+        "default_command": "dig <dominio> ANY",
+        "result_import_formats": "TXT",
+        "notes": "Consulta DNS avanzada para registros A, MX, TXT, NS y trazabilidad tecnica.",
+        "safety_notes": "Evitar consultas invasivas; documentar servidor DNS usado.",
+    },
+    {
+        "name": "exiftool",
+        "category": "metadatos",
+        "default_command": "exiftool <archivo>",
+        "result_import_formats": "TXT, JSON, CSV",
+        "notes": "Extraccion de metadatos de imagenes, documentos, audio y video.",
+        "safety_notes": "Trabajar sobre copia forense. Los metadatos pueden ser manipulados.",
+    },
+    {
+        "name": "sha256sum / Get-FileHash",
+        "category": "hash/integridad",
+        "default_command": "Get-FileHash <archivo> -Algorithm SHA256",
+        "result_import_formats": "TXT",
+        "notes": "Calculo de hash para integridad y comparacion de evidencia.",
+        "safety_notes": "Registrar herramienta, algoritmo, ruta, fecha y operador.",
+    },
+    {
+        "name": "Autopsy",
+        "category": "forense-disco",
+        "default_command": "",
+        "result_import_formats": "HTML, CSV, TXT, PDF",
+        "notes": "Analisis forense de imagenes de disco, timeline, archivos eliminados y artefactos.",
+        "safety_notes": "Analizar imagen/copia, no soporte original. Mantener cadena de custodia.",
+    },
+    {
+        "name": "FTK Imager",
+        "category": "adquisicion-forense",
+        "default_command": "",
+        "result_import_formats": "E01, RAW, TXT",
+        "notes": "Adquisicion y verificacion de imagenes forenses.",
+        "safety_notes": "Documentar hash antes/despues, soporte origen, operador y bitacora.",
+    },
+    {
+        "name": "Volatility",
+        "category": "memoria",
+        "default_command": "volatility3 -f <memoria> windows.info",
+        "result_import_formats": "TXT, JSON",
+        "notes": "Analisis de memoria RAM: procesos, conexiones, DLLs y artefactos volatiles.",
+        "safety_notes": "Requiere captura valida de memoria y perfil/contexto correcto.",
+    },
+    {
+        "name": "Wireshark",
+        "category": "red/pcap",
+        "default_command": "",
+        "result_import_formats": "PCAP, CSV, TXT",
+        "notes": "Analisis de capturas de red, protocolos, sesiones y trafico sospechoso.",
+        "safety_notes": "No capturar trafico fuera del alcance autorizado.",
+    },
+    {
+        "name": "nmap",
+        "category": "red/reconocimiento",
+        "default_command": "nmap -sV <host>",
+        "result_import_formats": "TXT, XML",
+        "notes": "Identificacion de puertos y servicios en entorno autorizado.",
+        "safety_notes": "Usar solo sobre activos propios/autorizados. Puede ser intrusivo.",
+    },
+    {
+        "name": "CyberChef",
+        "category": "analisis-datos",
+        "default_command": "",
+        "result_import_formats": "TXT, JSON",
+        "notes": "Decodificacion, conversion, parsing de datos, hashes y artefactos.",
+        "safety_notes": "Preferir instancia local/offline para datos sensibles.",
+    },
+    {
+        "name": "Header Analyzer",
+        "category": "correo/phishing",
+        "default_command": "",
+        "result_import_formats": "TXT, HTML, JSON",
+        "notes": "Analisis de cabeceras de correo: SPF, DKIM, DMARC, Received y rutas.",
+        "safety_notes": "Preservar cabecera completa original; no exponer correos sensibles a servicios externos.",
+    },
+    {
+        "name": "YARA",
+        "category": "malware/indicadores",
+        "default_command": "yara <regla.yar> <archivo>",
+        "result_import_formats": "TXT, JSON",
+        "notes": "Busqueda de patrones e indicadores en archivos sospechosos.",
+        "safety_notes": "No ejecutar muestras. Analizar en entorno controlado.",
+    },
+    {
+        "name": "SQLite Browser",
+        "category": "artefactos/base-de-datos",
+        "default_command": "",
+        "result_import_formats": "CSV, SQL, TXT",
+        "notes": "Revision de bases SQLite de aplicaciones, navegadores y artefactos moviles.",
+        "safety_notes": "Abrir copias, registrar ruta y hash del archivo analizado.",
+    },
+]
+
+
+@router.post("/tools/seed-forensic-set")
+def seed_forensic_tool_set(db: Session = Depends(get_db)):
+    created = 0
+    updated = 0
+    for preset in FORENSIC_TOOL_PRESETS:
+        tool = db.query(ExternalTool).filter(ExternalTool.name == preset["name"]).one_or_none()
+        if tool:
+            for key, value in preset.items():
+                setattr(tool, key, value)
+            updated += 1
+        else:
+            db.add(ExternalTool(**preset))
+            created += 1
+    db.commit()
+    return {
+        "created": created,
+        "updated": updated,
+        "total": db.query(ExternalTool).count(),
+        "message": "Set pericial base cargado. Verificar disponibilidad local antes de usar cada herramienta.",
+    }
+
+
 @router.patch("/tools/{tool_id}")
 def update_tool(tool_id: int, payload: dict[str, Any], db: Session = Depends(get_db)):
     return as_dict(update_row(db, ExternalTool, tool_id, payload, "Herramienta"))

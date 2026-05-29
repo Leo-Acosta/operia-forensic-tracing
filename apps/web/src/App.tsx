@@ -37,6 +37,7 @@ type ModuleKey =
   | "legalKnowledge"
   | "ai"
   | "cybercrime"
+  | "externalTools"
   | "aiSecurity"
   | "geoTrace"
   | "geoProximity"
@@ -385,6 +386,7 @@ const modules: Array<{ key: ModuleKey; label: string; icon: typeof BarChart3 }> 
   { key: "legalKnowledge", label: "Biblioteca Legal", icon: BookOpen },
   { key: "ai", label: "Asistente IA", icon: Bot },
   { key: "cybercrime", label: "Cybercrime", icon: Shield },
+  { key: "externalTools", label: "Herramientas Externas", icon: Wrench },
   { key: "aiSecurity", label: "AI Security", icon: BrainCircuit },
   { key: "geoTrace", label: "Geo Trace", icon: Map },
   { key: "geoProximity", label: "Geo Proximity", icon: Navigation },
@@ -733,6 +735,10 @@ export function App() {
         await refreshCybercrime();
         return;
       }
+      if (key === "externalTools") {
+        await refreshCybercrime();
+        return;
+      }
       const paths: Partial<Record<ModuleKey, string>> = {
         ai: "/ai/",
         aiSecurity: "/ai-security/",
@@ -965,6 +971,11 @@ export function App() {
 
   async function verifyCyberTool(toolId: number) {
     await apiPost<CyberTool>(`/cybercrime/tools/${toolId}/verify`);
+    await refreshCybercrime();
+  }
+
+  async function seedForensicToolSet() {
+    await apiPost("/cybercrime/tools/seed-forensic-set");
     await refreshCybercrime();
   }
 
@@ -2211,7 +2222,7 @@ export function App() {
         <div className="section-head">
           <div>
             <h2>Cybercrime Workbench</h2>
-            <p>Analizador operativo de indicadores, laboratorio controlado y matriz técnica defensible por caso.</p>
+            <p>Flujo guiado para analizar indicadores, registrar sesiones controladas y guardar conclusiones tecnicas por caso.</p>
           </div>
           <button className="secondary-button" onClick={refreshCybercrime}><RefreshCcw size={16} /> Actualizar</button>
         </div>
@@ -2220,8 +2231,8 @@ export function App() {
 
         <div className="split">
           <div className="form cyber-analysis-panel">
-            <h3>Analizar indicador</h3>
-            <p className="muted">IP, URL, dominio, correo o hash. El análisis no atribuye autoría por sí solo.</p>
+            <h3>Paso 1 - Analizar indicador</h3>
+            <p className="muted">Carga una IP, URL, dominio, correo o hash. OPERIA lo clasifica, estima riesgo y sugiere medidas de preservacion.</p>
             <input value={indicator} onChange={(event) => setIndicator(event.target.value)} placeholder="IP, URL, dominio, email o hash" />
             <button onClick={analyzeIndicator} disabled={!indicator.trim()}>
               <Search size={17} /> Analizar indicador
@@ -2259,6 +2270,7 @@ export function App() {
                   {indicatorResult.recommended_actions.map((item) => <span key={item}>{item}</span>)}
                 </div>
                 <p className="notice">{indicatorResult.legal_relevance}</p>
+                <p className="muted">Que significa: este resultado orienta la investigacion. No prueba autoria y debe vincularse con evidencia, custodia y fuentes verificables.</p>
               </div>
             ) : <EmptyState text="Sin análisis de indicador todavía." />}
           </div>
@@ -2267,7 +2279,7 @@ export function App() {
         <div className="detail-grid">
           <form className="detail-panel" onSubmit={createCyberLabSession}>
             <div className="panel-head">
-              <h3>Sesión de laboratorio</h3>
+              <h3>Paso 2 - Crear sesion de laboratorio</h3>
             </div>
             <input placeholder="Título de sesión" value={cyberLabForm.title} onChange={(e) => setCyberLabForm({ ...cyberLabForm, title: e.target.value })} />
             <div className="inline-grid">
@@ -2284,7 +2296,7 @@ export function App() {
 
           <form className="detail-panel" onSubmit={createCyberProofRow}>
             <div className="panel-head">
-              <h3>Conclusión defensible</h3>
+              <h3>Paso 3 - Guardar conclusion defensible</h3>
             </div>
             <textarea placeholder="Conclusión técnica prudente" value={cyberProofForm.defensible_conclusion} onChange={(e) => setCyberProofForm({ ...cyberProofForm, defensible_conclusion: e.target.value })} />
             <textarea placeholder="Encuadre o relación legal preliminar" value={cyberProofForm.legal_framing} onChange={(e) => setCyberProofForm({ ...cyberProofForm, legal_framing: e.target.value })} />
@@ -2333,6 +2345,28 @@ export function App() {
             {!cyberProofRows.length && <EmptyState text="Sin conclusiones técnicas guardadas." />}
           </div>
         </div>
+      </section>
+    );
+  }
+
+
+  function renderExternalTools() {
+    return (
+      <section className="work-surface cyber-workbench">
+        <div className="section-head">
+          <div>
+            <h2>Herramientas Externas</h2>
+            <p>Registro controlado de herramientas auxiliares como whois, nslookup, exiftool, nmap o analizadores de headers.</p>
+          </div>
+          <div className="actions-line">
+            <button onClick={seedForensicToolSet}><Wrench size={16} /> Cargar set pericial base</button>
+            <button className="secondary-button" onClick={refreshCybercrime}><RefreshCcw size={16} /> Actualizar</button>
+          </div>
+        </div>
+
+        <div className="notice">
+          OPERIA puede documentar que herramienta se uso, con que proposito y bajo que limites. La herramienta externa no reemplaza la evidencia preservada, la cadena de custodia ni la revision del analista.
+        </div>
 
         <div className="detail-grid">
           <form className="detail-panel" onSubmit={createCyberTool}>
@@ -2340,11 +2374,11 @@ export function App() {
               <h3>Registrar herramienta externa</h3>
             </div>
             <div className="inline-grid">
-              <input placeholder="Nombre" value={cyberToolForm.name} onChange={(e) => setCyberToolForm({ ...cyberToolForm, name: e.target.value })} required />
-              <input placeholder="Categoría" value={cyberToolForm.category} onChange={(e) => setCyberToolForm({ ...cyberToolForm, category: e.target.value })} />
+              <input placeholder="Nombre. Ej: whois, nslookup, exiftool, nmap" value={cyberToolForm.name} onChange={(e) => setCyberToolForm({ ...cyberToolForm, name: e.target.value })} required />
+              <input placeholder="Categoria. Ej: osint, red, metadatos" value={cyberToolForm.category} onChange={(e) => setCyberToolForm({ ...cyberToolForm, category: e.target.value })} />
             </div>
-            <input placeholder="Ruta ejecutable o comando" value={cyberToolForm.executable_path} onChange={(e) => setCyberToolForm({ ...cyberToolForm, executable_path: e.target.value })} />
-            <textarea placeholder="Notas de uso seguro" value={cyberToolForm.notes} onChange={(e) => setCyberToolForm({ ...cyberToolForm, notes: e.target.value })} />
+            <input placeholder="Ruta ejecutable o comando base" value={cyberToolForm.executable_path} onChange={(e) => setCyberToolForm({ ...cyberToolForm, executable_path: e.target.value })} />
+            <textarea placeholder="Notas de uso seguro, limites y formato de resultados" value={cyberToolForm.notes} onChange={(e) => setCyberToolForm({ ...cyberToolForm, notes: e.target.value })} />
             <button><Wrench size={17} /> Registrar herramienta</button>
           </form>
 
@@ -2352,7 +2386,7 @@ export function App() {
             <div className="panel-head">
               <h3>Herramientas registradas</h3>
             </div>
-            {cyberTools.slice(0, 8).map((item) => (
+            {cyberTools.slice(0, 12).map((item) => (
               <div className="editable-record" key={item.id}>
                 <div>
                   <strong>{item.name}</strong>
@@ -2487,6 +2521,7 @@ export function App() {
     if (active === "reports") return renderReports();
     if (active === "legalKnowledge") return renderLegalKnowledge();
     if (active === "cybercrime") return renderCybercrime();
+    if (active === "externalTools") return renderExternalTools();
     if (active === "ai") return renderAi();
     if (active === "aiSecurity") return renderAiSecurity();
     if (active === "identity") return renderIdentity();
