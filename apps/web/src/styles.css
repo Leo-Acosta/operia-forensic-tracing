@@ -320,6 +320,65 @@ h3 {
   padding: 8px 10px;
 }
 
+.command-panel {
+  align-items: center;
+  background: #f8fbff;
+  border: 1px solid #d7e3ee;
+  border-radius: 8px;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding: 15px;
+}
+
+.command-panel h3 {
+  color: #10233d;
+  font-size: 20px;
+  margin: 4px 0;
+}
+
+.command-panel p {
+  color: #52647a;
+  margin: 0;
+}
+
+.readiness-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  margin-bottom: 14px;
+}
+
+.readiness-card {
+  border-radius: 8px;
+  border: 1px solid #dce5ee;
+  display: grid;
+  gap: 4px;
+  padding: 11px;
+}
+
+.readiness-card.ok {
+  background: #effaf3;
+  border-color: #b8dfc6;
+  color: #17633a;
+}
+
+.readiness-card.pending {
+  background: #fff8ed;
+  border-color: #f1d6aa;
+  color: #6d4a18;
+}
+
+.readiness-card span,
+.readiness-card small {
+  font-size: 12px;
+}
+
+.readiness-card strong {
+  font-size: 16px;
+}
+
 .case-detail {
   display: grid;
   gap: 16px;
@@ -480,6 +539,67 @@ h3 {
 .cyber-result {
   display: grid;
   gap: 12px;
+}
+
+.forensic-outcome {
+  display: grid;
+  gap: 12px;
+}
+
+.outcome-banner {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+}
+
+.outcome-banner div {
+  background: #f5f8fb;
+  border: 1px solid #dce5ee;
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+}
+
+.outcome-banner span {
+  color: #65758a;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.outcome-banner strong {
+  color: #172033;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.outcome-banner.high div,
+.outcome-banner.alto div {
+  background: #fff0f0;
+  border-color: #edb7b7;
+}
+
+.outcome-banner.medium div,
+.outcome-banner.medio div {
+  background: #fff8ed;
+  border-color: #f1d6aa;
+}
+
+.outcome-banner.low div,
+.outcome-banner.bajo div {
+  background: #effaf3;
+  border-color: #b8dfc6;
+}
+
+.forensic-columns {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.forensic-columns h4 {
+  margin-bottom: 8px;
 }
 
 .risk-card {
@@ -1246,6 +1366,20 @@ code {
   padding: 7px 9px;
 }
 
+.requirements.danger {
+  background: #fff0f0;
+  border-color: #edb7b7;
+  color: #8d1f1f;
+}
+
+.requirements.danger strong {
+  color: #7c1c1c;
+}
+
+.requirements.danger span {
+  border-color: #edb7b7;
+}
+
 .report-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -1427,6 +1561,7 @@ pre {
   .external-tools-layout,
   .ai-action-grid,
   .ai-result-grid,
+  .forensic-columns,
   .preview-grid,
   .case-dossier-hero,
   .dossier-grid {
@@ -1452,6 +1587,11 @@ pre {
   }
 
   .ai-hero-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .command-panel {
     align-items: stretch;
     flex-direction: column;
   }

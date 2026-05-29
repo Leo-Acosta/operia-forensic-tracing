@@ -155,6 +155,23 @@ type ReportPreview = {
   warnings: string[];
 };
 
+type ReportReviewResult = {
+  score: number;
+  status: string;
+  critical_errors: string[];
+  warnings: string[];
+  suggestions: string[];
+  incomplete_sections: string[];
+  unsupported_conclusions: string[];
+};
+
+type AiEnrichmentResult = {
+  status: string;
+  report_id?: number;
+  message: string;
+  observations?: string;
+};
+
 type LegalArticle = {
   id: number;
   code: string;
@@ -652,9 +669,11 @@ export function App() {
   const [legalRecommendation, setLegalRecommendation] = useState<LegalRecommendationResponse | null>(null);
   const [aiPrompt, setAiPrompt] = useState("Analiza el caso, evidencia cargada, riesgos y proximos pasos. No inventes normas legales.");
   const [aiResult, setAiResult] = useState<unknown>(null);
+  const [aiEnrichmentResult, setAiEnrichmentResult] = useState<AiEnrichmentResult | null>(null);
   const [legalTypification, setLegalTypification] = useState<LegalTypificationResult | null>(null);
   const [analystName, setAnalystName] = useState(localStorage.getItem("operia_analyst_name") || "");
   const [reviewResult, setReviewResult] = useState<unknown>(null);
+  const [reviewAudit, setReviewAudit] = useState<ReportReviewResult | null>(null);
   const [reportPreview, setReportPreview] = useState<ReportPreview | null>(null);
   const [executiveSummaryDraft, setExecutiveSummaryDraft] = useState("");
   const [exportFinalResult, setExportFinalResult] = useState<unknown>(null);
@@ -989,6 +1008,25 @@ export function App() {
     await refreshCybercrime();
   }
 
+  async function saveIndicatorAsFinding() {
+    if (!selectedCaseId || !indicatorResult) return;
+    await apiPost(`/cases/${selectedCaseId}/findings`, {
+      case_id: selectedCaseId,
+      evidence_id: latestEvidence?.id,
+      title: `Indicador ${prettySpanish(indicatorResult.indicator_type)} analizado`,
+      technical_finding: indicatorResult.findings.join("\n"),
+      explanation: `El indicador ${indicatorResult.indicator} fue clasificado con riesgo ${prettySpanish(indicatorResult.risk_level)} y confianza ${prettySpanish(indicatorResult.confidence)}.`,
+      confidence_level: indicatorResult.confidence,
+      weaknesses_or_limitations: "El analisis de indicador no prueba autoria por si solo; requiere correlacion con evidencia preservada, fuentes externas verificables y revision humana.",
+      tools_used: "OPERIA Cybercrime Indicator Analyzer",
+      supporting_evidence: latestEvidence ? `Evidencia #${latestEvidence.id}: ${latestEvidence.description}` : "Pendiente de vincular con evidencia preservada.",
+      preliminary_legal_relevance: indicatorResult.legal_relevance,
+      status: "incorporado_al_caso"
+    });
+    await refreshCaseCollections(selectedCaseId);
+    setModulePayload({ status: "hallazgo_guardado", indicator: indicatorResult.indicator, case_id: selectedCaseId });
+  }
+
   async function createCyberTool(event: FormEvent) {
     event.preventDefault();
     await apiPost<CyberTool>("/cybercrime/tools", cyberToolForm);
@@ -1150,16 +1188,21 @@ export function App() {
         case_id: selectedCaseId || undefined,
         prompt: aiPrompt
       });
-      setAiResult({
+      const result = {
         status: enriched.status,
         report_id: enriched.id,
         message: "Informe ampliado con analisis tecnico-juridico. Revisa y vuelve a exportar PDF.",
         observations: enriched.observations
-      });
+      };
+      setAiEnrichmentResult(result);
+      setAiResult(result);
       if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+      await loadReportPreview(enriched.id);
       return;
     }
-    setAiResult(await apiPost("/ai/assist", { case_id: selectedCaseId || undefined, model_name: "mistral", prompt: aiPrompt }));
+    const result = await apiPost("/ai/assist", { case_id: selectedCaseId || undefined, model_name: "mistral", prompt: aiPrompt });
+    setAiEnrichmentResult(null);
+    setAiResult(result);
   }
 
   async function generateReport() {
@@ -1173,8 +1216,11 @@ export function App() {
 
   async function reviewReport() {
     if (!latestReport) return;
-    setReviewResult(await apiPost(`/reports/${latestReport.id}/review`));
+    const result = await apiPost<ReportReviewResult>(`/reports/${latestReport.id}/review`);
+    setReviewAudit(result);
+    setReviewResult(result);
     if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+    await loadReportPreview(latestReport.id);
   }
 
   async function loadReportPreview(reportId = latestReport?.id) {
@@ -1299,6 +1345,152 @@ export function App() {
     );
   }
 
+  function renderIndicatorOutcome() {
+    if (!indicatorResult) return <EmptyState text="Ejecuta el analisis para obtener una lectura pericial del indicador." />;
+    return (
+      <div className="forensic-outcome">
+        <div className={`outcome-banner ${indicatorResult.risk_level}`}>
+          <div>
+            <span>Indicador analizado</span>
+            <strong>{indicatorResult.indicator}</strong>
+          </div>
+          <div>
+            <span>Tipo</span>
+            <strong>{prettySpanish(indicatorResult.indicator_type)}</strong>
+          </div>
+          <div>
+            <span>Riesgo</span>
+            <strong>{prettySpanish(indicatorResult.risk_level)}</strong>
+          </div>
+          <div>
+            <span>Confianza</span>
+            <strong>{prettySpanish(indicatorResult.confidence)}</strong>
+          </div>
+        </div>
+        <div className="forensic-columns">
+          <div>
+            <h4>Hallazgos tecnicos</h4>
+            <div className="summary-list">
+              {indicatorResult.findings.map((item) => <span key={item}>{prettySpanish(item)}</span>)}
+            </div>
+          </div>
+          <div>
+            <h4>Acciones recomendadas</h4>
+            <div className="summary-list">
+              {indicatorResult.recommended_actions.map((item) => <span key={item}>{prettySpanish(item)}</span>)}
+            </div>
+          </div>
+        </div>
+        <div className="notice">
+          {prettySpanish(indicatorResult.legal_relevance)} Este resultado orienta la investigacion, pero debe vincularse con evidencia, custodia y fuentes verificables antes de sostener atribucion.
+        </div>
+        <div className="button-row">
+          <button className="secondary-button" onClick={saveIndicatorAsFinding} disabled={!selectedCaseId}>
+            <FileCheck2 size={16} /> Guardar como hallazgo
+          </button>
+          <button className="secondary-button" onClick={() => setActive("evidence")} disabled={!selectedCaseId}>
+            <Fingerprint size={16} /> Ver evidencia
+          </button>
+          <button className="secondary-button" onClick={() => setActive("reports")} disabled={!latestReport}>
+            <FileText size={16} /> Ver informe
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderAiEnrichmentOutcome() {
+    if (!aiEnrichmentResult) return <EmptyState text="Ejecuta la ampliacion para ver que se incorporo al informe." />;
+    return (
+      <div className="forensic-outcome">
+        <div className="outcome-banner medium">
+          <div>
+            <span>Informe</span>
+            <strong>#{aiEnrichmentResult.report_id || latestReport?.id || "-"}</strong>
+          </div>
+          <div>
+            <span>Estado</span>
+            <strong>{prettySpanish(aiEnrichmentResult.status)}</strong>
+          </div>
+          <div>
+            <span>Accion</span>
+            <strong>Ampliacion aplicada</strong>
+          </div>
+        </div>
+        <p>{prettySpanish(aiEnrichmentResult.message)}</p>
+        {aiEnrichmentResult.observations && <div className="notice">{prettySpanish(aiEnrichmentResult.observations)}</div>}
+        <div className="summary-list">
+          <span>Se recalcularon secciones del informe y vista previa.</span>
+          <span>Requiere revision humana antes de exportacion final.</span>
+          <span>La fundamentacion legal debe permanecer vinculada a biblioteca registrada.</span>
+        </div>
+        <div className="button-row">
+          <button className="secondary-button" onClick={() => loadReportPreview(aiEnrichmentResult.report_id || latestReport?.id)}>
+            <FileCheck2 size={16} /> Ver vista previa
+          </button>
+          <button className="secondary-button" onClick={() => setActive("reports")}>
+            <FileText size={16} /> Abrir informes
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderReviewOutcome() {
+    if (!reviewAudit) return <EmptyState text="Ejecuta la revision para obtener auditoria profesional del informe." />;
+    const hasCritical = reviewAudit.critical_errors.length > 0;
+    const reviewClass = hasCritical ? "high" : reviewAudit.score >= 85 ? "low" : "medium";
+    return (
+      <div className="forensic-outcome">
+        <div className={`outcome-banner ${reviewClass}`}>
+          <div>
+            <span>Score</span>
+            <strong>{reviewAudit.score}/100</strong>
+          </div>
+          <div>
+            <span>Estado</span>
+            <strong>{prettySpanish(reviewAudit.status)}</strong>
+          </div>
+          <div>
+            <span>Criticos</span>
+            <strong>{reviewAudit.critical_errors.length}</strong>
+          </div>
+          <div>
+            <span>Advertencias</span>
+            <strong>{reviewAudit.warnings.length}</strong>
+          </div>
+        </div>
+        <div className="forensic-columns">
+          <div>
+            <h4>Advertencias</h4>
+            <div className="summary-list">
+              {reviewAudit.warnings.map((item) => <span key={item}>{prettySpanish(item)}</span>)}
+              {!reviewAudit.warnings.length && <span>Sin advertencias relevantes.</span>}
+            </div>
+          </div>
+          <div>
+            <h4>Sugerencias</h4>
+            <div className="summary-list">
+              {reviewAudit.suggestions.map((item) => <span key={item}>{prettySpanish(item)}</span>)}
+              {!reviewAudit.suggestions.length && <span>Sin sugerencias pendientes.</span>}
+            </div>
+          </div>
+        </div>
+        {!!reviewAudit.critical_errors.length && (
+          <div className="requirements danger">
+            <strong>Errores criticos</strong>
+            {reviewAudit.critical_errors.map((item) => <span key={item}>{prettySpanish(item)}</span>)}
+          </div>
+        )}
+        <div className="button-row">
+          <button className="secondary-button" onClick={() => setActive("reports")}><FileText size={16} /> Corregir informe</button>
+          <button className="secondary-button" onClick={() => setActive("legalKnowledge")}><Gavel size={16} /> Revisar matriz legal</button>
+          <button className="secondary-button" onClick={requestFinalExport} disabled={!latestReport}><Download size={16} /> Evaluar exportacion</button>
+        </div>
+      </div>
+    );
+  }
+
   function renderWorkflow() {
     return (
       <div className="workflow">
@@ -1419,7 +1611,7 @@ export function App() {
               <input value={indicator} onChange={(e) => setIndicator(e.target.value)} placeholder="IP, dominio o URL" />
               <button onClick={analyzeIndicator} disabled={!indicator}><Globe2 size={17} /> Analizar indicador</button>
             </div>
-            <JsonPanel data={indicatorResult} />
+            {renderIndicatorOutcome()}
           </StepCard>
 
           <StepCard number={6} title="Tipificar incidente con normativa argentina" done={Boolean(legalTypification?.principal_typification || legalMappings.length)}>
@@ -1463,7 +1655,7 @@ export function App() {
               <button onClick={runAiAssist}><Bot size={17} /> {latestReport ? "Ampliar informe" : "Analizar caso"}</button>
             </div>
             {latestReport && <p className="notice">Con informe generado, esta accion agrega hipotesis, conclusiones y fundamentacion legal al reporte.</p>}
-            <JsonPanel data={aiResult} />
+            {latestReport ? renderAiEnrichmentOutcome() : <JsonPanel data={aiResult} />}
           </StepCard>
 
           <StepCard number={8} title="Generar informe" done={reports.length > 0}>
@@ -1480,7 +1672,7 @@ export function App() {
 
           <StepCard number={9} title="Revisar informe" done={Boolean(reviewResult) && latestReport?.review_score !== undefined}>
             <button onClick={reviewReport} disabled={!latestReport}><FileCheck2 size={17} /> Revisar informe</button>
-            <JsonPanel data={reviewResult} />
+            {renderReviewOutcome()}
           </StepCard>
 
           <StepCard number={10} title="Exportar PDF" done={Boolean(latestReport)}>
@@ -1529,14 +1721,51 @@ export function App() {
   }
 
   function renderDashboard() {
+    const currentCaseReadiness = [
+      { label: "Caso seleccionado", ok: Boolean(selectedCase), detail: selectedCase?.case_code || "Sin caso" },
+      { label: "Evidencia preservada", ok: evidence.length > 0, detail: `${evidence.length} evidencia(s)` },
+      { label: "Custodia", ok: custody.length > 0, detail: `${custody.length} accion(es)` },
+      { label: "Tipificacion legal", ok: legalMappings.some((item) => item.decision_status !== "descartado"), detail: `${legalMappings.length} mapeo(s)` },
+      { label: "Informe", ok: reports.length > 0, detail: latestReport ? professionalReportStatus(latestReport.status) : "Sin informe" },
+      { label: "Revision", ok: Boolean(latestReport && latestReport.review_score >= 80), detail: latestReport ? `Score ${latestReport.review_score}` : "Sin revision" },
+    ];
+    const nextAction =
+      !selectedCase ? "Seleccionar o crear un caso operativo." :
+      !evidence.length ? "Cargar evidencia y calcular hash." :
+      !custody.length ? "Registrar cadena de custodia." :
+      !legalMappings.length ? "Tipificar el incidente y aplicar norma al caso." :
+      !latestReport ? "Generar informe integral." :
+      latestReport.review_score < 80 ? "Revisar informe y corregir advertencias." :
+      "Evaluar exportacion final sellada.";
+
     return (
       <section className="work-surface">
         <div className="section-head">
           <div>
             <h2>Dashboard Operativo</h2>
-            <p>Resumen de casos, evidencia, reportes y modulos integrados.</p>
+            <p>Centro de mando para saber que esta listo, que falta y cual es la proxima accion pericial.</p>
           </div>
           <button className="icon-button" onClick={refreshCore} title="Actualizar"><RefreshCcw size={18} /></button>
+        </div>
+        <div className="command-panel">
+          <div>
+            <span className="tool-kicker">Proxima accion recomendada</span>
+            <h3>{nextAction}</h3>
+            <p>{selectedCase ? `${selectedCase.case_code} - ${selectedCase.title}` : "OPERIA necesita un caso activo para guiar el flujo."}</p>
+          </div>
+          <div className="button-row">
+            <button className="secondary-button" onClick={() => setActive("workflow")}><CheckCircle2 size={16} /> Abrir flujo</button>
+            <button className="secondary-button" onClick={() => setActive("caseDetail")} disabled={!selectedCaseId}><FileCheck2 size={16} /> Detalle del caso</button>
+          </div>
+        </div>
+        <div className="readiness-grid">
+          {currentCaseReadiness.map((item) => (
+            <div className={`readiness-card ${item.ok ? "ok" : "pending"}`} key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.ok ? "OK" : "Pendiente"}</strong>
+              <small>{item.detail}</small>
+            </div>
+          ))}
         </div>
         {dashboard.metrics ? <MetricGrid metrics={dashboard.metrics} /> : <EmptyState text="Sin metricas cargadas." />}
         <div className="preview-grid">
@@ -1554,7 +1783,7 @@ export function App() {
             {(dashboard.report_readiness || []).slice(0, 6).map((item) => (
               <div className={`preview-section ${item.ready_for_final ? "" : "warning"}`} key={item.report_id}>
                 <strong>{item.title}</strong>
-                <span>{prettySpanish(item.status)} | Score {item.review_score}</span>
+                <span>{professionalReportStatus(item.status)} | Score {item.review_score}</span>
                 <small>{item.ready_for_final ? "Listo para cierre sellado" : "Requiere completar checklist"}</small>
               </div>
             ))}
