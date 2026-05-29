@@ -1620,6 +1620,38 @@ export function App() {
     );
   }
 
+  function renderExportFinalOutcome() {
+    if (!exportFinalResult) return null;
+    const result = exportFinalResult as {
+      status?: string;
+      detail?: string;
+      seal_id?: string | null;
+      sha256?: string | null;
+      manifest_id?: string | null;
+      can_export_final?: boolean;
+      exportability?: { level?: string; score?: number };
+      contradictions?: { count?: number };
+    };
+    const blocked = result.status === "blocked" || result.can_export_final === false;
+    return (
+      <div className={`export-outcome ${blocked ? "blocked" : "ready"}`}>
+        <div>
+          <span>{blocked ? "Exportacion final bloqueada" : result.status === "sealed" ? "Exportacion final sellada" : "Evaluacion de exportacion"}</span>
+          <strong>
+            {result.status === "sealed"
+              ? `Sello ${result.seal_id || "generado"}`
+              : result.exportability?.level || prettySpanish(result.status || "Resultado disponible")}
+          </strong>
+          {result.exportability?.score !== undefined && <small>Score de exportabilidad: {result.exportability.score}/100</small>}
+          {result.contradictions?.count !== undefined && <small>Contradicciones detectadas: {result.contradictions.count}</small>}
+          {result.detail && <small>{prettySpanish(result.detail)}</small>}
+        </div>
+        {result.sha256 && <code>SHA-256 PDF: {result.sha256}</code>}
+        {result.manifest_id && <small>Manifiesto #{result.manifest_id}</small>}
+      </div>
+    );
+  }
+
   function renderWorkflow() {
     return (
       <div className="workflow">
@@ -2438,6 +2470,192 @@ export function App() {
     );
   }
 
+  function renderReportsProfessional() {
+    const includedSections = reportPreview?.sections.filter((section) => section.word_count > 0) || [];
+    const emptySections = reportPreview?.sections.filter((section) => section.word_count <= 0) || [];
+    const missingChecklist = reportPreview?.final_checklist.items.filter((item) => !item.ok) || [];
+    const completedChecklist = reportPreview?.final_checklist.items.filter((item) => item.ok) || [];
+
+    return (
+      <section className="work-surface">
+        <div className="section-head">
+          <div>
+            <h2>Informes</h2>
+            <p>Control profesional del informe: contenido incluido, faltantes, versionado, anexos y exportacion final.</p>
+          </div>
+          <button onClick={generateReport} disabled={!selectedCaseId}><FileText size={17} /> Generar informe</button>
+        </div>
+        {latestReport && (
+          <div className="report-toolbar">
+            <button onClick={() => loadReportPreview()}><FileCheck2 size={16} /> Vista previa profesional</button>
+            <button onClick={reviewReport}><CheckCircle2 size={16} /> Revisar</button>
+            <button onClick={requestFinalExport} className={reportPreview?.can_export_final ? "" : "secondary"}>
+              <Download size={16} /> Sellar y exportar final
+            </button>
+            <button onClick={refreshReportAnnexes} className="secondary"><FileText size={16} /> Actualizar anexos</button>
+            <a className="download-button secondary" href={`${API_BASE}/exports/reports/${latestReport.id}/pdf`} target="_blank">
+              <Download size={16} /> Exportar borrador PDF
+            </a>
+          </div>
+        )}
+        {!latestReport && <EmptyState text="Todavia no hay informe para el caso seleccionado. Genera un informe para activar la vista de control final." />}
+        {reportPreview && (
+          <div className="report-preview professional">
+            <div className="preview-cover">
+              <div>
+                <span className="eyebrow">Panel de control del informe</span>
+                <h3>{reportPreview.title}</h3>
+                <p>{prettySpanish(reportPreview.exportability.level)} - Score {reportPreview.exportability.score}/100 - Revision {reportPreview.review_score}</p>
+              </div>
+              <span className={`badge ${reportPreview.can_export_final ? "success" : ""}`}>
+                {reportPreview.can_export_final ? "Exportable como final" : "No exportable como final"}
+              </span>
+            </div>
+            <div className="report-status-grid">
+              <div className={reportPreview.final_checklist.ready ? "ok" : "pending"}>
+                <span>Checklist final</span>
+                <strong>{reportPreview.final_checklist.ready ? "Completo" : "Incompleto"}</strong>
+                <small>{completedChecklist.length}/{reportPreview.final_checklist.items.length} controles cumplidos</small>
+              </div>
+              <div className={reportPreview.contradictions.blocking ? "blocked" : "ok"}>
+                <span>Contradicciones</span>
+                <strong>{reportPreview.contradictions.count}</strong>
+                <small>{reportPreview.contradictions.blocking ? "Requiere correccion" : "Sin bloqueo detectado"}</small>
+              </div>
+              <div className={includedSections.length ? "ok" : "pending"}>
+                <span>Contenido PDF</span>
+                <strong>{includedSections.length}</strong>
+                <small>secciones con contenido</small>
+              </div>
+              <div className={reportPreview.annexes.count ? "ok" : "pending"}>
+                <span>Anexos</span>
+                <strong>{reportPreview.annexes.count}</strong>
+                <small>elementos vinculados</small>
+              </div>
+            </div>
+            {reportPreview.final_seal && (
+              <div className="notice success">
+                Sello pericial final: {reportPreview.final_seal.seal_id} - Version {reportPreview.final_seal.report_version}
+              </div>
+            )}
+            {!!reportPreview.warnings.length && (
+              <div className="requirements">
+                <strong>Alertas de vista previa</strong>
+                {reportPreview.warnings.map((item) => <span key={item}>{prettySpanish(item)}</span>)}
+              </div>
+            )}
+            <div className="preview-grid">
+              <div className="report-card">
+                <h4>Que incluira el PDF final</h4>
+                <div className="report-inclusion-list">
+                  {includedSections.map((section) => (
+                    <div key={section.title}>
+                      <CheckCircle2 size={16} />
+                      <span>
+                        <strong>{prettySpanish(section.title)}</strong>
+                        <small>{section.word_count} palabras {section.has_tables ? "- incluye tabla" : ""}</small>
+                      </span>
+                    </div>
+                  ))}
+                  {!includedSections.length && <EmptyState text="No hay secciones con contenido suficiente para renderizar." />}
+                </div>
+              </div>
+              <div className="report-card">
+                <h4>Que falta para cerrarlo</h4>
+                <div className="summary-list">
+                  {missingChecklist.map((item) => (
+                    <span key={item.key}>
+                      <strong>{prettySpanish(item.label)}:</strong> {prettySpanish(item.message)}
+                    </span>
+                  ))}
+                  {!missingChecklist.length && <span>Sin faltantes criticos para cierre pericial.</span>}
+                </div>
+              </div>
+            </div>
+            <div className="preview-grid">
+              <div className="report-card">
+                <h4>Resumen ejecutivo editable</h4>
+                <textarea className="executive-editor" value={executiveSummaryDraft} onChange={(event) => setExecutiveSummaryDraft(event.target.value)} />
+                <button onClick={saveExecutiveSummary} disabled={!executiveSummaryDraft.trim()}>
+                  <Save size={16} /> Guardar resumen ejecutivo
+                </button>
+              </div>
+              <div className="report-card">
+                <h4>Versionado del informe</h4>
+                <p>Usa estos estados para controlar madurez documental. La version final exige checklist completo.</p>
+                <div className="version-row">
+                  {["borrador", "preliminar", "revisado", "final", "corregido", "reabierto"].map((status) => (
+                    <button key={status} className={latestReport?.status === status ? "" : "secondary"} onClick={() => transitionReportStatus(status)}>
+                      {prettySpanish(status)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="preview-grid">
+              <div className="report-card">
+                <h4>Checklist pericial final</h4>
+                {reportPreview.final_checklist.items.map((item) => (
+                  <div className={`check-row ${item.ok ? "ok" : "pending"}`} key={item.key}>
+                    <span>{item.ok ? "Cumplido" : "Pendiente"}</span>
+                    <strong>{prettySpanish(item.label)}</strong>
+                    <small>{prettySpanish(item.message)}</small>
+                  </div>
+                ))}
+              </div>
+              <div className="report-card">
+                <h4>Contradicciones legal-probatorias</h4>
+                {reportPreview.contradictions.issues.map((issue, index) => (
+                  <div className="preview-section warning" key={`${issue.norm_reference}-${index}`}>
+                    <strong>{issue.norm_reference} - {prettySpanish(issue.legal_element)}</strong>
+                    <span>{prettySpanish(issue.severity)}</span>
+                    <small>{prettySpanish(issue.message)} {prettySpanish(issue.recommended_action)}</small>
+                  </div>
+                ))}
+                {!reportPreview.contradictions.issues.length && <EmptyState text="Sin contradicciones bloqueantes detectadas." />}
+              </div>
+            </div>
+            {!!emptySections.length && (
+              <div className="requirements">
+                <strong>Secciones sin contenido suficiente</strong>
+                {emptySections.map((section) => <span key={section.title}>{prettySpanish(section.title)}</span>)}
+              </div>
+            )}
+            <div className="report-card">
+              <h4>Anexos reales</h4>
+              <div className="preview-grid">
+                {reportPreview.annexes.items.map((item, index) => (
+                  <div className="preview-section" key={`${item.type}-${index}`}>
+                    <strong>{prettySpanish(item.title)}</strong>
+                    <span>{prettySpanish(item.type)} {item.sha256 ? `- SHA-256 ${item.sha256}` : ""}</span>
+                    <small>{prettySpanish(item.detail || item.integrity_status || `Elementos: ${item.rows || 1}`)}</small>
+                  </div>
+                ))}
+                {!reportPreview.annexes.items.length && <EmptyState text="Sin anexos vinculados todavia." />}
+              </div>
+            </div>
+            {renderExportFinalOutcome()}
+          </div>
+        )}
+        {!reportPreview && renderExportFinalOutcome()}
+        <div className="report-list">
+          <h4>Informes del caso</h4>
+          {reports.map((item) => (
+            <div className="record record-grid" key={item.id}>
+              <strong>{item.title}</strong>
+              <span>{professionalReportStatus(item.status)}</span>
+              <em>Score {item.review_score}</em>
+              <span>{exportabilitySnapshot.level}</span>
+              <button className="text-link" onClick={() => loadReportPreview(item.id)}>Preview</button>
+              <a href={`${API_BASE}/exports/reports/${item.id}/pdf`} target="_blank">PDF</a>
+            </div>
+          ))}
+          {!reports.length && <EmptyState text="Sin informes para el caso seleccionado." />}
+        </div>
+      </section>
+    );
+  }
+
   function renderLegalKnowledge() {
     return (
       <section className="work-surface">
@@ -3139,7 +3357,7 @@ export function App() {
     if (active === "caseDetail") return renderCaseDetail();
     if (active === "cases") return renderCases();
     if (active === "evidence") return renderEvidence();
-    if (active === "reports") return renderReports();
+    if (active === "reports") return renderReportsProfessional();
     if (active === "legalKnowledge") return renderLegalKnowledge();
     if (active === "cybercrime") return renderCybercrime();
     if (active === "externalTools") return renderExternalTools();
