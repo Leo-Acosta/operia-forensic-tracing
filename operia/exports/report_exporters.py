@@ -8,6 +8,7 @@ from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches, Pt, RGBColor
 from reportlab.lib import colors
+from reportlab.lib.enums import TA_JUSTIFY
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.utils import ImageReader
@@ -238,18 +239,8 @@ def export_pdf(report: Report) -> Path:
     legal_probatory = legal_probatory_assessment(case)
     exportability = report_exportability_assessment(case, legal_probatory, report=report)
 
-    logo = _logo_path()
-    if logo:
-        image = Image(str(logo), width=170, height=62)
-        image.hAlign = "LEFT"
-        story.append(image)
-        story.append(Spacer(1, 14))
-
-    story.append(Paragraph("INFORME FORENSE PROFESIONAL", styles["label"]))
-    story.append(Paragraph(_html(report.title), styles["cover_title"]))
-    story.append(Spacer(1, 10))
-    story.append(Paragraph(_html(f"Caso {case.case_code} | {case.incident_type}"), styles["subtitle"]))
-    story.append(Spacer(1, 20))
+    story.append(_executive_cover(report, case, exportability, total_damage, styles))
+    story.append(Spacer(1, 18))
     story.append(
         _key_value_table(
             [
@@ -280,6 +271,8 @@ def export_pdf(report: Report) -> Path:
             styles,
         )
     )
+    story.append(Spacer(1, 10))
+    story.append(_executive_note("Documento preparado para lectura ejecutiva y revisión pericial. Las secciones, anexos y metadatos se renderizan según la información efectivamente cargada en el caso.", styles))
     story.append(PageBreak())
 
     _section(story, "1. Resumen ejecutivo", styles)
@@ -543,10 +536,26 @@ def _report_styles() -> dict[str, ParagraphStyle]:
             "OperiaCoverTitle",
             parent=base["Title"],
             fontName="Helvetica-Bold",
-            fontSize=24,
-            leading=29,
-            textColor=colors.HexColor("#0f172a"),
+            fontSize=27,
+            leading=32,
+            textColor=colors.white,
             spaceAfter=8,
+        ),
+        "cover_subtitle": ParagraphStyle(
+            "OperiaCoverSubtitle",
+            parent=base["Normal"],
+            fontName="Helvetica",
+            fontSize=11,
+            leading=16,
+            textColor=colors.HexColor("#dbeafe"),
+        ),
+        "cover_meta": ParagraphStyle(
+            "OperiaCoverMeta",
+            parent=base["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=8,
+            leading=11,
+            textColor=colors.HexColor("#a7f3d0"),
         ),
         "label": ParagraphStyle(
             "OperiaLabel",
@@ -569,11 +578,11 @@ def _report_styles() -> dict[str, ParagraphStyle]:
             "OperiaHeading",
             parent=base["Heading2"],
             fontName="Helvetica-Bold",
-            fontSize=15,
-            leading=19,
+            fontSize=16,
+            leading=20,
             textColor=colors.HexColor("#0f172a"),
-            spaceBefore=16,
-            spaceAfter=8,
+            spaceBefore=18,
+            spaceAfter=10,
         ),
         "subheading": ParagraphStyle(
             "OperiaSubheading",
@@ -590,9 +599,10 @@ def _report_styles() -> dict[str, ParagraphStyle]:
             parent=base["BodyText"],
             fontName="Helvetica",
             fontSize=9,
-            leading=13,
+            leading=13.8,
             textColor=colors.HexColor("#25324a"),
             spaceAfter=6,
+            alignment=TA_JUSTIFY,
         ),
         "muted": ParagraphStyle(
             "OperiaMuted",
@@ -629,8 +639,75 @@ def _paragraph(value: object, style: ParagraphStyle) -> Paragraph:
     return Paragraph(_html(value), style)
 
 
+def _executive_cover(report: Report, case, exportability: dict, total_damage: float, styles: dict[str, ParagraphStyle]):
+    status_tone = "APTO PARA FINAL" if exportability.get("can_export_final") else "BORRADOR CONTROLADO"
+    subtitle = f"Caso {case.case_code} | {case.incident_type} | Jurisdicción {case.jurisdiction}"
+    metadata = [
+        f"Estado: {_professional_status(report, case)}",
+        f"Exportabilidad: {exportability.get('level', '-')}",
+        f"Revisión: {report.review_score or 0}/100",
+        f"Daño estimado: {total_damage:,.2f} ARS",
+    ]
+    data = [
+        [Paragraph("OPERIA FORENSIC TRACING", styles["cover_meta"]), Paragraph(status_tone, styles["cover_meta"])],
+        [Paragraph(_html(report.title), styles["cover_title"]), ""],
+        [Paragraph(_html(subtitle), styles["cover_subtitle"]), ""],
+        [Paragraph(_html("  |  ".join(metadata)), styles["cover_subtitle"]), ""],
+    ]
+    table = Table(data, colWidths=[390, 134], rowHeights=[26, 98, 34, 42])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#0b172a")),
+                ("SPAN", (0, 1), (-1, 1)),
+                ("SPAN", (0, 2), (-1, 2)),
+                ("SPAN", (0, 3), (-1, 3)),
+                ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#0f766e")),
+                ("LINEBELOW", (0, 0), (-1, 0), 0.6, colors.HexColor("#1e3a8a")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 22),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 22),
+                ("TOPPADDING", (0, 0), (-1, -1), 12),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+                ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ]
+        )
+    )
+    return table
+
+
+def _executive_note(text: str, styles: dict[str, ParagraphStyle]):
+    table = Table([[Paragraph(_html(text), styles["muted"])]], colWidths=[524])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f0fdfa")),
+                ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#99f6e4")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 12),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+                ("TOPPADDING", (0, 0), (-1, -1), 9),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+            ]
+        )
+    )
+    return table
+
+
 def _section(story: list, title: str, styles: dict[str, ParagraphStyle]) -> None:
-    story.append(Paragraph(_html(title), styles["heading"]))
+    table = Table([[Paragraph(_html(title), styles["heading"])]], colWidths=[524])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
+                ("LINEBEFORE", (0, 0), (0, -1), 4, colors.HexColor("#0f766e")),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("LEFTPADDING", (0, 0), (-1, -1), 12),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ]
+        )
+    )
+    story.append(table)
 
 
 def _warning_box(text: str):
@@ -661,19 +738,19 @@ def _key_value_table(rows: list[tuple[str, object]], styles: dict[str, Paragraph
 def _metrics_table(metrics: list[tuple[str, object]], styles: dict[str, ParagraphStyle]):
     cells = []
     for label, value in metrics:
-        cells.append(Paragraph(f"<b>{_html(value)}</b><br/><font color='#64748b'>{_html(label)}</font>", styles["table"]))
+        cells.append(Paragraph(f"<font size='12'><b>{_html(value)}</b></font><br/><font color='#64748b'>{_html(label)}</font>", styles["table"]))
     data = [cells[:3], cells[3:]]
     table = Table(data, colWidths=[174, 175, 175])
     table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fbff")),
-                ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#d8e4ee")),
-                ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#d8e4ee")),
-                ("LEFTPADDING", (0, 0), (-1, -1), 10),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-                ("TOPPADDING", (0, 0), (-1, -1), 9),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#ffffff")),
+                ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#cbd5e1")),
+                ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#e2e8f0")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 14),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 14),
+                ("TOPPADDING", (0, 0), (-1, -1), 12),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
             ]
         )
     )
@@ -690,20 +767,20 @@ def _data_table(headers: list[str], rows: list[list[object]], styles: dict[str, 
 
 def _base_table_style(header_column: bool = False) -> TableStyle:
     commands = [
-        ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#cbd5e1")),
-        ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#d8e4ee")),
-        ("LEFTPADDING", (0, 0), (-1, -1), 5),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("BOX", (0, 0), (-1, -1), 0.65, colors.HexColor("#cbd5e1")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#e2e8f0")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 7),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]
     if header_column:
-        commands.append(("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#0f766e")))
-        commands.append(("BACKGROUND", (1, 0), (1, -1), colors.HexColor("#f8fbff")))
+        commands.append(("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#12324a")))
+        commands.append(("BACKGROUND", (1, 0), (1, -1), colors.HexColor("#ffffff")))
     else:
-        commands.append(("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0f766e")))
-        commands.append(("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8fbff")]))
+        commands.append(("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#12324a")))
+        commands.append(("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8fafc")]))
     return TableStyle(commands)
 
 
@@ -862,6 +939,16 @@ def _format_date(value) -> str:
 def _report_page_footer(c: canvas.Canvas, doc) -> None:
     width, height = A4
     c.saveState()
+    c.setFillColor(colors.HexColor("#fbfdff"))
+    c.rect(0, 0, width, height, fill=1, stroke=0)
+    if doc.page > 1:
+        c.setFillColor(colors.HexColor("#0b172a"))
+        c.rect(0, height - 34, width, 34, fill=1, stroke=0)
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(36, height - 21, "OPERIA FORENSIC TRACING")
+        c.setFont("Helvetica", 7)
+        c.drawRightString(width - 36, height - 21, "Informe forense profesional")
     c.setStrokeColor(colors.HexColor("#d8e4ee"))
     c.line(36, 36, width - 36, 36)
     c.setFont("Helvetica", 7)
