@@ -1548,9 +1548,14 @@ export function App() {
             No se generó texto adicional. Usá la tipificación legal y la matriz probatoria para sostener el informe.
           </div>
         )}
+        {legalApplyMessage && (
+          <div className={`action-feedback ${legalApplyState}`}>
+            {legalApplyMessage}
+          </div>
+        )}
         <div className="button-row">
           <button className="secondary-button" onClick={() => searchAndTypifyLegal(true)} disabled={!selectedCaseId || legalApplyState === "applying"}>
-            <Gavel size={16} /> Aplicar encuadre al caso
+            <Gavel size={16} /> {legalApplyState === "applying" ? "Aplicando..." : legalApplyState === "applied" ? "Encuadre aplicado" : "Aplicar encuadre al caso"}
           </button>
           <button className="secondary-button" onClick={() => setActive("legalKnowledge")}>
             <BookOpen size={16} /> Ver biblioteca legal
@@ -1743,7 +1748,7 @@ export function App() {
               <input value={legalQuery} onChange={(e) => setLegalQuery(e.target.value)} />
               <button onClick={() => searchAndTypifyLegal(false)}><Gavel size={17} /> Tipificar y sugerir norma</button>
               <button className="secondary-button" onClick={() => searchAndTypifyLegal(true)} disabled={!selectedCaseId || legalApplyState === "applying"}>
-                <CheckCircle2 size={17} /> {legalApplyState === "applying" ? "Aplicando..." : "Aplicar al caso"}
+                <CheckCircle2 size={17} /> {legalApplyState === "applying" ? "Aplicando..." : legalApplyState === "applied" ? "Aplicado al caso" : "Aplicar al caso"}
               </button>
             </div>
             {legalApplyMessage && (
