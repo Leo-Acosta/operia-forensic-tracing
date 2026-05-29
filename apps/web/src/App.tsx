@@ -310,6 +310,7 @@ type IdentitySession = {
 };
 
 type PermissionPayload = Record<string, string[]>;
+type CaseDetailTab = "summary" | "participants" | "evidence" | "custody" | "legal" | "reports" | "audit";
 
 const modules: Array<{ key: ModuleKey; label: string; icon: typeof BarChart3 }> = [
   { key: "workflow", label: "Flujo Operativo", icon: CheckCircle2 },
@@ -490,6 +491,7 @@ function StepCard({
 
 export function App() {
   const [active, setActive] = useState<ModuleKey>("workflow");
+  const [caseDetailTab, setCaseDetailTab] = useState<CaseDetailTab>("summary");
   const [dashboard, setDashboard] = useState<DashboardPayload>({});
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState<number | "">("");
@@ -1380,12 +1382,171 @@ export function App() {
 
   function renderCaseDetail() {
     const locked = selectedCase?.status === "cerrado";
+    const legalRows = legalProbatoryMatrix?.rows || [];
+    const latestAudit = auditLogs[0];
+    const readinessItems = [
+      { label: "Narrativa del caso", ok: Boolean(selectedCase?.description), detail: selectedCase?.description ? "Cargada" : "Falta descripción inicial" },
+      { label: "Participantes", ok: participants.length > 0, detail: `${participants.length} registro(s)` },
+      { label: "Evidencia preservada", ok: evidence.length > 0, detail: `${evidence.length} evidencia(s)` },
+      { label: "Hashes", ok: evidence.length > 0 && evidence.every((item) => Boolean(item.sha256_hash)), detail: evidence.length ? "Integridad verificable" : "Sin archivos" },
+      { label: "Custodia", ok: custody.length > 0, detail: `${custody.length} acción(es)` },
+      { label: "Mapeo legal", ok: legalMappings.some((item) => item.decision_status !== "descartado"), detail: `${legalMappings.length} norma(s)` },
+      { label: "Informe", ok: Boolean(latestReport), detail: latestReport ? professionalReportStatus(latestReport.status) : "No generado" },
+      { label: "Revisión", ok: Boolean(latestReport && latestReport.review_score >= 80), detail: latestReport ? `Score ${latestReport.review_score}` : "Sin revisión" }
+    ];
+    const tabs: Array<{ key: CaseDetailTab; label: string; count?: number }> = [
+      { key: "summary", label: "Resumen" },
+      { key: "participants", label: "Personas", count: participants.length },
+      { key: "evidence", label: "Evidencia", count: evidence.length },
+      { key: "custody", label: "Custodia", count: custody.length },
+      { key: "legal", label: "Legal", count: legalMappings.length },
+      { key: "reports", label: "Informes", count: reports.length },
+      { key: "audit", label: "Auditoría", count: auditLogs.length }
+    ];
+
+    const renderParticipantsPanel = () => (
+      <div className="detail-panel">
+        <div className="panel-head">
+          <h3>Personas y entidades</h3>
+        </div>
+        {participants.map((item) => (
+          <div className="editable-record" key={item.id}>
+            <div>
+              <strong>{prettySpanish(item.display_name)}</strong>
+              <span>{prettySpanish(item.participant_type)} | {prettySpanish(item.person_type)} | {prettySpanish(item.sensitivity_level)}</span>
+              <small>{prettySpanish(item.relationship_to_case || item.role_description || "Relación pendiente")}</small>
+            </div>
+            <div className="record-actions">
+              <button className="icon-button" onClick={() => setEditingParticipant(item)} title="Editar"><Save size={15} /></button>
+              <button className="icon-button danger" onClick={() => deleteParticipant(item.id)} title="Eliminar"><Trash2 size={15} /></button>
+            </div>
+          </div>
+        ))}
+        {!participants.length && <EmptyState text="Sin participantes cargados." />}
+      </div>
+    );
+
+    const renderEvidencePanel = () => (
+      <div className="detail-panel">
+        <div className="panel-head">
+          <h3>Evidencia</h3>
+          <button className="secondary-button" onClick={() => setActive("evidence")}>Abrir evidencia</button>
+        </div>
+        {evidence.map((item) => (
+          <div className="editable-record" key={item.id}>
+            <div>
+              <strong>{prettySpanish(item.evidence_type)}</strong>
+              <span>{prettySpanish(item.description)}</span>
+              <code>{item.sha256_hash || "hash pendiente"}</code>
+            </div>
+            <div className="record-actions">
+              <button className="icon-button" onClick={() => setEditingEvidence(item)} title="Editar"><Save size={15} /></button>
+              <button className="icon-button danger" onClick={() => deleteEvidence(item.id)} title="Eliminar"><Trash2 size={15} /></button>
+            </div>
+          </div>
+        ))}
+        {!evidence.length && <EmptyState text="Sin evidencia cargada." />}
+      </div>
+    );
+
+    const renderCustodyPanel = () => (
+      <div className="detail-panel">
+        <div className="panel-head">
+          <h3>Cadena de custodia</h3>
+        </div>
+        {custody.map((item) => (
+          <div className="editable-record" key={item.id}>
+            <div>
+              <strong>{prettySpanish(item.action_type)}</strong>
+              <span>{prettySpanish(item.detailed_description)}</span>
+              <small>{prettySpanish(item.user_responsible || "Responsable pendiente")} | {prettySpanish(item.status)}</small>
+            </div>
+            <div className="record-actions">
+              <button className="icon-button" onClick={() => setEditingCustody(item)} title="Editar"><Save size={15} /></button>
+              <button className="icon-button danger" onClick={() => deleteCustodyAction(item.id)} title="Eliminar"><Trash2 size={15} /></button>
+            </div>
+          </div>
+        ))}
+        {!custody.length && <EmptyState text="Sin acciones de custodia." />}
+      </div>
+    );
+
+    const renderLegalPanel = () => (
+      <div className="detail-panel wide">
+        <div className="panel-head">
+          <h3>Mapeo legal y matriz probatoria</h3>
+          <button className="secondary-button" onClick={() => setActive("legalKnowledge")}>Abrir biblioteca</button>
+        </div>
+        {legalQualityControl && (
+          <div className={`quality-strip ${legalQualityControl.risk_level === "bajo" ? "success" : legalQualityControl.risk_level === "alto" ? "danger" : ""}`}>
+            <strong>Semáforo legal: {prettySpanish(legalQualityControl.risk_level)}</strong>
+            <span>Score {legalQualityControl.score}/100 | {prettySpanish(legalQualityControl.conclusion_impact)}</span>
+          </div>
+        )}
+        {legalRows.slice(0, 8).map((item, index) => (
+          <div className="editable-record" key={`${item.mapping_id}-${index}`}>
+            <div>
+              <strong>{item.norm_reference} · {prettySpanish(item.legal_element)}</strong>
+              <span>{prettySpanish(item.element_status)} | fuerza {prettySpanish(item.probatory_strength)} | riesgo {prettySpanish(item.contradiction_risk)}</span>
+              <small>{item.evidence_description || item.missing_evidence || "Sin vínculo probatorio registrado."}</small>
+            </div>
+          </div>
+        ))}
+        {!legalRows.length && <EmptyState text="Sin matriz legal-probatoria cargada." />}
+      </div>
+    );
+
+    const renderReportsPanel = () => (
+      <div className="detail-panel wide">
+        <div className="panel-head">
+          <h3>Informes y exportaciones</h3>
+          <button className="secondary-button" onClick={() => setActive("reports")}>Abrir informes</button>
+        </div>
+        {reports.map((item) => (
+          <div className="editable-record" key={item.id}>
+            <div>
+              <strong>{item.title}</strong>
+              <span>{professionalReportStatus(item.status)} | Score {item.review_score}</span>
+              <small>Exportabilidad estimada: {exportabilitySnapshot.level} ({exportabilitySnapshot.score}/100)</small>
+            </div>
+            <a className="text-link" href={`${API_BASE}/exports/reports/${item.id}/pdf`} target="_blank">Exportar PDF</a>
+          </div>
+        ))}
+        {!reports.length && <EmptyState text="Sin informes generados." />}
+        {!!manifests.length && (
+          <div className="mini-list">
+            {manifests.slice(0, 6).map((item) => (
+              <span key={item.id}>{item.export_type}: {item.filename} | {item.sha256_hash.slice(0, 16)}...</span>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+
+    const renderAuditPanel = () => (
+      <div className="detail-panel wide">
+        <div className="panel-head">
+          <h3>Auditoría del caso</h3>
+        </div>
+        <div className="audit-list">
+          {auditLogs.slice(0, 20).map((item) => (
+            <div key={item.id}>
+              <strong>{prettySpanish(item.action)}</strong>
+              <span>{item.module} | {item.severity} | {new Date(item.created_at).toLocaleString()}</span>
+              <small>{item.details || `${item.entity_type} ${item.entity_id}`}</small>
+            </div>
+          ))}
+          {!auditLogs.length && <EmptyState text="Sin auditoría visible para este caso." />}
+        </div>
+      </div>
+    );
+
     return (
       <div className="case-detail">
         <section className="work-surface">
           <div className="section-head">
             <div>
-              <h2>Detalle Profesional del Caso</h2>
+              <h2>Expediente Maestro del Caso</h2>
               <p>{selectedCase ? `${selectedCase.case_code} - ${selectedCase.title}` : "Selecciona un caso para ver su expediente completo."}</p>
             </div>
             <select value={selectedCaseId} onChange={(event) => setSelectedCaseId(Number(event.target.value) || "")}>
@@ -1394,115 +1555,87 @@ export function App() {
             </select>
           </div>
           {selectedCase ? (
-            <div className="case-overview">
-              <div><span>Estado</span><strong>{selectedCase.status}</strong></div>
-              <div><span>Incidente</span><strong>{selectedCase.incident_type}</strong></div>
-              <div><span>Participantes</span><strong>{participants.length}</strong></div>
-              <div><span>Evidencia</span><strong>{evidence.length}</strong></div>
-              <div><span>Custodia</span><strong>{custody.length}</strong></div>
-              <div><span>Informes</span><strong>{reports.length}</strong></div>
+            <div className="case-dossier-hero">
+              <div className="dossier-main">
+                <span className="eyebrow">{selectedCase.case_code}</span>
+                <h3>{selectedCase.title}</h3>
+                <p>{prettySpanish(selectedCase.description || "Sin narrativa inicial cargada.")}</p>
+                <div className="dossier-badges">
+                  <span>{prettySpanish(selectedCase.status)}</span>
+                  <span>{prettySpanish(selectedCase.incident_type)}</span>
+                  <span>{exportabilitySnapshot.level} · {exportabilitySnapshot.score}/100</span>
+                </div>
+              </div>
+              <div className="dossier-actions">
+                <button onClick={() => setActive("workflow")}><CheckCircle2 size={16} /> Flujo</button>
+                <button className="secondary-button" onClick={() => setActive("reports")}><FileText size={16} /> Informes</button>
+                <button className="secondary-button" onClick={() => setActive("legalKnowledge")}><Gavel size={16} /> Legal</button>
+              </div>
             </div>
           ) : <EmptyState text="No hay caso seleccionado." />}
           {locked && <p className="notice success">Caso cerrado: las modificaciones futuras deberian tratarse como reapertura o correccion auditada.</p>}
         </section>
 
-        <section className="detail-grid">
-          <div className="detail-panel">
-            <div className="panel-head">
-              <h3>Personas y entidades</h3>
-            </div>
-            {participants.map((item) => (
-              <div className="editable-record" key={item.id}>
-                <div>
-                  <strong>{item.display_name}</strong>
-                  <span>{item.participant_type} | {item.person_type} | {item.sensitivity_level}</span>
-                  <small>{item.relationship_to_case || item.role_description || "Relacion pendiente"}</small>
-                </div>
-                <div className="record-actions">
-                  <button className="icon-button" onClick={() => setEditingParticipant(item)} title="Editar"><Save size={15} /></button>
-                  <button className="icon-button danger" onClick={() => deleteParticipant(item.id)} title="Eliminar"><Trash2 size={15} /></button>
-                </div>
-              </div>
+        <section className="work-surface compact-surface">
+          <div className="dossier-tabs">
+            {tabs.map((tab) => (
+              <button key={tab.key} className={caseDetailTab === tab.key ? "active" : ""} onClick={() => setCaseDetailTab(tab.key)}>
+                {tab.label}{typeof tab.count === "number" ? ` ${tab.count}` : ""}
+              </button>
             ))}
-            {!participants.length && <EmptyState text="Sin participantes cargados." />}
           </div>
 
-          <div className="detail-panel">
-            <div className="panel-head">
-              <h3>Evidencia</h3>
-            </div>
-            {evidence.map((item) => (
-              <div className="editable-record" key={item.id}>
-                <div>
-                  <strong>{item.evidence_type}</strong>
-                  <span>{item.description}</span>
-                  <code>{item.sha256_hash || "hash pendiente"}</code>
+          {caseDetailTab === "summary" && (
+            <div className="dossier-grid">
+              <div className="detail-panel wide">
+                <div className="panel-head">
+                  <h3>Estado operativo del expediente</h3>
                 </div>
-                <div className="record-actions">
-                  <button className="icon-button" onClick={() => setEditingEvidence(item)} title="Editar"><Save size={15} /></button>
-                  <button className="icon-button danger" onClick={() => deleteEvidence(item.id)} title="Eliminar"><Trash2 size={15} /></button>
-                </div>
-              </div>
-            ))}
-            {!evidence.length && <EmptyState text="Sin evidencia cargada." />}
-          </div>
-
-          <div className="detail-panel">
-            <div className="panel-head">
-              <h3>Cadena de custodia</h3>
-            </div>
-            {custody.map((item) => (
-              <div className="editable-record" key={item.id}>
-                <div>
-                  <strong>{item.action_type}</strong>
-                  <span>{item.detailed_description}</span>
-                  <small>{item.user_responsible || "Responsable pendiente"} | {item.status}</small>
-                </div>
-                <div className="record-actions">
-                  <button className="icon-button" onClick={() => setEditingCustody(item)} title="Editar"><Save size={15} /></button>
-                  <button className="icon-button danger" onClick={() => deleteCustodyAction(item.id)} title="Eliminar"><Trash2 size={15} /></button>
+                <div className="readiness-list">
+                  {readinessItems.map((item) => (
+                    <div className={`readiness-item ${item.ok ? "ok" : ""}`} key={item.label}>
+                      <CheckCircle2 size={16} />
+                      <div>
+                        <strong>{item.label}</strong>
+                        <span>{item.detail}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
-            {!custody.length && <EmptyState text="Sin acciones de custodia." />}
-          </div>
-
-          <div className="detail-panel">
-            <div className="panel-head">
-              <h3>Informes y exportaciones</h3>
-            </div>
-            {reports.map((item) => (
-              <div className="editable-record" key={item.id}>
-                <div>
-                  <strong>{item.title}</strong>
-                  <span>{professionalReportStatus(item.status)} | Score {item.review_score}</span>
-                  <small>Exportabilidad estimada: {exportabilitySnapshot.level} ({exportabilitySnapshot.score}/100)</small>
+              <div className="detail-panel">
+                <div className="panel-head">
+                  <h3>Resumen técnico</h3>
                 </div>
-                <a className="text-link" href={`${API_BASE}/exports/reports/${item.id}/pdf`} target="_blank">Exportar PDF</a>
+                <div className="case-overview">
+                  <div><span>Participantes</span><strong>{participants.length}</strong></div>
+                  <div><span>Evidencia</span><strong>{evidence.length}</strong></div>
+                  <div><span>Custodia</span><strong>{custody.length}</strong></div>
+                  <div><span>Informes</span><strong>{reports.length}</strong></div>
+                </div>
               </div>
-            ))}
-            <div className="mini-list">
-              {manifests.slice(0, 6).map((item) => (
-                <span key={item.id}>{item.export_type}: {item.filename} | {item.sha256_hash.slice(0, 16)}...</span>
-              ))}
-            </div>
-          </div>
-
-          <div className="detail-panel wide">
-            <div className="panel-head">
-              <h3>Auditoria del caso</h3>
-            </div>
-            <div className="audit-list">
-              {auditLogs.slice(0, 20).map((item) => (
-                <div key={item.id}>
-                  <strong>{item.action}</strong>
-                  <span>{item.module} | {item.severity} | {new Date(item.created_at).toLocaleString()}</span>
-                  <small>{item.details || `${item.entity_type} ${item.entity_id}`}</small>
+              <div className="detail-panel">
+                <div className="panel-head">
+                  <h3>Última actividad</h3>
                 </div>
-              ))}
-              {!auditLogs.length && <EmptyState text="Sin auditoria visible para este caso." />}
+                {latestAudit ? (
+                  <div className="editable-record single">
+                    <div>
+                      <strong>{prettySpanish(latestAudit.action)}</strong>
+                      <span>{latestAudit.module} | {latestAudit.severity}</span>
+                      <small>{new Date(latestAudit.created_at).toLocaleString()}</small>
+                    </div>
+                  </div>
+                ) : <EmptyState text="Sin actividad auditada." />}
+              </div>
             </div>
-          </div>
+          )}
+          {caseDetailTab === "participants" && renderParticipantsPanel()}
+          {caseDetailTab === "evidence" && renderEvidencePanel()}
+          {caseDetailTab === "custody" && renderCustodyPanel()}
+          {caseDetailTab === "legal" && renderLegalPanel()}
+          {caseDetailTab === "reports" && renderReportsPanel()}
+          {caseDetailTab === "audit" && renderAuditPanel()}
         </section>
 
         {editingParticipant && (
