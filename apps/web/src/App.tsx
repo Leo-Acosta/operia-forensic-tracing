@@ -1233,19 +1233,26 @@ export function App() {
     setAiResult(await apiPost(`/ai/case/${selectedCaseId}/recommendations`, { focus: aiPrompt }));
   }
 
-  async function runLegalTypification(createSuggestions = false) {
+  async function runLegalTypification(createSuggestions = false, focusOverride?: string) {
     if (!selectedCaseId) {
       setError("Selecciona un caso antes de tipificar el incidente.");
       return;
     }
     const result = await apiPost<LegalTypificationResult>(`/ai/case/${selectedCaseId}/legal-typification`, {
-      focus: aiPrompt,
+      focus: focusOverride || aiPrompt,
       create_suggestions: createSuggestions,
       analyst_name: analystName
     });
     setLegalTypification(result);
     setAiResult(result);
     if (createSuggestions) await refreshCaseCollections(selectedCaseId);
+  }
+
+  async function searchAndTypifyLegal(createSuggestions = false) {
+    await searchLegal();
+    if (selectedCaseId) {
+      await runLegalTypification(createSuggestions, legalQuery);
+    }
   }
 
   async function verifyEvidenceIntegrity(evidenceId: number) {
@@ -1415,17 +1422,39 @@ export function App() {
             <JsonPanel data={indicatorResult} />
           </StepCard>
 
-          <StepCard number={6} title="Consultar biblioteca legal argentina" done={articles.length > 0}>
+          <StepCard number={6} title="Tipificar incidente con normativa argentina" done={Boolean(legalTypification?.principal_typification || legalMappings.length)}>
             <div className="compact-form">
               <input value={legalQuery} onChange={(e) => setLegalQuery(e.target.value)} />
-              <button onClick={searchLegal}><Search size={17} /> Buscar normas</button>
+              <button onClick={() => searchAndTypifyLegal(false)}><Gavel size={17} /> Tipificar y sugerir norma</button>
+              <button className="secondary-button" onClick={() => searchAndTypifyLegal(true)} disabled={!selectedCaseId}>
+                <CheckCircle2 size={17} /> Aplicar al caso
+              </button>
             </div>
-            <div className="mini-list">
-              {articles.slice(0, 4).map((item) => (
-                <span key={item.id}>{item.code} art. {item.article_number} - {item.title}</span>
-              ))}
-            </div>
-            <JsonPanel data={legalRecommendation} />
+            {legalTypification?.principal_typification ? (
+              <div className="typification-card compact">
+                <span>{legalTypification.profile?.label || "Tipificacion asistida"}</span>
+                <h3>{legalTypification.principal_typification.reference} · {prettySpanish(legalTypification.principal_typification.title)}</h3>
+                <p>{prettySpanish(legalTypification.principal_typification.applicability_to_case)}</p>
+                <small>Elementos: {prettySpanish(legalTypification.principal_typification.why)}</small>
+                <small>Limites: {prettySpanish(legalTypification.principal_typification.probatory_limits)}</small>
+                <div className="readiness-bar"><div style={{ width: `${legalTypification.readiness_score}%` }} /></div>
+                <small>Confianza {prettySpanish(legalTypification.confidence)} · {prettySpanish(legalTypification.decision_level)}</small>
+              </div>
+            ) : (
+              <EmptyState text="Describe el incidente y ejecuta la tipificacion. OPERIA sugerira la norma principal y conexas." />
+            )}
+            {legalTypification?.connected_typifications?.length ? (
+              <div className="mini-list">
+                {legalTypification.connected_typifications.slice(0, 4).map((item) => (
+                  <span key={`${item.article_id}-${item.reference}`}>{item.reference} · {prettySpanish(item.title)} · {prettySpanish(item.legal_role)}</span>
+                ))}
+              </div>
+            ) : null}
+            {legalTypification?.missing_for_stronger_typification?.length ? (
+              <ul className="compact-list">
+                {legalTypification.missing_for_stronger_typification.map((item) => <li key={item}>{prettySpanish(item)}</li>)}
+              </ul>
+            ) : null}
           </StepCard>
 
           <StepCard number={7} title="Ampliar análisis técnico-jurídico" done={Boolean(aiResult)}>
