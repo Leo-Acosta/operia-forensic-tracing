@@ -346,9 +346,13 @@ type CyberTool = {
   category: string;
   executable_path?: string;
   default_command?: string;
+  result_import_formats?: string;
+  is_commercial_optional?: boolean;
   installed_status: string;
   notes?: string;
   website_url?: string;
+  documentation_url?: string;
+  safety_notes?: string;
 };
 
 type CyberLabSession = {
@@ -614,7 +618,7 @@ export function App() {
   const [cyberTools, setCyberTools] = useState<CyberTool[]>([]);
   const [cyberLabSessions, setCyberLabSessions] = useState<CyberLabSession[]>([]);
   const [cyberProofRows, setCyberProofRows] = useState<CyberProofRow[]>([]);
-  const [cyberToolForm, setCyberToolForm] = useState({ name: "", category: "osint", executable_path: "", default_command: "", notes: "" });
+  const [cyberToolForm, setCyberToolForm] = useState({ name: "", category: "osint", executable_path: "", default_command: "", notes: "", website_url: "", documentation_url: "", safety_notes: "" });
   const [cyberLabForm, setCyberLabForm] = useState({ title: "", purpose: "analisis de indicador", risk_level: "medio", operator: "" });
   const [cyberProofForm, setCyberProofForm] = useState({
     defensible_conclusion: "",
@@ -965,7 +969,7 @@ export function App() {
   async function createCyberTool(event: FormEvent) {
     event.preventDefault();
     await apiPost<CyberTool>("/cybercrime/tools", cyberToolForm);
-    setCyberToolForm({ name: "", category: "osint", executable_path: "", default_command: "", notes: "" });
+    setCyberToolForm({ name: "", category: "osint", executable_path: "", default_command: "", notes: "", website_url: "", documentation_url: "", safety_notes: "" });
     await refreshCybercrime();
   }
 
@@ -2351,12 +2355,26 @@ export function App() {
 
 
   function renderExternalTools() {
+    const isAiTool = (item: CyberTool) => {
+      const haystack = `${item.name} ${item.category}`.toLowerCase();
+      return ["ia-", "ai ", "deepfake", "generativa", "imagen-forense", "media", "forensically", "faceforensics", "deepware", "hive"].some((token) => haystack.includes(token));
+    };
+    const onlineTools = cyberTools.filter((item) => item.website_url);
+    const aiMediaTools = cyberTools.filter(isAiTool);
+    const localTools = cyberTools.filter((item) => item.default_command || item.executable_path);
+    const verifiedTools = cyberTools.filter((item) => item.installed_status === "encontrada");
+    const categories = new Set(cyberTools.map((item) => item.category || "sin categoria"));
+    const highlightedTools = [
+      ...onlineTools.filter((item) => isAiTool(item)),
+      ...onlineTools.filter((item) => !isAiTool(item))
+    ].slice(0, 8);
+
     return (
       <section className="work-surface cyber-workbench">
         <div className="section-head">
           <div>
             <h2>Herramientas Externas</h2>
-            <p>Registro controlado de herramientas auxiliares como whois, nslookup, exiftool, nmap o analizadores de headers.</p>
+            <p>Catalogo pericial para documentar herramientas auxiliares, enlaces oficiales, uso online y limites tecnicos.</p>
           </div>
           <div className="actions-line">
             <button onClick={seedForensicToolSet}><Wrench size={16} /> Cargar set pericial base</button>
@@ -2364,40 +2382,109 @@ export function App() {
           </div>
         </div>
 
-        <div className="notice">
-          OPERIA puede documentar que herramienta se uso, con que proposito y bajo que limites. La herramienta externa no reemplaza la evidencia preservada, la cadena de custodia ni la revision del analista.
+        <div className="tool-dashboard">
+          <div className="tool-stat"><span>Total registradas</span><strong>{cyberTools.length}</strong></div>
+          <div className="tool-stat"><span>Con enlace web</span><strong>{onlineTools.length}</strong></div>
+          <div className="tool-stat"><span>IA / deepfake / media</span><strong>{aiMediaTools.length}</strong></div>
+          <div className="tool-stat"><span>Locales o comando</span><strong>{localTools.length}</strong></div>
+          <div className="tool-stat"><span>Verificadas</span><strong>{verifiedTools.length}</strong></div>
+          <div className="tool-stat"><span>Categorias</span><strong>{categories.size}</strong></div>
         </div>
 
-        <div className="detail-grid">
+        <div className="notice">
+          OPERIA registra que herramienta se uso, con que proposito, fuente y limites. Si una herramienta opera online, trata su boton como salida externa: no cargues evidencia sensible sin autorizacion y sin preservar copia/hash local.
+        </div>
+
+        <div className="detail-panel">
+          <div className="panel-head">
+            <div>
+              <h3>Herramientas online destacadas</h3>
+              <p>Accesos rapidos a recursos web utiles para OSINT, imagen forense, deepfake e indicadores.</p>
+            </div>
+          </div>
+          <div className="tool-grid">
+            {highlightedTools.map((item) => (
+              <article className={`tool-card ${isAiTool(item) ? "is-ai" : ""}`} key={`highlight-${item.id}`}>
+                <div className="tool-card-head">
+                  <div>
+                    <span className="tool-kicker">{prettySpanish(item.category)}</span>
+                    <h4>{item.name}</h4>
+                  </div>
+                  <span className="tool-badge online">Online</span>
+                </div>
+                <p>{item.notes || "Herramienta externa registrada para consulta controlada."}</p>
+                {item.safety_notes && <small className="tool-safety">{item.safety_notes}</small>}
+                <div className="tool-actions">
+                  {item.website_url && <a className="button-link" href={item.website_url} target="_blank" rel="noreferrer"><Globe2 size={15} /> Abrir web</a>}
+                  {item.documentation_url && <a className="button-link secondary-link" href={item.documentation_url} target="_blank" rel="noreferrer"><BookOpen size={15} /> Docs</a>}
+                </div>
+              </article>
+            ))}
+            {!highlightedTools.length && <EmptyState text="Carga el set pericial base para ver herramientas online." />}
+          </div>
+        </div>
+
+        <div className="external-tools-layout">
+          <div className="detail-panel">
+            <div className="panel-head">
+              <div>
+                <h3>Herramientas registradas</h3>
+                <p>Catalogo completo con verificacion local, enlaces, categoria y notas de uso.</p>
+              </div>
+            </div>
+            <div className="tool-list">
+              {cyberTools.map((item) => (
+                <article className="tool-row" key={item.id}>
+                  <div className="tool-row-main">
+                    <div className="tool-card-head">
+                      <div>
+                        <span className="tool-kicker">{prettySpanish(item.category)}</span>
+                        <h4>{item.name}</h4>
+                      </div>
+                      <div className="tool-badges">
+                        {item.website_url && <span className="tool-badge online">Web</span>}
+                        {(item.default_command || item.executable_path) && <span className="tool-badge local">Local</span>}
+                        {isAiTool(item) && <span className="tool-badge ai">IA</span>}
+                      </div>
+                    </div>
+                    <p>{item.notes || item.default_command || item.executable_path || "Sin notas registradas."}</p>
+                    <div className="tool-meta">
+                      <span>Estado: {prettySpanish(item.installed_status || "no verificado")}</span>
+                      {item.result_import_formats && <span>Formatos: {item.result_import_formats}</span>}
+                    </div>
+                    {item.safety_notes && <small className="tool-safety">{item.safety_notes}</small>}
+                  </div>
+                  <div className="tool-actions vertical">
+                    <button className="secondary-button" onClick={() => verifyCyberTool(item.id)}>Verificar</button>
+                    {item.website_url && <a className="button-link" href={item.website_url} target="_blank" rel="noreferrer"><Globe2 size={15} /> Web</a>}
+                    {item.documentation_url && <a className="button-link secondary-link" href={item.documentation_url} target="_blank" rel="noreferrer"><BookOpen size={15} /> Docs</a>}
+                  </div>
+                </article>
+              ))}
+              {!cyberTools.length && <EmptyState text="Sin herramientas registradas." />}
+            </div>
+          </div>
+
           <form className="detail-panel" onSubmit={createCyberTool}>
             <div className="panel-head">
-              <h3>Registrar herramienta externa</h3>
+              <div>
+                <h3>Registrar herramienta externa</h3>
+                <p>Agrega recursos propios, paginas web, comandos o suites locales usadas en una pericia.</p>
+              </div>
             </div>
             <div className="inline-grid">
               <input placeholder="Nombre. Ej: whois, nslookup, exiftool, nmap" value={cyberToolForm.name} onChange={(e) => setCyberToolForm({ ...cyberToolForm, name: e.target.value })} required />
               <input placeholder="Categoria. Ej: osint, red, metadatos" value={cyberToolForm.category} onChange={(e) => setCyberToolForm({ ...cyberToolForm, category: e.target.value })} />
             </div>
             <input placeholder="Ruta ejecutable o comando base" value={cyberToolForm.executable_path} onChange={(e) => setCyberToolForm({ ...cyberToolForm, executable_path: e.target.value })} />
+            <div className="inline-grid">
+              <input placeholder="URL web oficial o servicio online" value={cyberToolForm.website_url} onChange={(e) => setCyberToolForm({ ...cyberToolForm, website_url: e.target.value })} />
+              <input placeholder="URL de documentacion" value={cyberToolForm.documentation_url} onChange={(e) => setCyberToolForm({ ...cyberToolForm, documentation_url: e.target.value })} />
+            </div>
             <textarea placeholder="Notas de uso seguro, limites y formato de resultados" value={cyberToolForm.notes} onChange={(e) => setCyberToolForm({ ...cyberToolForm, notes: e.target.value })} />
+            <textarea placeholder="Advertencias de privacidad, autorizacion o alcance pericial" value={cyberToolForm.safety_notes} onChange={(e) => setCyberToolForm({ ...cyberToolForm, safety_notes: e.target.value })} />
             <button><Wrench size={17} /> Registrar herramienta</button>
           </form>
-
-          <div className="detail-panel">
-            <div className="panel-head">
-              <h3>Herramientas registradas</h3>
-            </div>
-            {cyberTools.slice(0, 12).map((item) => (
-              <div className="editable-record" key={item.id}>
-                <div>
-                  <strong>{item.name}</strong>
-                  <span>{prettySpanish(item.category)} | {prettySpanish(item.installed_status)}</span>
-                  <small>{item.notes || item.executable_path || "Sin notas."}</small>
-                </div>
-                <button className="secondary-button" onClick={() => verifyCyberTool(item.id)}>Verificar</button>
-              </div>
-            ))}
-            {!cyberTools.length && <EmptyState text="Sin herramientas registradas." />}
-          </div>
         </div>
       </section>
     );

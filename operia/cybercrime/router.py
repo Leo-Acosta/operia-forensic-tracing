@@ -423,6 +423,94 @@ FORENSIC_TOOL_PRESETS: list[dict[str, Any]] = [
     },
 ]
 
+FORENSIC_TOOL_LINKS: dict[str, dict[str, str | bool]] = {
+    "whois": {"website_url": "https://www.iana.org/whois"},
+    "exiftool": {"website_url": "https://exiftool.org/"},
+    "Autopsy": {"website_url": "https://www.autopsy.com/"},
+    "FTK Imager": {"website_url": "https://www.exterro.com/ftk-product-downloads/ftk-imager-version-4-7-3", "is_commercial_optional": True},
+    "Volatility": {"website_url": "https://volatilityfoundation.org/", "documentation_url": "https://volatility3.readthedocs.io/"},
+    "Wireshark": {"website_url": "https://www.wireshark.org/"},
+    "nmap": {"website_url": "https://nmap.org/", "documentation_url": "https://nmap.org/book/man.html"},
+    "CyberChef": {"website_url": "https://gchq.github.io/CyberChef/", "documentation_url": "https://github.com/gchq/CyberChef"},
+    "YARA": {"website_url": "https://virustotal.github.io/yara/", "documentation_url": "https://yara.readthedocs.io/"},
+    "SQLite Browser": {"website_url": "https://sqlitebrowser.org/"},
+    "Kali Linux": {"website_url": "https://www.kali.org/", "documentation_url": "https://www.kali.org/docs/"},
+    "Tsurugi Linux": {"website_url": "https://tsurugi-linux.org/"},
+    "CAINE": {"website_url": "https://www.caine-live.net/"},
+    "REMnux": {"website_url": "https://remnux.org/"},
+    "SIFT Workstation": {"website_url": "https://www.sans.org/tools/sift-workstation/"},
+    "Windows Sysinternals Suite": {"website_url": "https://learn.microsoft.com/en-us/sysinternals/"},
+    "KAPE": {"website_url": "https://www.kroll.com/en/services/cyber-risk/incident-response-litigation-support/kroll-artifact-parser-extractor-kape"},
+}
+
+FORENSIC_AI_MEDIA_PRESETS: list[dict[str, Any]] = [
+    {
+        "name": "InVID-WeVerify Verification Plugin",
+        "category": "online/ia-deepfake-osint",
+        "result_import_formats": "capturas, TXT, HTML",
+        "notes": "Verificacion OSINT de videos, imagenes y contenido social; util para trazabilidad de frames, miniaturas, busqueda inversa y contexto.",
+        "website_url": "https://www.invid-project.eu/tools-and-services/invid-verification-plugin/",
+        "documentation_url": "https://www.weverify.eu/tools/",
+        "safety_notes": "No subir evidencia sensible sin autorizacion. Preservar capturas, URL, fecha de consulta y resultado.",
+    },
+    {
+        "name": "Forensically",
+        "category": "online/imagen-forense",
+        "result_import_formats": "capturas, PNG, TXT",
+        "notes": "Analisis visual de imagenes en navegador: ELA, clonacion, ruido, metadatos y artefactos de compresion.",
+        "website_url": "https://29a.ch/photo-forensics/",
+        "documentation_url": "https://github.com/29a/forensically",
+        "safety_notes": "Usar copia de trabajo. Documentar limitaciones: los indicios visuales no prueban autoria ni falsedad por si solos.",
+    },
+    {
+        "name": "FotoForensics",
+        "category": "online/imagen-forense",
+        "result_import_formats": "capturas, HTML, TXT",
+        "notes": "Servicio web de analisis de imagenes con ELA y reportes auxiliares para detectar posibles manipulaciones.",
+        "website_url": "https://fotoforensics.com/",
+        "safety_notes": "Servicio externo: no cargar imagenes privadas o sensibles sin base legal/autorizacion expresa.",
+    },
+    {
+        "name": "Deepware Scanner",
+        "category": "online/ia-deepfake",
+        "result_import_formats": "capturas, TXT",
+        "notes": "Analizador online orientado a deteccion preliminar de deepfakes en video.",
+        "website_url": "https://scanner.deepware.ai/",
+        "safety_notes": "Resultado orientativo. No usar como conclusion unica; conservar archivo original, hashes y metodologia.",
+    },
+    {
+        "name": "Hive AI Detector",
+        "category": "online/ia-generativa",
+        "result_import_formats": "capturas, TXT, JSON si disponible",
+        "notes": "Detector online de contenido generado por IA para imagenes, texto o medios segun disponibilidad del servicio.",
+        "website_url": "https://hivemoderation.com/ai-generated-content-detection",
+        "safety_notes": "Servicio externo/comercial. Evaluar privacidad antes de cargar material sensible.",
+        "is_commercial_optional": True,
+    },
+    {
+        "name": "DeepFaceLab",
+        "category": "opensource/ia-deepfake-lab",
+        "result_import_formats": "TXT, capturas, logs",
+        "notes": "Proyecto open source de referencia para entender flujos de deepfake y artefactos tecnicos asociados.",
+        "website_url": "https://github.com/iperov/DeepFaceLab",
+        "safety_notes": "No es detector probatorio por si mismo. Usar para laboratorio, comparacion tecnica y capacitacion controlada.",
+    },
+    {
+        "name": "FaceForensics++",
+        "category": "academico/ia-deepfake-dataset",
+        "result_import_formats": "paper, dataset, metricas",
+        "notes": "Dataset y benchmark academico para investigacion de deteccion de manipulacion facial y deepfakes.",
+        "website_url": "https://github.com/ondyari/FaceForensics",
+        "documentation_url": "https://arxiv.org/abs/1901.08971",
+        "safety_notes": "Referencia academica. No reemplaza analisis pericial del archivo concreto.",
+    },
+]
+
+for preset in FORENSIC_TOOL_PRESETS:
+    preset.update(FORENSIC_TOOL_LINKS.get(preset["name"], {}))
+
+FORENSIC_TOOL_PRESETS.extend(FORENSIC_AI_MEDIA_PRESETS)
+
 
 @router.post("/tools/seed-forensic-set")
 def seed_forensic_tool_set(db: Session = Depends(get_db)):
