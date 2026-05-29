@@ -13,6 +13,7 @@ import {
   Fingerprint,
   Gavel,
   Globe2,
+  History,
   Map,
   Navigation,
   RefreshCcw,
@@ -43,6 +44,7 @@ type ModuleKey =
   | "geoProximity"
   | "identity"
   | "exports"
+  | "history"
   | "settings";
 
 type CaseItem = {
@@ -52,6 +54,7 @@ type CaseItem = {
   description: string;
   incident_type: string;
   status: string;
+  created_at?: string;
   updated_at?: string;
 };
 
@@ -448,6 +451,7 @@ const modules: Array<{ key: ModuleKey; label: string; icon: typeof BarChart3 }> 
   { key: "geoProximity", label: "Geo Proximity", icon: Navigation },
   { key: "identity", label: "Usuarios", icon: Users },
   { key: "exports", label: "Exportaciones", icon: Download },
+  { key: "history", label: "Historial", icon: History },
   { key: "settings", label: "Configuracion", icon: Settings }
 ];
 
@@ -701,6 +705,10 @@ export function App() {
   const [error, setError] = useState("");
 
   const selectedCase = useMemo(() => cases.find((item) => item.id === Number(selectedCaseId)), [cases, selectedCaseId]);
+  const chronologicalCases = useMemo(
+    () => [...cases].sort((a, b) => caseTimestamp(b) - caseTimestamp(a)),
+    [cases]
+  );
   const latestReport = reports[0];
   const latestEvidence = evidence[0];
   const exportabilitySnapshot = useMemo(
@@ -839,6 +847,32 @@ export function App() {
     setIdentitySession(session);
     setPermissions(permissionData);
     setModulePayload({ session, permissions: permissionData });
+  }
+
+  function caseTimestamp(item: CaseItem) {
+    const value = item.updated_at || item.created_at || "";
+    const parsed = value ? new Date(value).getTime() : 0;
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function formatHistoryDate(value?: string) {
+    if (!value) return "Sin fecha registrada";
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return "Sin fecha registrada";
+    return date.toLocaleString("es-AR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  }
+
+  function openCaseFromHistory(caseId: number, destination: ModuleKey = "workflow") {
+    setSelectedCaseId(caseId);
+    setActive(destination);
+    if (destination === "caseDetail") setCaseDetailTab("summary");
+    setModulePayload({ status: "historial_caso_abierto", case_id: caseId });
   }
 
   async function refreshCybercrime() {
@@ -1718,20 +1752,15 @@ export function App() {
             </div>
           </div>
           <div className="case-selector">
-            <label>
-              Caso activo
-              <select value={selectedCaseId} onChange={(event) => setSelectedCaseId(Number(event.target.value) || "")}>
-                <option value="">Sin caso seleccionado</option>
-                {cases.map((item) => (
-                  <option value={item.id} key={item.id}>
-                    {item.case_code} - {item.title}
-                  </option>
-                ))}
-              </select>
-            </label>
             <div className="case-summary">
               <strong>{selectedCase?.title || "Nuevo caso operativo"}</strong>
               <span>{selectedCase ? `${selectedCase.case_code} | ${selectedCase.incident_type} | ${selectedCase.status}` : "Crea o selecciona un caso para iniciar."}</span>
+            </div>
+            <div className="case-selector-actions">
+              <button className="secondary-button" onClick={() => setActive("history")}>
+                <History size={17} /> Abrir Historial
+              </button>
+              <small>Los casos abiertos quedan guardados para retomarlos desde Historial.</small>
             </div>
           </div>
         </section>
@@ -2044,6 +2073,90 @@ export function App() {
             </button>
           ))}
           {!cases.length && <EmptyState text="No hay casos registrados." />}
+        </div>
+      </section>
+    );
+  }
+
+  function renderHistory() {
+    const isClosedCase = (item: CaseItem) => item.status.toLowerCase() === "cerrado";
+    const openItems = chronologicalCases.filter((item) => !isClosedCase(item));
+    const closedItems = chronologicalCases.filter((item) => isClosedCase(item));
+
+    return (
+      <section className="work-surface history-workspace">
+        <div className="section-head">
+          <div>
+            <h2>Historial</h2>
+            <p>Linea cronologica de casos, informes, flujo de trabajo y exportaciones asociadas.</p>
+          </div>
+          <div className="section-actions">
+            <button className="new-case-button" onClick={() => {
+              startNewCaseDraft();
+              setActive("workflow");
+            }}>
+              <Briefcase size={17} /> Nuevo Caso
+            </button>
+            <button className="icon-button" onClick={refreshCore} title="Actualizar historial">
+              <RefreshCcw size={18} />
+            </button>
+          </div>
+        </div>
+
+        <div className="history-stats">
+          <div>
+            <span>Total de casos</span>
+            <strong>{chronologicalCases.length}</strong>
+          </div>
+          <div>
+            <span>En curso</span>
+            <strong>{openItems.length}</strong>
+          </div>
+          <div>
+            <span>Cerrados</span>
+            <strong>{closedItems.length}</strong>
+          </div>
+        </div>
+
+        <div className="history-list">
+          {chronologicalCases.map((item) => {
+            const isClosed = isClosedCase(item);
+            const isSelected = selectedCaseId === item.id;
+            return (
+              <article className={`history-item ${isSelected ? "selected" : ""}`} key={item.id}>
+                <div className={`history-dot ${isClosed ? "closed" : "open"}`} />
+                <div className="history-main">
+                  <div className="history-title-row">
+                    <div>
+                      <code>{item.case_code}</code>
+                      <h3>{item.title}</h3>
+                    </div>
+                    <span className={`badge ${isClosed ? "" : "success"}`}>{prettySpanish(item.status)}</span>
+                  </div>
+                  <div className="history-meta">
+                    <span>{prettySpanish(item.incident_type)}</span>
+                    <span>Ultima actividad: {formatHistoryDate(item.updated_at || item.created_at)}</span>
+                  </div>
+                  <p>{item.description ? prettySpanish(item.description) : "Sin descripcion inicial registrada."}</p>
+                  <div className="history-footnote">
+                    <span>Flujo de trabajo, informes y exportaciones permanecen asociados a este caso.</span>
+                  </div>
+                </div>
+                <div className="history-actions">
+                  {!isClosed && (
+                    <button onClick={() => openCaseFromHistory(item.id, "workflow")}>
+                      <RefreshCcw size={16} /> Continuar trabajo
+                    </button>
+                  )}
+                  <button className="secondary-button" onClick={() => openCaseFromHistory(item.id, "caseDetail")}>
+                    <FileCheck2 size={16} /> Ver detalle
+                  </button>
+                  {isClosed && <small>Caso cerrado: disponible para consulta y exportacion.</small>}
+                </div>
+              </article>
+            );
+          })}
+          {!chronologicalCases.length && <EmptyState text="No hay casos registrados en el historial." />}
         </div>
       </section>
     );
@@ -3416,6 +3529,7 @@ export function App() {
     if (active === "ai") return renderAi();
     if (active === "aiSecurity") return renderAiSecurity();
     if (active === "identity") return renderIdentity();
+    if (active === "history") return renderHistory();
     return renderModuleStatus(modules.find((item) => item.key === active)?.label ?? "Modulo");
   }
 
