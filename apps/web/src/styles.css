@@ -1556,6 +1556,13 @@ code {
   padding: 7px 9px;
 }
 
+.requirements em {
+  color: #7a5317;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+}
+
 .requirements.danger {
   background: #fff0f0;
   border-color: #edb7b7;

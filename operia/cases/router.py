@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
@@ -130,17 +130,11 @@ def close_case(
     status = case_closure_status(db, case)
     if status["already_closed"]:
         return status | {"message": "El caso ya estaba cerrado."}
-    if not status["ready_to_close"]:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "message": "El caso todavia no cumple los requisitos minimos de cierre.",
-                "missing": status["missing"],
-                "requirements": status["requirements"],
-            },
-        )
     case.status = "cerrado"
     note = str(payload.get("closure_note") or "Cierre operativo del caso desde OPERIA.")
+    missing_before_close = list(status["missing"])
+    if missing_before_close:
+        note = f"{note}\nAdvertencias al cierre: {'; '.join(missing_before_close)}"
     case.general_observations = (case.general_observations or "").rstrip() + f"\n\n[Cierre] {note}"
     db.add(
         ChainOfCustodyAction(
@@ -164,7 +158,11 @@ def close_case(
     )
     db.commit()
     db.refresh(case)
-    return case_closure_status(db, case) | {"message": "Caso cerrado correctamente."}
+    return case_closure_status(db, case) | {
+        "message": "Caso cerrado correctamente.",
+        "closure_warnings": missing_before_close,
+        "closure_mode": "cierre_operativo_con_advertencias" if missing_before_close else "cierre_operativo_completo",
+    }
 
 
 @router.post("/{case_id}/participants", response_model=CaseParticipantRead)

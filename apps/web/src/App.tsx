@@ -330,6 +330,8 @@ type ClosureStatus = {
   requirements: Record<string, boolean>;
   counts: Record<string, number>;
   message?: string;
+  closure_warnings?: string[];
+  closure_mode?: string;
 };
 
 type AuditLog = {
@@ -1459,9 +1461,17 @@ export function App() {
 
   async function closeCase() {
     if (!selectedCaseId) return;
-    const result = await apiPost<ClosureStatus>(`/cases/${selectedCaseId}/close`, { closure_note: closureNote });
-    setClosureStatus(result);
-    await refreshCore();
+    try {
+      const result = await apiPost<ClosureStatus>(`/cases/${selectedCaseId}/close`, { closure_note: closureNote });
+      setClosureStatus(result);
+      setModulePayload({ status: "case_closed", case_id: selectedCaseId, warnings: result.closure_warnings || [] });
+      await refreshCore();
+      await refreshCaseCollections(selectedCaseId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "No se pudo cerrar el caso.";
+      setClosureStatus((current) => current ? { ...current, message } : current);
+      setError(message);
+    }
   }
 
   async function runAiSecurity() {
@@ -1947,15 +1957,34 @@ export function App() {
           <StepCard number={12} title="Cerrar caso" done={closureStatus?.already_closed}>
             <div className="compact-form">
               <textarea value={closureNote} onChange={(e) => setClosureNote(e.target.value)} />
-              <button onClick={closeCase} disabled={!closureStatus?.ready_to_close}>
+              <button onClick={closeCase} disabled={!selectedCaseId || closureStatus?.already_closed}>
                 <CheckCircle2 size={17} /> Cerrar caso
               </button>
             </div>
+            <div className="button-row">
+              <button className="secondary-button" onClick={requestFinalExport} disabled={!latestReport}>
+                <Download size={16} /> Exportar final sellado
+              </button>
+              <button className="secondary-button" onClick={() => setActive("reports")} disabled={!latestReport}>
+                <FileText size={16} /> Ver informe
+              </button>
+            </div>
+            {renderExportFinalOutcome()}
+            {closureStatus?.message && <p className="notice success">{closureStatus.message}</p>}
             {closureStatus?.already_closed && <p className="notice success">Caso cerrado. Las acciones futuras deben considerarse posteriores al cierre.</p>}
             {closureStatus && !closureStatus.ready_to_close && !closureStatus.already_closed && (
               <div className="requirements">
-                <strong>Falta para cerrar:</strong>
+                <strong>Advertencias antes de cerrar:</strong>
                 {closureStatus.missing.map((item) => (
+                  <span key={item}>{item}</span>
+                ))}
+                <em>Estas advertencias no bloquean el cierre operativo; quedan registradas para trazabilidad.</em>
+              </div>
+            )}
+            {!!closureStatus?.closure_warnings?.length && (
+              <div className="requirements">
+                <strong>El caso se cerro con advertencias registradas:</strong>
+                {closureStatus.closure_warnings.map((item) => (
                   <span key={item}>{item}</span>
                 ))}
               </div>

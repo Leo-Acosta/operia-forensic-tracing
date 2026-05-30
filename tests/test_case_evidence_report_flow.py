@@ -3,6 +3,38 @@ from io import BytesIO
 from pypdf import PdfReader
 
 
+def test_case_can_be_closed_operationally_with_pending_warnings(client, admin_headers):
+    case = client.post(
+        "/api/cases",
+        json={
+            "case_code": "TEST-CLOSE-WARN-001",
+            "title": "Cierre operativo con pendientes",
+            "description": "incidente iniciado sin informe final",
+            "incident_type": "phishing",
+        },
+        headers=admin_headers,
+    )
+    assert case.status_code == 200
+    case_id = case.json()["id"]
+
+    status = client.get(f"/api/cases/{case_id}/closure-status", headers=admin_headers)
+    assert status.status_code == 200
+    assert status.json()["ready_to_close"] is False
+    assert status.json()["missing"]
+
+    closed = client.post(
+        f"/api/cases/{case_id}/close",
+        json={"closure_note": "Cierre decidido por el analista responsable."},
+        headers=admin_headers,
+    )
+    assert closed.status_code == 200
+    payload = closed.json()
+    assert payload["already_closed"] is True
+    assert payload["status"] == "cerrado"
+    assert payload["closure_mode"] == "cierre_operativo_con_advertencias"
+    assert payload["closure_warnings"]
+
+
 def test_case_evidence_report_flow_with_audit(client, admin_headers):
     case = client.post(
         "/api/cases",
