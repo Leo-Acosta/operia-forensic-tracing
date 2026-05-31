@@ -21,6 +21,16 @@ Forensic controls:
 - every canonical export stores an `ExportManifest` database record;
 - every canonical export writes an audit entry.
 
+Professional report PDF controls:
+
+- the public PDF renderer hides implementation details and internal engine messages;
+- report authorship is shown as the analyst/operator, never as the platform itself;
+- internal statuses are translated into professional case/report states;
+- empty professional fields are omitted instead of rendered as blank rows;
+- legal content is rendered once, prioritizing analyst-approved mappings and linked evidence;
+- visible Spanish text is normalized for accents and `ñ`;
+- PDF metadata and manifest information are separated from the narrative body.
+
 Manifest fields:
 
 - product;
@@ -48,4 +58,3 @@ Canonical routes:
 - `GET /api/exports/manifests`
 - `GET /api/exports/manifests/{manifest_id}`
 - `GET /api/exports/manifests/{manifest_id}/download`
-

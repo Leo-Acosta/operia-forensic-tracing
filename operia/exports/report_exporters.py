@@ -34,6 +34,21 @@ from operia.shared.time import utcnow
 
 EXPORT_DIR = settings.exports_dir
 
+PUBLIC_FORBIDDEN_MARKERS = (
+    "ollama",
+    "mistral",
+    "fallback",
+    " ia local",
+    "asistente ia",
+    "documento asistido por ia",
+    "herramientas automatizadas",
+    "la ia no debe",
+    "no hay encuadre legal",
+    "sin encuadre legal cargado",
+    "enriquecido_con_ia",
+    "```json",
+)
+
 
 def export_markdown(report: Report) -> Path:
     path = EXPORT_DIR / f"report-{report.id}.md"
@@ -69,7 +84,7 @@ def _markdown_sections(markdown: str) -> list[tuple[str, str]]:
 
 def _clean_markdown_text(text: str) -> str:
     return (
-        normalize_spanish(text)
+        _public_text(text)
         .replace("**", "")
         .replace("`", "")
         .replace("| --- | --- | --- | --- | --- |", "")
@@ -244,11 +259,11 @@ def export_pdf(report: Report) -> Path:
     story.append(
         _key_value_table(
             [
-                ("Estado del caso", case.status),
+                ("Estado del caso", _professional_status(report, case)),
                 ("Jurisdicci\u00f3n", case.jurisdiction),
                 ("Responsable", _responsible_text(report)),
                 ("Cliente / damnificado", case.client_or_victim or ""),
-                ("Autor del informe", _visible_author(report)),
+                ("Autor del informe", _visible_author(report) or "Analista no informado"),
                 ("Versi\u00f3n", report.version),
                 ("Estado del informe", _professional_status(report, case)),
                 ("Nivel de exportabilidad", exportability["level"]),
@@ -272,7 +287,7 @@ def export_pdf(report: Report) -> Path:
         )
     )
     story.append(Spacer(1, 10))
-    story.append(_executive_note("Documento preparado para lectura ejecutiva y revisión pericial. Las secciones, anexos y metadatos se renderizan según la información efectivamente cargada en el caso.", styles))
+    story.append(_executive_note("Documento preparado para lectura ejecutiva y revisión pericial. Las secciones, anexos y metadatos se presentan según la información efectivamente cargada y validada en el caso.", styles))
     story.append(PageBreak())
 
     _section(story, "1. Resumen ejecutivo", styles)
@@ -434,7 +449,7 @@ def export_pdf(report: Report) -> Path:
                     [76, 86, 128, 56, 48, 46, 138],
                 )
             )
-    if legal_content:
+    if legal_content and not approved_mappings:
         _append_markdown_content(story, legal_content, styles)
     sufficiency_content = _extract_named_sections(
         report.markdown_content,
@@ -523,7 +538,7 @@ def export_pdf(report: Report) -> Path:
         topMargin=54,
         bottomMargin=48,
         title=normalize_spanish(report.title),
-        author=normalize_spanish(report.author or "OPERIA"),
+        author=normalize_spanish(_visible_author(report) or "Analista no informado"),
     )
     doc.build(story, onFirstPage=_report_page_footer, onLaterPages=_report_page_footer)
     return path
@@ -631,8 +646,26 @@ def _report_styles() -> dict[str, ParagraphStyle]:
     }
 
 
+def _public_text(value: object) -> str:
+    text = normalize_spanish("" if value is None else str(value))
+    text = text.replace("enriquecido_con_ia", "En Proceso Investigativo")
+    text = re.sub(r"\bBORRADOR_CONTROLADO\b", "Borrador controlado", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bVersion\b", "Versión", text)
+    text = re.sub(r"\bgeneracion\b", "generación", text)
+    text = re.sub(r"\btecnicos\b", "técnicos", text)
+    text = re.sub(r"\bexportacion\b", "exportación", text)
+    text = re.sub(r"\bdisposicion\b", "disposición", text)
+    text = re.sub(r"\bDisposicion\b", "Disposición", text)
+    text = re.sub(r"\baccion\b", "acción", text)
+    text = re.sub(r"\bacciones\b", "acciones", text)
+    text = re.sub(r"\bpreservacion\b", "preservación", text)
+    text = re.sub(r"\bidentificacion\b", "identificación", text)
+    text = re.sub(r"\binformacion\b", "información", text)
+    return text
+
+
 def _html(value: object) -> str:
-    return escape(normalize_spanish("" if value is None else str(value))).replace("\n", "<br/>")
+    return escape(_public_text("" if value is None else str(value))).replace("\n", "<br/>")
 
 
 def _paragraph(value: object, style: ParagraphStyle) -> Paragraph:
@@ -640,7 +673,7 @@ def _paragraph(value: object, style: ParagraphStyle) -> Paragraph:
 
 
 def _executive_cover(report: Report, case, exportability: dict, total_damage: float, styles: dict[str, ParagraphStyle]):
-    status_tone = "APTO PARA FINAL" if exportability.get("can_export_final") else "BORRADOR CONTROLADO"
+    status_tone = "INFORME FINAL" if exportability.get("can_export_final") else "INFORME PRELIMINAR"
     subtitle = f"Caso {case.case_code} | {case.incident_type} | Jurisdicción {case.jurisdiction}"
     metadata = [
         f"Estado: {_professional_status(report, case)}",
@@ -649,7 +682,7 @@ def _executive_cover(report: Report, case, exportability: dict, total_damage: fl
         f"Daño estimado: {total_damage:,.2f} ARS",
     ]
     data = [
-        [Paragraph("OPERIA FORENSIC TRACING", styles["cover_meta"]), Paragraph(status_tone, styles["cover_meta"])],
+        [Paragraph("INFORME FORENSE PROFESIONAL", styles["cover_meta"]), Paragraph(status_tone, styles["cover_meta"])],
         [Paragraph(_html(report.title), styles["cover_title"]), ""],
         [Paragraph(_html(subtitle), styles["cover_subtitle"]), ""],
         [Paragraph(_html("  |  ".join(metadata)), styles["cover_subtitle"]), ""],
@@ -729,7 +762,8 @@ def _warning_box(text: str):
 
 
 def _key_value_table(rows: list[tuple[str, object]], styles: dict[str, ParagraphStyle]):
-    data = [[_paragraph(label, styles["table_header"]), _paragraph(value, styles["table"])] for label, value in rows]
+    visible_rows = [(label, value) for label, value in rows if _public_text(value).strip()]
+    data = [[_paragraph(label, styles["table_header"]), _paragraph(value, styles["table"])] for label, value in visible_rows]
     table = Table(data, colWidths=[150, 374])
     table.setStyle(_base_table_style(header_column=True))
     return table
@@ -789,15 +823,15 @@ def _append_markdown_content(story: list, content: str, styles: dict[str, Paragr
         line = raw_line.strip()
         if not line or line.startswith("| ---"):
             continue
-        if _is_internal_line(line):
+        if _is_internal_line(line) or not _is_public_line(line):
             continue
         if line.startswith("### "):
             title = line[4:].strip()
-            if not _is_internal_line(title):
+            if not _is_internal_line(title) and _is_public_line(title):
                 story.append(Paragraph(_html(title), styles["subheading"]))
         elif line.startswith("## "):
             title = line[3:].strip()
-            if not _is_internal_line(title):
+            if not _is_internal_line(title) and _is_public_line(title):
                 story.append(Paragraph(_html(title), styles["subheading"]))
         elif line.startswith("- "):
             story.append(Paragraph(f"\u2022 {_html(_clean_markdown_text(line[2:]))}", styles["body"]))
@@ -836,7 +870,7 @@ def _meaningful_content(content: str) -> bool:
         "evaluacion pendiente",
         "evaluación pendiente",
     ]
-    return not any(marker in text for marker in empty_markers)
+    return not any(marker in text for marker in empty_markers) and _is_public_line(text)
 
 
 def _is_internal_line(text: str) -> bool:
@@ -844,6 +878,11 @@ def _is_internal_line(text: str) -> bool:
     forbidden = ["ollama", "mistral", "fallback", " ia ", "asistido por ia", "herramientas automatizadas", "enriquecido_con_ia"]
     padded = f" {haystack} "
     return any(term in padded for term in forbidden)
+
+
+def _is_public_line(text: str) -> bool:
+    haystack = normalize_spanish(text).lower()
+    return not any(marker in haystack for marker in PUBLIC_FORBIDDEN_MARKERS)
 
 
 def _display_value(value: object) -> str:
@@ -887,14 +926,14 @@ def _export_metadata_text(report: Report) -> str:
     case = report.case
     rows = [
         f"Identificador del caso: {case.case_code}.",
-        f"Version del informe: {report.version}.",
-        f"Fecha y hora de generacion: {utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}.",
+        f"Versión del informe: {report.version}.",
+        f"Fecha y hora de generación: {utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}.",
         f"Autor/analista: {_visible_author(report) or 'No informado'}.",
         f"Estado del caso: {_professional_status(report, case)}.",
-        f"Estado documental: {_display_value(report.status)}.",
+        f"Estado documental: {_professional_status(report, case)}.",
         f"Cantidad de evidencias: {len(case.evidence)}.",
         f"Cantidad de acciones de custodia: {len(case.actions)}.",
-        "Hashes del PDF e identificador de manifiesto: registrados en los metadatos tecnicos de exportacion de la plataforma.",
+        "Hash SHA-256, MD5 e identificador de manifiesto: se incorporan al registro técnico de exportación cuando el documento queda emitido.",
     ]
     if report.observations:
         rows.append(f"Observaciones de cierre: {report.observations}.")
