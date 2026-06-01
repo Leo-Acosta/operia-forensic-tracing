@@ -199,7 +199,13 @@ type LegalRecommendation = {
   evidence_needed: string;
   applicability_to_case: string;
   probatory_limits: string;
+  incident_relations?: string;
+  sensitive?: boolean;
+  warning?: string;
   confidence: string;
+  source_title?: string;
+  source_citation?: string;
+  source_verified?: boolean;
   source_url: string;
   precedents: unknown[];
   doctrine: unknown[];
@@ -477,6 +483,10 @@ const attackTypes = [
   { value: "dano informatico", label: "Daño informático", query: "daño informático sistemas datos" },
   { value: "filtracion de datos", label: "Filtración de datos", query: "filtración datos personales confidencialidad" },
   { value: "extorsion", label: "Extorsión", query: "extorsión intimidación datos ransomware" },
+  { value: "deepfake", label: "Deepfake / autenticación de medios", query: "deepfake autenticación medios imagen voz identidad propiedad intelectual" },
+  { value: "blockchain", label: "Blockchain / criptoactivos", query: "blockchain criptoactivos wallet fraude estafa extorsión" },
+  { value: "iot", label: "IoT / dispositivos conectados", query: "iot dispositivos conectados acceso ilegítimo comunicaciones daño informático" },
+  { value: "falsedad documental digital", label: "Falsedad documental digital", query: "falsedad documental digital documento falso uso certificado firma" },
   { value: "otro", label: "Otro", query: "incidente informático evidencia digital" }
 ];
 
@@ -1202,24 +1212,35 @@ export function App() {
   async function decideLegalRecommendation(item: LegalRecommendation, decision_status: "aprobado" | "descartado") {
     if (!selectedCaseId) {
       setError("Selecciona un caso antes de aprobar o descartar una norma.");
+      setLegalApplyState("error");
+      setLegalApplyMessage("Selecciona un caso para aplicar la norma.");
       return;
     }
     localStorage.setItem("operia_analyst_name", analystName);
-    await apiPost<LegalMapping>("/legal-knowledge/mappings/decision", {
-      case_id: selectedCaseId,
-      article_id: item.article_id,
-      decision_status,
-      analyst_name: analystName,
-      analyst_rationale:
-        decision_status === "aprobado"
-          ? "Norma aceptada por el analista para el encuadre preliminar del caso."
-          : "Norma descartada por el analista para este estado de evidencia.",
-      legal_role: item.legal_role,
-      applicability_to_case: item.applicability_to_case,
-      probatory_limits: item.probatory_limits,
-      confidence_level: item.confidence
-    });
-    await refreshCaseCollections(selectedCaseId);
+    setLegalApplyState("applying");
+    setLegalApplyMessage(`${decision_status === "aprobado" ? "Aplicando" : "Descartando"} ${item.reference} en el caso...`);
+    try {
+      await apiPost<LegalMapping>("/legal-knowledge/mappings/decision", {
+        case_id: selectedCaseId,
+        article_id: item.article_id,
+        decision_status,
+        analyst_name: analystName,
+        analyst_rationale:
+          decision_status === "aprobado"
+            ? "Norma aceptada por el analista para el encuadre preliminar del caso."
+            : "Norma descartada por el analista para este estado de evidencia.",
+        legal_role: item.legal_role,
+        applicability_to_case: item.applicability_to_case,
+        probatory_limits: item.probatory_limits,
+        confidence_level: item.confidence
+      });
+      await refreshCaseCollections(selectedCaseId);
+      setLegalApplyState("applied");
+      setLegalApplyMessage(`${item.reference} ${decision_status === "aprobado" ? "aplicada" : "descartada"} para el caso seleccionado.`);
+    } catch (error) {
+      setLegalApplyState("error");
+      setLegalApplyMessage(error instanceof Error ? error.message : "No se pudo actualizar el encuadre legal.");
+    }
   }
 
   async function changeLegalMappingDecision(mapping: LegalMapping, decision_status: "aprobado" | "descartado") {
@@ -2856,12 +2877,31 @@ export function App() {
         <div className="section-head">
           <div>
             <h2>Biblioteca Legal Argentina</h2>
-            <p>Búsqueda estructurada sobre fuentes registradas.</p>
+            <p>Perfiles CTF, normas argentinas registradas y aplicación controlada al caso.</p>
           </div>
-          <div className="search">
-            <input value={legalQuery} onChange={(e) => setLegalQuery(e.target.value)} />
+          <div className="legal-search-panel">
+            <select
+              value={attackTypes.find((item) => item.query === legalQuery)?.value || ""}
+              onChange={(event) => {
+                const selected = attackTypes.find((item) => item.value === event.target.value);
+                if (selected) setLegalQuery(selected.query);
+              }}
+              aria-label="Tipo de incidente"
+            >
+              <option value="">Buscar por texto libre</option>
+              {attackTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            </select>
+            <input value={legalQuery} onChange={(e) => setLegalQuery(e.target.value)} placeholder="Buscar norma o describir incidente" />
             <button className="icon-button" onClick={searchLegal} title="Buscar"><Search size={18} /></button>
           </div>
+        </div>
+        {legalApplyMessage && (
+          <div className={`action-feedback ${legalApplyState}`}>
+            {legalApplyMessage}
+          </div>
+        )}
+        <div className="notice">
+          La biblioteca solo usa normas y fuentes registradas. No atribuye autoría sin evidencia suficiente ni reemplaza revisión profesional.
         </div>
         {legalRecommendation?.profile && (
           <div className="case-panel">
@@ -2888,23 +2928,29 @@ export function App() {
           </div>
         )}
         {legalRecommendation?.recommendations?.length ? (
-          <div className="article-list">
+          <div className="article-list legal-card-list">
             {legalRecommendation.recommendations.map((item) => (
-              <article key={`${item.reference}-${item.article_id}`}>
+              <article className={item.sensitive ? "sensitive" : ""} key={`${item.reference}-${item.article_id}`}>
                 <div>
                   <span>{item.reference} · {item.legal_role} · confianza {item.confidence}</span>
                   <h3>{prettySpanish(item.title)}</h3>
                 </div>
                 <p>{prettySpanish(item.text)}</p>
-                <small>{prettySpanish(item.applicability_to_case)}</small>
-                <small>{prettySpanish(item.probatory_limits)}</small>
-                <small>Elementos: {prettySpanish(item.why)}</small>
-                <small>Evidencia: {prettySpanish(item.evidence_needed)}</small>
+                {item.warning && <div className="notice sensitive-warning">{prettySpanish(item.warning)}</div>}
+                <div className="legal-card-grid">
+                  <small><strong>Aplicación:</strong> {prettySpanish(item.applicability_to_case)}</small>
+                  <small><strong>Límites:</strong> {prettySpanish(item.probatory_limits)}</small>
+                  <small><strong>Elementos objetivos:</strong> {prettySpanish(item.why)}</small>
+                  <small><strong>Elemento subjetivo:</strong> {prettySpanish(item.subjective_elements)}</small>
+                  <small><strong>Evidencia necesaria:</strong> {prettySpanish(item.evidence_needed)}</small>
+                  <small><strong>Relación con incidente:</strong> {prettySpanish(item.incident_relations || legalRecommendation.profile?.label || "")}</small>
+                  <small><strong>Fuente:</strong> {prettySpanish(item.source_title || "Fuente oficial registrada")} · <a href={item.source_url} target="_blank" rel="noreferrer">ver oficial</a></small>
+                </div>
                 {item.precedents.length > 0 && <small>Jurisprudencia registrada: {item.precedents.length}</small>}
                 {item.doctrine.length > 0 && <small>Doctrina registrada: {item.doctrine.length}</small>}
                 <div className="button-row">
                   <button onClick={() => decideLegalRecommendation(item, "aprobado")} disabled={!selectedCaseId}>
-                    <CheckCircle2 size={16} /> Aprobar para el caso
+                    <CheckCircle2 size={16} /> Aplicar al caso
                   </button>
                   <button className="secondary-button" onClick={() => decideLegalRecommendation(item, "descartado")} disabled={!selectedCaseId}>
                     <Trash2 size={16} /> Descartar

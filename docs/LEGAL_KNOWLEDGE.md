@@ -19,16 +19,20 @@ Current scope:
 - `LegalPrecedent`
 - `LegalDoctrine`
 
-Fase Operativa 6 adds legal attack profiles for:
+Fase CTF 1 completes the Argentine legal library for the Cybercrime Investigation Challenge 2026 rubric. The module keeps every recommendation tied to registered sources only, with article, summarized text, objective elements, subjective elements, evidence needed, probatory limits, incident relation and human-review status.
+
+CTF legal incident profiles:
 
 - phishing / fraude digital;
-- ransomware;
-- acceso ilegitimo;
-- fraude digital;
-- dano informatico;
-- filtracion de datos;
-- extorsion;
-- otros incidentes informaticos.
+- deepfake / autenticación de medios;
+- blockchain / criptoactivos;
+- IoT / dispositivos conectados;
+- ransomware / extorsión;
+- filtración de datos;
+- acceso ilegítimo;
+- falsedad documental digital;
+- daño informático;
+- otros incidentes informáticos.
 
 Each profile defines:
 
@@ -39,6 +43,7 @@ Each profile defines:
 - applicability to the case;
 - probatory limits;
 - confidence level.
+- explicit warning not to attribute authorship without sufficient evidence.
 
 Fase Operativa 6.1 adds analyst-approved legal mappings:
 
@@ -81,8 +86,15 @@ Initial seeded coverage:
 - Argentine Penal Code article 155;
 - Argentine Penal Code article 157 bis;
 - Argentine Penal Code article 168;
+- Argentine Penal Code article 169;
+- Argentine Penal Code article 149 bis;
+- Argentine Penal Code articles 128 and 131 as sensitive norms with handling warnings;
+- Argentine Penal Code articles 293 and 296;
+- Argentine Penal Code articles 109 and 110;
 - Argentine Penal Code articles 183, 184 and 197;
+- Argentine Civil and Commercial Code articles 51 to 53 for image, voice, identity and dignity;
 - Argentine Civil and Commercial Code articles 1710, 1716, 1726, 1737 and 1740;
+- Law 11.723 on intellectual property;
 - Budapest Convention references through Law 27.411;
 - Personal Data Protection Law 25.326 article 9;
 - Personal Data Protection Law 25.326 articles 5, 9, 10 and 11;
@@ -129,3 +141,4 @@ Update and verification policy:
 - jurisprudence and doctrine are shown only when registered and verified;
 - unregistered jurisprudence, doctrine, norms or articles must not be generated;
 - every legal recommendation must remain subject to human review.
+- CP articles 128 and 131 are shown only as sensitive references with minimal-preservation warnings; the frontend must not expose or request sensitive material.

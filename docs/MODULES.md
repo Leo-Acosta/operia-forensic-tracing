@@ -25,6 +25,30 @@ Current API prefix:
 /api/legal-report
 ```
 
+## Legal Knowledge
+
+Path:
+
+```text
+operia/legal_knowledge
+```
+
+Responsibilities:
+
+- Argentine legal source registry with official URLs only by default
+- Seeded CP, CCCN, Ley 25.326 and Ley 11.723 articles for CTF Phase 1
+- Incident profiles for phishing/fraud, deepfake, blockchain, IoT, ransomware/extortion, data leak, illegitimate access, digital document falsity and computer damage
+- Structured recommendations with article, summarized text, objective elements, subjective elements, evidence needed, probatory limits and incident relation
+- Sensitive-norm handling for CP articles 128 and 131 with explicit warnings
+- Analyst approval/discard workflow and evidence-linked legal-probatory matrix
+- Frontend legal cards and "Aplicar al caso" confirmation without raw JSON output
+
+Current API prefix:
+
+```text
+/api/legal-knowledge
+```
+
 ## Cybercrime Intelligence Analyst
 
 Path:

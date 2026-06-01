@@ -19,6 +19,10 @@ class LegalArticleSeed:
     subjective_elements: str
     evidentiary_requirements: str
     official_url: str
+    probatory_limits: str = "Requiere verificación humana de hechos, fuente oficial y nexo probatorio antes de aplicar la norma."
+    incident_relations: str = "Incidente digital general"
+    sensitive: bool = False
+    warning: str = ""
 
 
 @dataclass(frozen=True)
@@ -165,6 +169,122 @@ LEGAL_ARTICLE_SEEDS = [
         "https://www.argentina.gob.ar/normativa/nacional/ley-11179-16546/actualizacion",
     ),
     LegalArticleSeed(
+        "Codigo Penal argentino",
+        "CP",
+        "169",
+        "",
+        "Chantaje",
+        "Figura vinculada a amenazas de imputaciones, revelaciones o difusión lesiva para obtener una prestación o ventaja.",
+        "Amenaza de imputación o revelación, exigencia o ventaja buscada, idoneidad intimidatoria y nexo con la conducta exigida.",
+        "Voluntad de constreñir mediante amenaza y finalidad de obtener la prestación, ventaja o conducta.",
+        "Mensajes completos, capturas con metadatos, identificación del canal, exigencia formulada, destinatarios y preservación del contenido amenazado.",
+        "https://www.argentina.gob.ar/normativa/nacional/ley-11179-16546/actualizacion",
+        "No toda amenaza reputacional configura chantaje; debe probarse exigencia, idoneidad intimidatoria y nexo causal.",
+        "ransomware/extorsión; deepfake/autenticación de medios; filtración de datos",
+    ),
+    LegalArticleSeed(
+        "Codigo Penal argentino",
+        "CP",
+        "149 bis",
+        "",
+        "Amenazas y coacción",
+        "Amenazas para alarmar o amedrentar y supuestos de coacción para obligar a hacer, no hacer o tolerar algo contra la voluntad.",
+        "Amenaza idónea, destinatario determinado o determinable, contexto intimidatorio y eventual conducta exigida.",
+        "Conocimiento del carácter intimidatorio y voluntad de amenazar o coaccionar.",
+        "Comunicaciones completas, historial de interacción, perfiles, números o cuentas, timestamps, testigos y contexto de recepción.",
+        "https://www.argentina.gob.ar/normativa/nacional/ley-11179-16546/actualizacion",
+        "No atribuir autoría por número, alias o IP sin corroboración independiente; distinguir amenazas genéricas de coacción concreta.",
+        "ransomware/extorsión; filtración de datos; deepfake/autenticación de medios",
+    ),
+    LegalArticleSeed(
+        "Codigo Penal argentino",
+        "CP",
+        "128",
+        "",
+        "Representaciones sexuales de menores",
+        "Norma penal sensible vinculada con producción, financiación, ofrecimiento, comercialización, publicación, facilitación, divulgación o tenencia de representaciones sexuales de menores según el supuesto legal.",
+        "Material o representación alcanzada por la norma, intervención típica, sujeto menor de edad o apariencia normativa aplicable y soporte o medio utilizado.",
+        "Dolo de producir, difundir, facilitar, comercializar, distribuir, adquirir o poseer según el supuesto.",
+        "Preservación mínima y controlada, hash, ubicación, URL o identificador, acta de hallazgo, cadena de custodia y derivación a autoridad competente sin replicar ni exhibir material.",
+        "https://www.argentina.gob.ar/normativa/nacional/ley-11179-16546/actualizacion",
+        "Norma sensible: no descargar, reproducir, describir de modo innecesario ni mostrar material; activar preservación legal mínima y revisión profesional inmediata.",
+        "norma sensible; deepfake/autenticación de medios; filtración de datos",
+        True,
+        "Contenido sensible con menores: OPERIA solo registra referencia normativa y medidas de preservación mínima. No debe exponerse material ni inferirse autoría sin intervención competente.",
+    ),
+    LegalArticleSeed(
+        "Codigo Penal argentino",
+        "CP",
+        "131",
+        "",
+        "Contacto con menor por medios tecnológicos",
+        "Contacto con persona menor de edad mediante comunicaciones electrónicas, telecomunicaciones o tecnologías de transmisión de datos con finalidad vinculada a delitos contra la integridad sexual.",
+        "Contacto tecnológico con menor, canal utilizado, destinatario y finalidad típica que debe ser acreditada por el contexto.",
+        "Finalidad específica exigida por la norma, además del conocimiento del carácter del contacto.",
+        "Mensajes completos, perfiles, datos de cuenta, timestamps, preservación del dispositivo, denuncias, contexto conversacional y resguardo especializado.",
+        "https://www.argentina.gob.ar/normativa/nacional/ley-11179-16546/actualizacion",
+        "Norma sensible: requiere análisis especializado; no basta una conversación aislada sin finalidad típica y evidencia contextual suficiente.",
+        "norma sensible; acceso ilegítimo; filtración de datos",
+        True,
+        "Contenido sensible con menores: evitar exposición de datos personales y derivar a autoridad competente o profesional especializado.",
+    ),
+    LegalArticleSeed(
+        "Codigo Penal argentino",
+        "CP",
+        "293",
+        "",
+        "Falsedad documental",
+        "Inserción o creación de declaraciones falsas en instrumento público o privado con aptitud para producir perjuicio según el supuesto legal.",
+        "Documento o instrumento, falsedad material o ideológica según corresponda, aptitud probatoria o jurídica y perjuicio posible.",
+        "Conocimiento de la falsedad y voluntad de documentar o insertar datos falsos con aptitud lesiva.",
+        "Documento original o copia íntegra, metadatos, cadena de custodia, origen, firmas, certificados, logs de emisión y pericia documental/digital.",
+        "https://www.argentina.gob.ar/normativa/nacional/ley-11179-16546/actualizacion",
+        "La mera inconsistencia de metadatos no acredita falsedad; se requiere análisis del documento, autoría y aptitud jurídica.",
+        "falsedad documental digital; deepfake/autenticación de medios; phishing/fraude digital",
+    ),
+    LegalArticleSeed(
+        "Codigo Penal argentino",
+        "CP",
+        "296",
+        "",
+        "Uso de documento falso",
+        "Uso de documento o certificado falso o adulterado, con remisión a la escala penal correspondiente según el documento.",
+        "Documento falso o adulterado, uso concreto, conocimiento de la falsedad y aptitud para producir efectos jurídicos.",
+        "Dolo de usar el documento con conocimiento de su falsedad.",
+        "Registro del uso, destinatario, sistema o trámite, documento preservado, metadatos, firmas/certificados y trazabilidad de carga o envío.",
+        "https://www.argentina.gob.ar/normativa/nacional/ley-11179-16546/actualizacion",
+        "Debe probarse uso y conocimiento; recibir o almacenar un archivo falso no equivale automáticamente a usarlo.",
+        "falsedad documental digital; phishing/fraude digital",
+    ),
+    LegalArticleSeed(
+        "Codigo Penal argentino",
+        "CP",
+        "109",
+        "",
+        "Calumnias",
+        "Imputación falsa a una persona determinada de la comisión de un delito concreto que dé lugar a acción pública.",
+        "Imputación delictiva concreta, falsedad, persona determinada o determinable y difusión o comunicación atribuible.",
+        "Conocimiento de la falsedad o desprecio por la verdad según evaluación jurídica aplicable.",
+        "Publicación o mensaje completo, URL, fecha, autoría de cuenta, alcance, capturas certificables y contexto de la imputación.",
+        "https://www.argentina.gob.ar/normativa/nacional/ley-11179-16546/actualizacion",
+        "Distinguir opinión, crítica, sátira o denuncia de imputación delictiva falsa; no atribuir autoría por perfil sin corroboración.",
+        "deepfake/autenticación de medios; filtración de datos",
+    ),
+    LegalArticleSeed(
+        "Codigo Penal argentino",
+        "CP",
+        "110",
+        "",
+        "Injurias",
+        "Deshonra o desacreditación de una persona mediante expresiones lesivas, con límites constitucionales y excepciones legales.",
+        "Expresión lesiva, persona determinada o determinable, difusión o comunicación y afectación al honor.",
+        "Voluntad de injuriar o conocimiento del carácter lesivo según el contexto.",
+        "Contenido completo, contexto de publicación, alcance, autoría de cuenta, timestamps, preservación de URL y evidencia de impacto.",
+        "https://www.argentina.gob.ar/normativa/nacional/ley-11179-16546/actualizacion",
+        "No toda expresión ofensiva es típica; evaluar interés público, contexto, veracidad, opinión y estándares de libertad de expresión.",
+        "deepfake/autenticación de medios; filtración de datos",
+    ),
+    LegalArticleSeed(
         "Ley 25.326 de Proteccion de Datos Personales",
         "LPDP",
         "5",
@@ -247,6 +367,48 @@ LEGAL_ARTICLE_SEEDS = [
         "Responsabilidad objetiva de consumo segun supuesto; separar de responsabilidad penal.",
         "Cadena de proveedores, reclamos, terminos de servicio, evidencias del dano, nexo tecnico y medidas de mitigacion.",
         "https://www.argentina.gob.ar/normativa/nacional/638/actualizacion",
+    ),
+    LegalArticleSeed(
+        "Codigo Civil y Comercial de la Nacion",
+        "CCCN",
+        "51-53",
+        "",
+        "Dignidad, imagen, voz e identidad",
+        "Reglas civiles sobre inviolabilidad de la persona humana, afectaciones a la dignidad e imagen, voz o identidad.",
+        "Persona identificada o identificable, captación/uso/exposición de imagen, voz o identidad, falta de consentimiento o causa de justificación y afectación dignitaria.",
+        "No es tipo penal; evaluar conocimiento del uso no autorizado, finalidad lesiva o responsabilidad civil según el caso.",
+        "Archivo original, metadatos, publicación, consentimiento o ausencia de este, alcance de difusión, comparación biométrica o técnica y registro de daños.",
+        "https://www.argentina.gob.ar/normativa/nacional/ley-26994-235975/actualizacion",
+        "No permite atribuir autoría técnica; requiere demostrar uso, identificación, falta de autorización y daño o afectación.",
+        "deepfake/autenticación de medios; filtración de datos; falsedad documental digital",
+    ),
+    LegalArticleSeed(
+        "Ley 11.723 de Propiedad Intelectual",
+        "LPI",
+        "1",
+        "",
+        "Obras protegidas",
+        "Reconoce protección sobre obras científicas, literarias y artísticas, incluyendo expresiones audiovisuales, fotográficas, fonográficas o digitales según corresponda.",
+        "Obra protegida, titularidad o legitimación, reproducción/uso/comunicación y falta de autorización o licencia aplicable.",
+        "No es tipo penal por sí sola en todo caso; evaluar conocimiento del uso y finalidad según reclamo civil o penal específico.",
+        "Obra original, registro o prueba de titularidad, licencia, publicación impugnada, hashes, metadatos, URLs y alcance de uso.",
+        "https://www.argentina.gob.ar/normativa/nacional/ley-11723-42755/actualizacion",
+        "Distinguir infracción autoral de uso legítimo, cita, parodia, autorización o material no protegido; no atribuir autoría sin trazabilidad.",
+        "deepfake/autenticación de medios; falsedad documental digital; phishing/fraude digital",
+    ),
+    LegalArticleSeed(
+        "Ley 11.723 de Propiedad Intelectual",
+        "LPI",
+        "71",
+        "",
+        "Defraudación a derechos de propiedad intelectual",
+        "Remisión penal para quien defraude derechos de propiedad intelectual reconocidos por la ley.",
+        "Derecho de propiedad intelectual protegido, conducta defraudatoria, ausencia de autorización y perjuicio o afectación relevante.",
+        "Dolo de defraudar derechos de propiedad intelectual.",
+        "Titularidad, licencia, obra original, copias o publicaciones, trazabilidad de distribución, alcance y cuantificación del perjuicio.",
+        "https://www.argentina.gob.ar/normativa/nacional/ley-11723-42755/actualizacion",
+        "No convertir automáticamente todo uso de imagen, audio o contenido en delito; exige derecho protegido, defraudación y prueba suficiente.",
+        "deepfake/autenticación de medios; falsedad documental digital",
     ),
     LegalArticleSeed(
         "Codigo Civil y Comercial de la Nacion",
@@ -503,10 +665,79 @@ ATTACK_PROFILES: dict[str, AttackLegalProfile] = {
     ),
 }
 
+ATTACK_PROFILES.update(
+    {
+        "deepfake": AttackLegalProfile(
+            key="deepfake",
+            label="Deepfake / autenticación de medios",
+            query="deepfake autenticación medios imagen voz identidad propiedad intelectual",
+            legal_theory="Uso, alteración o difusión de imagen, voz, identidad o contenido audiovisual sintético que puede afectar dignidad, honor, derechos personalísimos o propiedad intelectual.",
+            required_evidence=("Archivo original o copia íntegra preservada con hash.", "Metadatos, plataforma, URL, fecha de publicación y alcance.", "Comparación técnica de autenticidad, edición, síntesis o manipulación.", "Consentimiento, licencia o evidencia de ausencia de autorización.", "Contexto de daño, suplantación, amenaza, imputación o uso económico."),
+            recommended_measures=("Preservar archivo y publicación sin recomprimir.", "Documentar cadena de custodia y herramientas de autenticación usadas.", "Separar autenticidad técnica, afectación civil y eventual delito.", "No atribuir autoría por estilo, voz o similitud sin trazabilidad técnica y corroboración externa."),
+            article_refs=(
+                LegalArticleRef("CCCN", "51-53", role="principal", applicability="Base civil para imagen, voz, identidad, dignidad y consentimiento.", limits="No atribuye autoría; exige identificación, uso y afectación.", confidence="alto"),
+                LegalArticleRef("LPI", "1", role="principal", applicability="Relevante si el deepfake usa obra protegida, audio, imagen o material audiovisual.", limits="Evaluar titularidad, licencia, excepción o autorización.", confidence="alto"),
+                LegalArticleRef("LPI", "71", role="conexa", applicability="Puede aplicar si existe defraudación a derechos de propiedad intelectual.", limits="No todo uso no autorizado configura delito."),
+                LegalArticleRef("CP", "109", role="conexa", applicability="Si el contenido imputa falsamente un delito concreto.", limits="Distinguir opinión, sátira, denuncia y falsedad atribuible."),
+                LegalArticleRef("CP", "110", role="conexa", applicability="Si el contenido afecta honor o reputación.", limits="Requiere análisis de contexto y libertad de expresión."),
+                LegalArticleRef("CP", "293", role="conexa", applicability="Si el medio falso se usa como documento con aptitud jurídica.", limits="No toda imagen manipulada es documento falso."),
+            ),
+        ),
+        "blockchain": AttackLegalProfile(
+            key="blockchain",
+            label="Blockchain / criptoactivos",
+            query="blockchain criptoactivos wallet fraude estafa extorsión manipulación informática",
+            legal_theory="Incidentes con wallets, transacciones, smart contracts o criptoactivos que pueden involucrar estafa, manipulación informática o extorsión.",
+            required_evidence=("TXID, address, red, fecha, monto y token involucrado.", "Wallets de origen/destino y trazabilidad on-chain.", "Comunicaciones, ofertas, promesas, notas extorsivas o instrucciones.", "Exchange, KYC, IPs, sesiones y datos de retiro cuando existan.", "Nexo entre engaño, manipulación, exigencia y pérdida patrimonial."),
+            recommended_measures=("Preservar TXID y capturas del explorador con fecha.", "Solicitar datos a exchanges o custodios por vía formal.", "Separar atribución de wallet, titularidad KYC y control real.", "No atribuir autoría personal solo por una address, cluster o exchange."),
+            article_refs=(
+                LegalArticleRef("CP", "172", role="principal", applicability="Estafa si hubo ardid, error, disposición patrimonial y perjuicio.", limits="Requiere nexo entre engaño y transferencia.", confidence="alto"),
+                LegalArticleRef("CP", "173", "16", "principal", "Aplica si hubo manipulación informática, smart contract o transmisión de datos con perjuicio.", "Debe probarse la manipulación técnica concreta.", "medio"),
+                LegalArticleRef("CP", "168", role="principal", applicability="Aplica si se exigió transferencia bajo intimidación.", limits="Requiere amenaza/exigencia verificable.", confidence="medio"),
+                LegalArticleRef("BUDAPEST", "18", role="procesal", applicability="Orientativo para requerir datos de abonado o registros a proveedores.", limits="Requiere autoridad competente."),
+            ),
+        ),
+        "iot": AttackLegalProfile(
+            key="iot",
+            label="IoT / dispositivos conectados",
+            query="iot dispositivos conectados acceso ilegítimo comunicaciones daño informático",
+            legal_theory="Acceso, interferencia, control remoto o afectación de dispositivos conectados, redes, datos o comunicaciones.",
+            required_evidence=("Identificación del dispositivo, firmware, cuenta asociada y red.", "Logs del equipo, router, cloud del fabricante y aplicación móvil.", "Capturas de comandos, cambios, alertas, tráfico o indisponibilidad.", "Permisos, credenciales, configuración previa y propietarios.", "Impacto en datos, comunicaciones, servicio o integridad del dispositivo."),
+            recommended_measures=("Preservar configuración y logs antes de resetear.", "Aislar el dispositivo si hay riesgo operativo.", "Solicitar registros al fabricante o proveedor cloud.", "No atribuir por IP local, MAC o cuenta compartida sin corroboración."),
+            article_refs=(
+                LegalArticleRef("CP", "153 bis", role="principal", applicability="Tipo central si hubo acceso sin autorización a sistema o dato restringido.", limits="Exige restricción y falta de autorización.", confidence="alto"),
+                LegalArticleRef("CP", "183", role="principal", applicability="Daño informático si hubo alteración, inutilización o afectación de datos/sistema.", limits="Debe probarse daño técnico concreto.", confidence="medio"),
+                LegalArticleRef("CP", "197", role="conexa", applicability="Si la conducta interrumpe o entorpece comunicaciones.", limits="Requiere impacto comunicacional probado.", confidence="medio"),
+                LegalArticleRef("CP", "153", role="conexa", applicability="Si se accedió o interceptó comunicación privada.", limits="Depende del objeto comunicacional."),
+            ),
+        ),
+        "falsedad documental digital": AttackLegalProfile(
+            key="falsedad documental digital",
+            label="Falsedad documental digital",
+            query="falsedad documental digital documento falso uso certificado firma",
+            legal_theory="Creación, alteración o uso de documentos digitales falsos con aptitud probatoria o efectos jurídicos.",
+            required_evidence=("Documento íntegro.", "Metadatos.", "Firmas o certificados.", "Origen y canal de envío.", "Registro de uso y destinatario."),
+            recommended_measures=("Preservar original y hash.", "Verificar firma/certificado.", "Solicitar logs del sistema emisor.", "No concluir falsedad solo por metadatos incompletos."),
+            article_refs=(
+                LegalArticleRef("CP", "293", role="principal", applicability="Figura central ante falsedad documental.", limits="Requiere aptitud jurídica y falsedad probada.", confidence="alto"),
+                LegalArticleRef("CP", "296", role="principal", applicability="Aplica si el documento falso fue usado.", limits="Requiere uso y conocimiento de falsedad.", confidence="alto"),
+                LegalArticleRef("CCCN", "51-53", role="conexa", applicability="Si se afectó identidad o imagen en el documento.", limits="Plano civil/personalísimo."),
+                LegalArticleRef("LPI", "1", role="conexa", applicability="Si se usaron obras o piezas protegidas.", limits="Evaluar titularidad y autorización."),
+            ),
+        ),
+    }
+)
+
 ATTACK_PROFILES["acceso ilegítimo"] = ATTACK_PROFILES["acceso ilegitimo"]
 ATTACK_PROFILES["daño informatico"] = ATTACK_PROFILES["dano informatico"]
 ATTACK_PROFILES["daño informático"] = ATTACK_PROFILES["dano informatico"]
 ATTACK_PROFILES["phishing / fraude digital"] = ATTACK_PROFILES["phishing"]
+ATTACK_PROFILES["deepfake/autenticación de medios"] = ATTACK_PROFILES["deepfake"]
+ATTACK_PROFILES["autenticación de medios"] = ATTACK_PROFILES["deepfake"]
+ATTACK_PROFILES["blockchain/criptoactivos"] = ATTACK_PROFILES["blockchain"]
+ATTACK_PROFILES["criptoactivos"] = ATTACK_PROFILES["blockchain"]
+ATTACK_PROFILES["iot/dispositivos conectados"] = ATTACK_PROFILES["iot"]
+ATTACK_PROFILES["filtración de datos"] = ATTACK_PROFILES["filtracion de datos"]
 
 INCIDENT_KEYWORDS: dict[str, list[str]] = {
     "phishing": ["172", "173", "153 bis", "4", "5"],
@@ -517,6 +748,14 @@ INCIDENT_KEYWORDS: dict[str, list[str]] = {
     "ransomware": ["168", "183", "184", "16", "18"],
     "extorsion": ["168", "16", "18"],
     "dano informatico": ["183", "184", "197"],
+    "daño informático": ["183", "184", "197"],
+    "deepfake": ["51-53", "1", "71", "109", "110", "293"],
+    "autenticacion": ["51-53", "1", "71", "109", "110", "293"],
+    "autenticación": ["51-53", "1", "71", "109", "110", "293"],
+    "blockchain": ["172", "173", "168", "18"],
+    "criptoactivos": ["172", "173", "168", "18"],
+    "iot": ["153 bis", "183", "197", "153"],
+    "falsedad documental": ["293", "296", "51-53", "1"],
     "consumidor": ["4", "5", "40"],
     "cripto": ["172", "173", "16", "18"],
     "preservacion": ["16", "18", "129"],
@@ -556,6 +795,42 @@ LEGAL_ELEMENT_CHECKLISTS: dict[tuple[str, str, str], tuple[str, ...]] = {
         "Disposición patrimonial o conducta forzada",
         "Finalidad patrimonial",
     ),
+    ("CP", "169", ""): (
+        "Amenaza de imputación o revelación",
+        "Exigencia o ventaja buscada",
+        "Idoneidad intimidatoria",
+        "Finalidad de obtener prestación o ventaja",
+    ),
+    ("CP", "149 bis", ""): (
+        "Amenaza idónea",
+        "Destinatario determinado o determinable",
+        "Contexto intimidatorio",
+        "Voluntad de amenazar o coaccionar",
+    ),
+    ("CP", "293", ""): (
+        "Documento o instrumento",
+        "Falsedad material o ideológica",
+        "Aptitud jurídica o probatoria",
+        "Conocimiento de la falsedad",
+    ),
+    ("CP", "296", ""): (
+        "Documento falso o adulterado",
+        "Uso concreto",
+        "Conocimiento de falsedad",
+        "Aptitud para producir efectos jurídicos",
+    ),
+    ("CCCN", "51-53", ""): (
+        "Persona identificada o identificable",
+        "Imagen, voz, identidad o dignidad afectada",
+        "Falta de consentimiento o habilitación",
+        "Daño o afectación verificable",
+    ),
+    ("LPI", "1", ""): (
+        "Obra protegida",
+        "Titularidad o legitimación",
+        "Uso, reproducción o comunicación",
+        "Ausencia de autorización o licencia",
+    ),
     ("CP", "183", ""): (
         "Alteración, destrucción o inutilización",
         "Dato, programa o sistema afectado",
@@ -586,6 +861,11 @@ LEGAL_ELEMENT_CHECKLISTS: dict[tuple[str, str, str], tuple[str, ...]] = {
         "Proveedor interviniente",
         "Nexo con servicio o cosa",
     ),
+}
+
+LEGAL_SEED_BY_REF = {
+    (seed.code, seed.article_number, seed.subsection): seed
+    for seed in LEGAL_ARTICLE_SEEDS
 }
 
 
@@ -784,6 +1064,7 @@ def recommend_articles_for_incident(db: Session, incident_text: str, limit: int 
             continue
         seen.add(article.id)
         ref = profile_refs.get((article.code, article.article_number, article.subsection))
+        seed_meta = LEGAL_SEED_BY_REF.get((article.code, article.article_number, article.subsection))
         context = article_context(db, article, profile.key)
         recommendations.append(
             {
@@ -796,7 +1077,10 @@ def recommend_articles_for_incident(db: Session, incident_text: str, limit: int 
                 "subjective_elements": article.subjective_elements,
                 "evidence_needed": article.evidentiary_requirements,
                 "applicability_to_case": ref.applicability if ref else "Relevancia preliminar según coincidencia con el texto del incidente.",
-                "probatory_limits": ref.limits if ref else "Requiere verificación humana de hechos, fuente y nexo probatorio.",
+                "probatory_limits": ref.limits if ref else (seed_meta.probatory_limits if seed_meta else "Requiere verificación humana de hechos, fuente y nexo probatorio."),
+                "incident_relations": seed_meta.incident_relations if seed_meta else profile.label,
+                "sensitive": bool(seed_meta.sensitive) if seed_meta else False,
+                "warning": seed_meta.warning if seed_meta else "",
                 "confidence": ref.confidence if ref else "medio",
                 "source_title": context["source_title"],
                 "source_citation": context["source_citation"],

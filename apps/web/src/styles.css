@@ -1846,6 +1846,13 @@ code {
   width: min(430px, 100%);
 }
 
+.legal-search-panel {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(260px, 1.1fr) 38px;
+  width: min(760px, 100%);
+}
+
 .article-list {
   display: grid;
   gap: 12px;
@@ -1855,6 +1862,36 @@ code {
   border: 1px solid #dce5ee;
   border-radius: 8px;
   padding: 14px;
+}
+
+.article-list article.sensitive {
+  border-color: #e2b85d;
+  box-shadow: inset 4px 0 0 #d09112;
+}
+
+.legal-card-list article {
+  background: #ffffff;
+  display: grid;
+  gap: 10px;
+}
+
+.legal-card-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.legal-card-grid small {
+  background: #f7f9fc;
+  border: 1px solid #e0e8f0;
+  border-radius: 7px;
+  padding: 8px;
+}
+
+.sensitive-warning {
+  background: #fff8ed;
+  border-color: #efcf90;
+  color: #6d4a18;
 }
 
 .article-list span {
@@ -1932,6 +1969,11 @@ pre {
   .preview-grid,
   .case-dossier-hero,
   .dossier-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .legal-search-panel,
+  .legal-card-grid {
     grid-template-columns: 1fr;
   }
 
