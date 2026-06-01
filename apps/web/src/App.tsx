@@ -4137,6 +4137,11 @@ export function App() {
         </div>
 
         {iotMessage && <div className={`action-feedback ${iotState}`}>{iotMessage}</div>}
+        {!selectedCaseId && (
+          <div className="action-feedback error">
+            Selecciona o crea un caso activo antes de registrar dispositivos IoT. Esta pantalla guarda el registro dentro del caso seleccionado.
+          </div>
+        )}
 
         <div className="risk-card medium iot-risk-row">
           <div><span>Dispositivos</span><strong>{iotDevices.length}</strong></div>
@@ -4171,7 +4176,7 @@ export function App() {
             <textarea placeholder="Logs disponibles" value={iotForm.logs_available} onChange={(e) => setIotForm({ ...iotForm, logs_available: e.target.value })} />
             <input placeholder="Herramienta o metodología usada" value={iotForm.tool_used} onChange={(e) => setIotForm({ ...iotForm, tool_used: e.target.value })} />
             <textarea placeholder="Limitaciones" value={iotForm.limitations} onChange={(e) => setIotForm({ ...iotForm, limitations: e.target.value })} />
-            <button disabled={!selectedCaseId || iotState === "saving"}><Save size={17} /> Guardar dispositivo</button>
+            <button disabled={!selectedCaseId || iotState === "saving"}><Save size={17} /> {selectedCaseId ? "Guardar dispositivo" : "Selecciona un caso para guardar"}</button>
           </form>
 
           <div className="detail-panel">
