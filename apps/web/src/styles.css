@@ -1969,6 +1969,49 @@ code {
   padding: 8px;
 }
 
+.deepfake-layout {
+  align-items: start;
+}
+
+.deepfake-form textarea {
+  min-height: 92px;
+}
+
+.checklist-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.check-pill {
+  align-items: center;
+  background: #f7f9fc;
+  border: 1px solid #dce5ee;
+  border-radius: 8px;
+  color: #34465d;
+  display: flex;
+  gap: 8px;
+  line-height: 1.25;
+  min-height: 42px;
+  padding: 9px 10px;
+}
+
+.check-pill.checked {
+  background: #edf8f3;
+  border-color: #9ed7bd;
+  color: #1b6546;
+}
+
+.check-pill input {
+  height: 16px;
+  margin: 0;
+  width: 16px;
+}
+
+.deepfake-results article {
+  background: #ffffff;
+}
+
 .sensitive-warning {
   background: #fff8ed;
   border-color: #efcf90;
@@ -2056,7 +2099,8 @@ pre {
   }
 
   .legal-search-panel,
-  .legal-card-grid {
+  .legal-card-grid,
+  .checklist-grid {
     grid-template-columns: 1fr;
   }
 

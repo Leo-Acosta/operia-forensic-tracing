@@ -474,6 +474,35 @@ def export_pdf(report: Report) -> Path:
         _section(story, "7. Hip\u00f3tesis y an\u00e1lisis del caso", styles)
         _append_markdown_content(story, analysis_content, styles)
 
+    if getattr(case, "deepfake_analyses", None):
+        _section(story, "7.1 Autenticaci\u00f3n de medios y an\u00e1lisis deepfake", styles)
+        story.append(
+            _data_table(
+                ["Medio", "Evidencia / hash", "Herramienta", "Clasificaci\u00f3n", "Hallazgos y l\u00edmites"],
+                [
+                    [
+                        item.media_type,
+                        f"#{item.evidence_id or '-'} / {item.evidence_hash or 'pendiente'}",
+                        item.tool_used or "pendiente",
+                        item.classification,
+                        f"{item.findings or 'Sin hallazgos concluyentes cargados.'} L\u00edmites: {item.limitations or 'requiere pericia especializada.'}",
+                    ]
+                    for item in sorted(case.deepfake_analyses, key=lambda row: row.created_at, reverse=True)
+                ],
+                styles,
+                [58, 112, 92, 88, 174],
+            )
+        )
+        story.append(Spacer(1, 6))
+        story.append(
+            Paragraph(
+                _html(
+                    "Conclusi\u00f3n prudente: la autenticaci\u00f3n de medios es preliminar y no permite afirmar de forma concluyente que el archivo sea deepfake, aut\u00e9ntico o atribuible a una persona sin pericia especializada, preservaci\u00f3n del original y corroboraci\u00f3n independiente."
+                ),
+                styles["body"],
+            )
+        )
+
     conclusion_content = _extract_named_sections(
         report.markdown_content,
         [

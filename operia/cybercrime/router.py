@@ -22,7 +22,15 @@ from operia.cybercrime.models import (
     ToolLaunchLog,
     utcnow,
 )
-from operia.cybercrime.services import run_lab_command, verify_tool
+from operia.cybercrime.services import (
+    DEEPFAKE_WARNING,
+    apply_deepfake_legal_mapping,
+    create_deepfake_analysis_record,
+    create_deepfake_finding,
+    deepfake_payload,
+    run_lab_command,
+    verify_tool,
+)
 from operia.evidence.models import ChainOfCustodyAction, Evidence
 from operia.exports.service import export_pdf
 from operia.legal_report.services.report_service import build_integral_markdown, populate_report_sections, snapshot_report
@@ -707,6 +715,51 @@ def list_deepfake_analyses(case_id: int | None = None, db: Session = Depends(get
 @router.post("/deepfake-analyses")
 def create_deepfake_analysis(payload: dict[str, Any], db: Session = Depends(get_db)):
     return create_cybercrime_collection_item("deepfake-analyses", payload, db)
+
+
+@router.post("/deepfake")
+def register_deepfake_analysis(payload: dict[str, Any], db: Session = Depends(get_db)):
+    case_id = int(payload.get("case_id") or 0)
+    if not case_id or not db.get(Case, case_id):
+        raise HTTPException(status_code=404, detail="Caso no encontrado")
+    try:
+        analysis = create_deepfake_analysis_record(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return deepfake_payload(analysis)
+
+
+@router.get("/deepfake/case/{case_id}")
+def list_case_deepfake_analyses(case_id: int, db: Session = Depends(get_db)):
+    if not db.get(Case, case_id):
+        raise HTTPException(status_code=404, detail="Caso no encontrado")
+    rows = db.query(DeepfakeAnalysis).filter(DeepfakeAnalysis.case_id == case_id).order_by(DeepfakeAnalysis.id.desc()).all()
+    return [deepfake_payload(row) for row in rows]
+
+
+@router.post("/deepfake/{analysis_id}/finding")
+def register_deepfake_finding(analysis_id: int, payload: dict[str, Any] | None = None, db: Session = Depends(get_db)):
+    analysis = db.get(DeepfakeAnalysis, analysis_id)
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Analisis de medio no encontrado")
+    finding = create_deepfake_finding(db, analysis, payload or {})
+    return {
+        "id": finding.id,
+        "analysis_id": analysis.id,
+        "case_id": finding.case_id,
+        "title": finding.title,
+        "confidence_level": finding.confidence_level,
+        "message": "Hallazgo creado con conclusión prudente y disponible para el informe.",
+        "warning": DEEPFAKE_WARNING,
+    }
+
+
+@router.post("/deepfake/{analysis_id}/apply-legal")
+def apply_deepfake_suggested_legal(analysis_id: int, payload: dict[str, Any] | None = None, db: Session = Depends(get_db)):
+    analysis = db.get(DeepfakeAnalysis, analysis_id)
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Analisis de medio no encontrado")
+    return apply_deepfake_legal_mapping(db, analysis, payload or {})
 
 
 @router.get("/iot-devices")

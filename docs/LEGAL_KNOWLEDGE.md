@@ -142,3 +142,12 @@ Update and verification policy:
 - unregistered jurisprudence, doctrine, norms or articles must not be generated;
 - every legal recommendation must remain subject to human review.
 - CP articles 128 and 131 are shown only as sensitive references with minimal-preservation warnings; the frontend must not expose or request sensitive material.
+
+Deepfake / media-authentication integration:
+
+- `POST /api/cybercrime/deepfake/{analysis_id}/apply-legal` applies only articles already registered in this library;
+- CCCN articles 51 to 53 are the main civil reference for image, voice, identity and dignity;
+- Law 11.723 articles 1 and 71 are applied only when protected works or intellectual-property use is relevant;
+- CP articles 172, 293, 296, 109 and 110 are applied as connected norms only when fraud, document falsity or honor-affectation facts are present;
+- Law 25.326 articles 5 and 9 are applied when personal data processing, consent or security may be involved;
+- the mapping keeps probatory limits and warns that media analysis does not prove authorship or conclusively prove deepfake status by itself.

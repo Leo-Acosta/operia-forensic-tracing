@@ -38,6 +38,7 @@ type ModuleKey =
   | "legalKnowledge"
   | "ai"
   | "cybercrime"
+  | "deepfakeMedia"
   | "externalTools"
   | "aiSecurity"
   | "geoTrace"
@@ -476,6 +477,27 @@ type CyberProofRow = {
   risk_flag?: string;
 };
 
+type DeepfakeAnalysisItem = {
+  id: number;
+  case_id: number;
+  evidence_id?: number;
+  evidence_description?: string;
+  finding_id?: number;
+  media_type: string;
+  source_origin: string;
+  evidence_hash: string;
+  metadata_summary: string;
+  checklist: Array<{ key: string; label: string; ok: boolean; note: string }>;
+  tool_used: string;
+  findings: string;
+  limitations: string;
+  classification: string;
+  legal_relevance: string;
+  legal_mapping_ids: number[];
+  analyst_name: string;
+  warning: string;
+};
+
 const modules: Array<{ key: ModuleKey; label: string; icon: typeof BarChart3 }> = [
   { key: "workflow", label: "Flujo Operativo", icon: CheckCircle2 },
   { key: "dashboard", label: "Dashboard", icon: BarChart3 },
@@ -486,6 +508,7 @@ const modules: Array<{ key: ModuleKey; label: string; icon: typeof BarChart3 }> 
   { key: "legalKnowledge", label: "Biblioteca Legal", icon: BookOpen },
   { key: "ai", label: "Asistente IA", icon: Bot },
   { key: "cybercrime", label: "Cybercrime", icon: Shield },
+  { key: "deepfakeMedia", label: "Deepfake / Medios", icon: FileCheck2 },
   { key: "externalTools", label: "Herramientas Externas", icon: Wrench },
   { key: "aiSecurity", label: "AI Security", icon: BrainCircuit },
   { key: "geoTrace", label: "Geo Trace", icon: Map },
@@ -522,6 +545,35 @@ const attackTypes = [
   { value: "falsedad documental digital", label: "Falsedad documental digital", query: "falsedad documental digital documento falso uso certificado firma" },
   { value: "otro", label: "Otro", query: "incidente informático evidencia digital" }
 ];
+
+const deepfakeChecklist = [
+  { key: "source_origin", label: "Origen del archivo" },
+  { key: "original_preserved", label: "Preservación de original" },
+  { key: "hash", label: "Hash" },
+  { key: "metadata", label: "Metadatos EXIF/media" },
+  { key: "compression", label: "Compresión" },
+  { key: "visual_inconsistencies", label: "Inconsistencias visuales" },
+  { key: "audio_inconsistencies", label: "Inconsistencias de audio" },
+  { key: "lip_sync", label: "Sincronización labial" },
+  { key: "frame_analysis", label: "Análisis frame-by-frame" },
+  { key: "known_source_comparison", label: "Comparación con fuente conocida" },
+  { key: "publication_traceability", label: "Trazabilidad de publicación" },
+  { key: "external_tool_used", label: "Herramienta externa usada" },
+  { key: "limitations", label: "Limitaciones" }
+];
+
+const emptyDeepfakeChecklist = Object.fromEntries(deepfakeChecklist.map((item) => [item.key, false])) as Record<string, boolean>;
+
+const emptyDeepfakeForm = {
+  evidence_id: "",
+  media_type: "video",
+  source_origin: "",
+  metadata_summary: "",
+  tool_used: "OPERIA Deepfake Lab",
+  findings: "",
+  limitations: "Resultado preliminar sujeto a pericia especializada y corroboración independiente.",
+  classification: "no concluyente"
+};
 
 function prettySpanish(value = "") {
   return value
@@ -721,6 +773,11 @@ export function App() {
   const [cyberTools, setCyberTools] = useState<CyberTool[]>([]);
   const [cyberLabSessions, setCyberLabSessions] = useState<CyberLabSession[]>([]);
   const [cyberProofRows, setCyberProofRows] = useState<CyberProofRow[]>([]);
+  const [deepfakeAnalyses, setDeepfakeAnalyses] = useState<DeepfakeAnalysisItem[]>([]);
+  const [deepfakeForm, setDeepfakeForm] = useState(emptyDeepfakeForm);
+  const [deepfakeChecklistState, setDeepfakeChecklistState] = useState<Record<string, boolean>>(emptyDeepfakeChecklist);
+  const [deepfakeState, setDeepfakeState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [deepfakeMessage, setDeepfakeMessage] = useState("");
   const [cyberToolForm, setCyberToolForm] = useState({ name: "", category: "osint", executable_path: "", default_command: "", notes: "", website_url: "", documentation_url: "", safety_notes: "" });
   const [cyberLabForm, setCyberLabForm] = useState({ title: "", purpose: "analisis de indicador", risk_level: "medio", operator: "" });
   const [cyberProofForm, setCyberProofForm] = useState({
@@ -774,6 +831,7 @@ export function App() {
       setManifests([]);
       setLegalMappings([]);
       setLegalMappingEvidence([]);
+      setDeepfakeAnalyses([]);
       setLegalProbatoryMatrix(null);
       setLegalQualityControl(null);
       setRubricEvaluation(null);
@@ -797,6 +855,7 @@ export function App() {
       mappingEvidenceData,
       probatoryMatrixData,
       qualityControlData,
+      deepfakeData,
       rubricData
     ] = await Promise.all([
       apiGet<CaseParticipant[]>(`/cases/${caseId}/participants`),
@@ -809,6 +868,7 @@ export function App() {
       apiGet<LegalMappingEvidence[]>(`/legal-knowledge/case/${caseId}/mapping-evidence`),
       apiGet<LegalProbatoryMatrix>(`/legal-knowledge/case/${caseId}/probatory-matrix`),
       apiGet<LegalQualityControl>(`/legal-knowledge/case/${caseId}/quality-control`),
+      apiGet<DeepfakeAnalysisItem[]>(`/cybercrime/deepfake/case/${caseId}`).catch(() => []),
       apiGet<RubricEvaluation>(`/rubrics/case/${caseId}/score`).catch(() => null)
     ]);
     setParticipants(participantData);
@@ -819,6 +879,7 @@ export function App() {
     setManifests(manifestData);
     setLegalMappings(mappingData);
     setLegalMappingEvidence(mappingEvidenceData);
+    setDeepfakeAnalyses(deepfakeData);
     setLegalProbatoryMatrix(probatoryMatrixData);
     setLegalQualityControl(qualityControlData);
     setRubricEvaluation(rubricData);
@@ -857,6 +918,10 @@ export function App() {
         return;
       }
       if (key === "cybercrime") {
+        await refreshCybercrime();
+        return;
+      }
+      if (key === "deepfakeMedia") {
         await refreshCybercrime();
         return;
       }
@@ -931,17 +996,19 @@ export function App() {
 
   async function refreshCybercrime() {
     const caseParam = selectedCaseId ? `?case_id=${selectedCaseId}` : "";
-    const [dashboardData, toolsData, labData, proofRowsData] = await Promise.all([
+    const [dashboardData, toolsData, labData, proofRowsData, deepfakeData] = await Promise.all([
       apiGet<CybercrimeDashboard>("/cybercrime/dashboard"),
       apiGet<CyberTool[]>("/cybercrime/tools"),
       apiGet<CyberLabSession[]>(`/cybercrime/lab/sessions${caseParam}`),
-      selectedCaseId ? apiGet<CyberProofRow[]>(`/cybercrime/proof-matrix${caseParam}`) : Promise.resolve([])
+      selectedCaseId ? apiGet<CyberProofRow[]>(`/cybercrime/proof-matrix${caseParam}`) : Promise.resolve([]),
+      selectedCaseId ? apiGet<DeepfakeAnalysisItem[]>(`/cybercrime/deepfake/case/${selectedCaseId}`) : Promise.resolve([])
     ]);
     setCyberDashboard(dashboardData);
     setCyberTools(toolsData);
     setCyberLabSessions(labData);
     setCyberProofRows(proofRowsData);
-    setModulePayload({ dashboard: dashboardData, tools: toolsData.length, lab_sessions: labData.length, proof_rows: proofRowsData.length });
+    setDeepfakeAnalyses(deepfakeData);
+    setModulePayload({ dashboard: dashboardData, tools: toolsData.length, lab_sessions: labData.length, proof_rows: proofRowsData.length, deepfake_analyses: deepfakeData.length });
   }
 
   async function login(event: FormEvent) {
@@ -1240,6 +1307,76 @@ export function App() {
     });
     setCyberProofForm({ defensible_conclusion: "", legal_framing: "", confidence_level: "medio", weakness: "" });
     await refreshCybercrime();
+  }
+
+  async function saveDeepfakeAnalysis(event: FormEvent) {
+    event.preventDefault();
+    if (!selectedCaseId) {
+      setDeepfakeState("error");
+      setDeepfakeMessage("Selecciona un caso antes de guardar el análisis.");
+      return;
+    }
+    setDeepfakeState("saving");
+    setDeepfakeMessage("Guardando análisis de medio...");
+    try {
+      const selectedEvidence = evidence.find((item) => item.id === Number(deepfakeForm.evidence_id));
+      await apiPost<DeepfakeAnalysisItem>("/cybercrime/deepfake", {
+        ...deepfakeForm,
+        case_id: Number(selectedCaseId),
+        evidence_id: deepfakeForm.evidence_id ? Number(deepfakeForm.evidence_id) : undefined,
+        evidence_hash: selectedEvidence?.sha256_hash || "",
+        source_origin: deepfakeForm.source_origin || selectedEvidence?.source || selectedEvidence?.file_location || "",
+        checklist: deepfakeChecklistState,
+        analyst_name: analystName || identitySession.user?.name || "Analista local"
+      });
+      setDeepfakeForm(emptyDeepfakeForm);
+      setDeepfakeChecklistState(emptyDeepfakeChecklist);
+      setDeepfakeState("saved");
+      setDeepfakeMessage("Análisis guardado y vinculado al caso.");
+      await refreshCaseCollections(selectedCaseId);
+      await refreshCybercrime();
+    } catch (error) {
+      setDeepfakeState("error");
+      setDeepfakeMessage(error instanceof Error ? error.message : "No se pudo guardar el análisis.");
+    }
+  }
+
+  async function createDeepfakeFinding(analysisId: number) {
+    setDeepfakeState("saving");
+    setDeepfakeMessage("Creando hallazgo técnico...");
+    try {
+      const result = await apiPost<{ id: number; message: string }>(`/cybercrime/deepfake/${analysisId}/finding`);
+      setDeepfakeState("saved");
+      setDeepfakeMessage(result.message || `Hallazgo #${result.id} creado.`);
+      if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+      await refreshCybercrime();
+    } catch (error) {
+      setDeepfakeState("error");
+      setDeepfakeMessage(error instanceof Error ? error.message : "No se pudo crear el hallazgo.");
+    }
+  }
+
+  async function applyDeepfakeLegal(analysis: DeepfakeAnalysisItem) {
+    setDeepfakeState("saving");
+    setDeepfakeMessage("Aplicando normas sugeridas...");
+    try {
+      const text = `${analysis.media_type} ${analysis.findings} ${analysis.legal_relevance}`.toLowerCase();
+      const result = await apiPost<{ applied: Array<{ norm_reference: string }> }>(`/cybercrime/deepfake/${analysis.id}/apply-legal`, {
+        analyst_name: analystName || identitySession.user?.name || "Analista local",
+        fraud: text.includes("fraude") || text.includes("estafa") || text.includes("transferencia"),
+        document_falsity: analysis.media_type === "documento" || text.includes("documento") || text.includes("certificado"),
+        honor_affectation: text.includes("honor") || text.includes("reputación") || text.includes("reputacion"),
+        personal_data: true,
+        intellectual_property: true
+      });
+      setDeepfakeState("saved");
+      setDeepfakeMessage(`Normas aplicadas: ${result.applied.map((item) => item.norm_reference).join(", ") || "sin nuevas normas"}.`);
+      if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+      await refreshCybercrime();
+    } catch (error) {
+      setDeepfakeState("error");
+      setDeepfakeMessage(error instanceof Error ? error.message : "No se pudieron aplicar las normas.");
+    }
   }
 
   async function searchLegal() {
@@ -3355,6 +3492,111 @@ export function App() {
     );
   }
 
+  function renderDeepfakeMedia() {
+    const checklistDone = deepfakeChecklist.filter((item) => deepfakeChecklistState[item.key]).length;
+    return (
+      <section className="work-surface cyber-workbench">
+        <div className="section-head">
+          <div>
+            <h2>Deepfake / Medios</h2>
+            <p>Laboratorio local para registrar autenticación preliminar de imagen, video, audio, documento o captura sin afirmar conclusiones absolutas.</p>
+          </div>
+          <button className="secondary-button" onClick={refreshCybercrime}><RefreshCcw size={16} /> Actualizar</button>
+        </div>
+
+        {deepfakeMessage && <div className={`action-feedback ${deepfakeState}`}>{deepfakeMessage}</div>}
+
+        <div className="split deepfake-layout">
+          <form className="form deepfake-form" onSubmit={saveDeepfakeAnalysis}>
+            <h3>Registrar análisis de medio</h3>
+            <div className="inline-grid">
+              <select value={deepfakeForm.media_type} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, media_type: e.target.value })}>
+                <option value="imagen">Imagen</option>
+                <option value="video">Video</option>
+                <option value="audio">Audio</option>
+                <option value="documento">Documento</option>
+                <option value="captura">Captura</option>
+              </select>
+              <select value={deepfakeForm.evidence_id} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, evidence_id: e.target.value })}>
+                <option value="">Sin evidencia vinculada</option>
+                {evidence.map((item) => (
+                  <option key={item.id} value={item.id}>#{item.id} - {item.description.slice(0, 60)}</option>
+                ))}
+              </select>
+            </div>
+            <input placeholder="Origen del archivo, URL, publicación o soporte" value={deepfakeForm.source_origin} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, source_origin: e.target.value })} />
+            <input placeholder="Herramienta usada" value={deepfakeForm.tool_used} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, tool_used: e.target.value })} />
+            <textarea placeholder="Resumen de metadatos EXIF/media" value={deepfakeForm.metadata_summary} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, metadata_summary: e.target.value })} />
+            <textarea placeholder="Hallazgos técnicos observados" value={deepfakeForm.findings} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, findings: e.target.value })} />
+            <textarea placeholder="Limitaciones del análisis" value={deepfakeForm.limitations} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, limitations: e.target.value })} />
+            <select value={deepfakeForm.classification} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, classification: e.target.value })}>
+              <option value="auténtico preliminar">Auténtico preliminar</option>
+              <option value="manipulado probable">Manipulado probable</option>
+              <option value="indicios de edición">Indicios de edición</option>
+              <option value="no concluyente">No concluyente</option>
+              <option value="requiere pericia especializada">Requiere pericia especializada</option>
+            </select>
+            <button disabled={!selectedCaseId || deepfakeState === "saving"}><Save size={17} /> Guardar análisis</button>
+          </form>
+
+          <div className="detail-panel">
+            <div className="panel-head">
+              <div>
+                <h3>Checklist de autenticidad</h3>
+                <p>{checklistDone}/{deepfakeChecklist.length} controles marcados.</p>
+              </div>
+              <span className="badge">Preliminar</span>
+            </div>
+            <div className="checklist-grid">
+              {deepfakeChecklist.map((item) => (
+                <label className={`check-pill ${deepfakeChecklistState[item.key] ? "checked" : ""}`} key={item.key}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(deepfakeChecklistState[item.key])}
+                    onChange={(e) => setDeepfakeChecklistState({ ...deepfakeChecklistState, [item.key]: e.target.checked })}
+                  />
+                  <span>{item.label}</span>
+                </label>
+              ))}
+            </div>
+            <p className="notice">La clasificación es preliminar: no prueba por sí sola autenticidad, falsedad, autoría ni origen del archivo.</p>
+          </div>
+        </div>
+
+        <div className="article-list deepfake-results">
+          {deepfakeAnalyses.map((analysis) => (
+            <article key={analysis.id}>
+              <div className="panel-head">
+                <div>
+                  <span>{analysis.media_type} · {analysis.classification}</span>
+                  <h3>Análisis #{analysis.id} {analysis.evidence_id ? `· Evidencia #${analysis.evidence_id}` : ""}</h3>
+                </div>
+                <span className="badge">{analysis.finding_id ? `Hallazgo #${analysis.finding_id}` : "Sin hallazgo"}</span>
+              </div>
+              <p>{analysis.findings || "Sin hallazgos concluyentes cargados."}</p>
+              <div className="legal-card-grid">
+                <small>Hash: {analysis.evidence_hash || "pendiente"}</small>
+                <small>Origen: {analysis.source_origin || "pendiente"}</small>
+                <small>Herramienta: {analysis.tool_used || "pendiente"}</small>
+                <small>Limitaciones: {analysis.limitations || "requiere pericia especializada"}</small>
+              </div>
+              <div className="mini-list">
+                {analysis.checklist.filter((item) => item.ok).map((item) => <span key={item.key}>{item.label}</span>)}
+                {!analysis.checklist.some((item) => item.ok) && <span>Checklist pendiente.</span>}
+              </div>
+              <p className="notice">{analysis.warning}</p>
+              <div className="actions-line">
+                <button className="secondary-button" onClick={() => createDeepfakeFinding(analysis.id)}><FileCheck2 size={16} /> Crear hallazgo</button>
+                <button onClick={() => applyDeepfakeLegal(analysis)}><Gavel size={16} /> Aplicar normas sugeridas</button>
+              </div>
+            </article>
+          ))}
+          {!deepfakeAnalyses.length && <EmptyState text="Sin análisis de medios registrados para el caso seleccionado." />}
+        </div>
+      </section>
+    );
+  }
+
 
   function renderExternalTools() {
     const isAiTool = (item: CyberTool) => {
@@ -3714,6 +3956,7 @@ export function App() {
     if (active === "reports") return renderReportsProfessional();
     if (active === "legalKnowledge") return renderLegalKnowledge();
     if (active === "cybercrime") return renderCybercrime();
+    if (active === "deepfakeMedia") return renderDeepfakeMedia();
     if (active === "externalTools") return renderExternalTools();
     if (active === "ai") return renderAi();
     if (active === "aiSecurity") return renderAiSecurity();

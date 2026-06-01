@@ -32,6 +32,7 @@ REPORT_SECTIONS = [
     "Línea de tiempo de eventos",
     "Análisis técnico-forense",
     "Matriz dato técnico -> evidencia -> hallazgo",
+    "Autenticacion de medios y analisis deepfake",
     "Hallazgos principales",
     "Hipótesis investigativas",
     "Evaluación de hipótesis alternativas",
@@ -107,6 +108,7 @@ def build_integral_markdown(case: Case, legal_recommendations: list[Any] | None 
     exportability = report_exportability_assessment(case, legal_probatory)
     executive_summary = build_smart_executive_summary(case, legal_probatory, exportability)
     exportability_lines = exportability_markdown(exportability)
+    media_authentication_lines = _media_authentication_markdown(case)
     rubric_lines = ""
     if getattr(case, "rubric_evaluations", None):
         from operia.rubrics.service import rubric_markdown
@@ -183,7 +185,7 @@ Se preservaron datos técnicos, se registraron acciones de cadena de custodia, s
 ## Análisis técnico-forense
 
 ### Deepfake / IA
-Evaluación pendiente según datos cargados.
+{media_authentication_lines or 'Evaluacion pendiente segun datos cargados.'}
 
 ### IoT / dispositivos conectados
 Evaluación pendiente según datos cargados.
@@ -196,6 +198,8 @@ Evaluación pendiente según datos cargados.
 
 ### OSINT y fuentes abiertas
 Evaluación pendiente según datos cargados.
+
+{f'## Autenticacion de medios y analisis deepfake\n\n{media_authentication_lines}' if media_authentication_lines else ''}
 
 ## Matriz dato técnico -> evidencia -> hallazgo
 
@@ -299,6 +303,35 @@ Anexos pendientes de selección y exportación.
 **Respuesta sugerida:** Permite verificar integridad del archivo analizado, pero no demuestra por sí solo autoría personal.
 """
     return normalize_spanish(markdown)
+
+
+def _media_authentication_markdown(case: Case) -> str:
+    analyses = sorted(getattr(case, "deepfake_analyses", []) or [], key=lambda item: item.created_at, reverse=True)
+    if not analyses:
+        return ""
+    lines = []
+    for analysis in analyses:
+        evidence_ref = f"Evidencia #{analysis.evidence_id}" if analysis.evidence_id else "Evidencia no vinculada"
+        hash_value = analysis.evidence_hash or "pendiente"
+        legal_refs = analysis.legal_mapping_ids or "pendiente"
+        lines.append(
+            "\n".join(
+                [
+                    f"- Medio #{analysis.id}: {analysis.media_type}. {evidence_ref}. SHA-256: `{hash_value}`.",
+                    f"  - Origen: {analysis.source_origin or 'pendiente'}.",
+                    f"  - Herramienta o técnica: {analysis.tool_used or 'pendiente'}.",
+                    f"  - Metadatos/resumen: {analysis.metadata_summary or 'pendiente'}.",
+                    f"  - Hallazgos: {analysis.findings or 'sin hallazgos concluyentes cargados'}.",
+                    f"  - Clasificación preliminar: {analysis.classification}.",
+                    f"  - Límites: {analysis.limitations or 'requiere pericia especializada y corroboración independiente'}.",
+                    f"  - Normas aplicables vinculadas: {legal_refs}.",
+                ]
+            )
+        )
+    lines.append(
+        "Conclusión prudente: la autenticación de medios es preliminar y no permite afirmar de forma concluyente que el archivo sea deepfake, auténtico o atribuible a una persona sin pericia especializada, preservación del original y corroboración independiente."
+    )
+    return normalize_spanish("\n".join(lines))
 
 
 def _default_hypotheses_markdown(case: Case) -> str:

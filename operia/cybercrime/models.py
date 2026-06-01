@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from operia.core.database import Base
 
@@ -121,15 +121,27 @@ class DeepfakeAnalysis(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"))
     evidence_id: Mapped[int | None] = mapped_column(ForeignKey("evidence.id"), nullable=True)
+    finding_id: Mapped[int | None] = mapped_column(ForeignKey("findings.id"), nullable=True)
     media_type: Mapped[str] = mapped_column(String(80), default="video")
+    source_origin: Mapped[str] = mapped_column(Text, default="")
+    evidence_hash: Mapped[str] = mapped_column(String(128), default="")
     checklist: Mapped[str] = mapped_column(Text, default="")
     metadata_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     external_results: Mapped[str | None] = mapped_column(Text, nullable=True)
-    classification: Mapped[str] = mapped_column(String(120), default="requiere analisis experto")
+    tool_used: Mapped[str] = mapped_column(String(255), default="")
+    findings: Mapped[str] = mapped_column(Text, default="")
+    limitations: Mapped[str] = mapped_column(Text, default="")
+    legal_relevance: Mapped[str] = mapped_column(Text, default="")
+    legal_mapping_ids: Mapped[str] = mapped_column(String(255), default="")
+    analyst_name: Mapped[str] = mapped_column(String(160), default="")
+    classification: Mapped[str] = mapped_column(String(120), default="no concluyente")
     warning: Mapped[str] = mapped_column(
         Text,
         default="Ninguna herramienta automatica prueba por si sola que un archivo sea deepfake.",
     )
+
+    case: Mapped["Case"] = relationship(back_populates="deepfake_analyses")
+    evidence: Mapped["Evidence | None"] = relationship()
 
 
 class IoTDevice(Base, TimestampMixin):
@@ -182,4 +194,3 @@ class ProofMatrixRow(Base, TimestampMixin):
     weakness: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(40), default="borrador")
     risk_flag: Mapped[str | None] = mapped_column(Text, nullable=True)
-
