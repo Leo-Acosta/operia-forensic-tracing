@@ -503,6 +503,36 @@ def export_pdf(report: Report) -> Path:
             )
         )
 
+    if getattr(case, "blockchain_transactions", None):
+        _section(story, "7.2 An\u00e1lisis forense de blockchain", styles)
+        story.append(
+            _data_table(
+                ["Red", "Hash", "Origen / destino", "Monto", "Clasificaci\u00f3n", "Hip\u00f3tesis y l\u00edmites"],
+                [
+                    [
+                        item.blockchain,
+                        item.tx_hash,
+                        f"{item.source_wallet or 'pendiente'} -> {item.destination_wallet or 'pendiente'}",
+                        f"{item.amount} {item.token} / valor aprox. {item.approximate_value:.2f}",
+                        item.wallet_classification,
+                        f"{item.route_hypothesis or 'Pendiente.'} L\u00edmites: {item.limitations or 'No atribuir identidad personal solo por wallet.'}",
+                    ]
+                    for item in sorted(case.blockchain_transactions, key=lambda row: row.created_at, reverse=True)
+                ],
+                styles,
+                [52, 104, 112, 72, 76, 108],
+            )
+        )
+        story.append(Spacer(1, 6))
+        story.append(
+            Paragraph(
+                _html(
+                    "L\u00edmite de atribuci\u00f3n: una wallet o transacci\u00f3n permite orientar trazabilidad econ\u00f3mica, pero no identifica por s\u00ed sola a una persona sin evidencia externa corroborante, informaci\u00f3n de plataforma, comunicaciones, cuentas, IPs u otros registros."
+                ),
+                styles["body"],
+            )
+        )
+
     conclusion_content = _extract_named_sections(
         report.markdown_content,
         [

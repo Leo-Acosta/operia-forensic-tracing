@@ -166,6 +166,8 @@ class BlockchainTransaction(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"))
+    evidence_id: Mapped[int | None] = mapped_column(ForeignKey("evidence.id"), nullable=True)
+    finding_id: Mapped[int | None] = mapped_column(ForeignKey("findings.id"), nullable=True)
     source_wallet: Mapped[str | None] = mapped_column(String(255), nullable=True)
     destination_wallet: Mapped[str | None] = mapped_column(String(255), nullable=True)
     tx_hash: Mapped[str] = mapped_column(String(255))
@@ -176,6 +178,17 @@ class BlockchainTransaction(Base, TimestampMixin):
     explorer_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     approximate_value: Mapped[float] = mapped_column(Float, default=0)
     route_hypothesis: Mapped[str | None] = mapped_column(Text, nullable=True)
+    wallet_classification: Mapped[str] = mapped_column(String(120), default="desconocido")
+    evidence_hash: Mapped[str] = mapped_column(String(128), default="")
+    tool_used: Mapped[str] = mapped_column(String(255), default="")
+    limitations: Mapped[str] = mapped_column(Text, default="")
+    recommended_measures: Mapped[str] = mapped_column(Text, default="")
+    legal_mapping_ids: Mapped[str] = mapped_column(String(255), default="")
+    analyst_name: Mapped[str] = mapped_column(String(160), default="")
+    warning: Mapped[str] = mapped_column(Text, default="Una wallet no identifica por si sola a una persona sin evidencia externa corroborante.")
+
+    case: Mapped["Case"] = relationship(back_populates="blockchain_transactions")
+    evidence: Mapped["Evidence | None"] = relationship()
 
 
 class ProofMatrixRow(Base, TimestampMixin):

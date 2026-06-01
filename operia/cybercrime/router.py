@@ -23,8 +23,13 @@ from operia.cybercrime.models import (
     utcnow,
 )
 from operia.cybercrime.services import (
+    BLOCKCHAIN_WARNING,
     DEEPFAKE_WARNING,
+    apply_blockchain_legal_mapping,
     apply_deepfake_legal_mapping,
+    blockchain_payload,
+    create_blockchain_finding,
+    create_blockchain_transaction_record,
     create_deepfake_analysis_record,
     create_deepfake_finding,
     deepfake_payload,
@@ -780,6 +785,51 @@ def list_blockchain_transactions(case_id: int | None = None, db: Session = Depen
 @router.post("/blockchain-transactions")
 def create_blockchain_transaction(payload: dict[str, Any], db: Session = Depends(get_db)):
     return create_cybercrime_collection_item("blockchain-transactions", payload, db)
+
+
+@router.post("/blockchain")
+def register_blockchain_transaction(payload: dict[str, Any], db: Session = Depends(get_db)):
+    case_id = int(payload.get("case_id") or 0)
+    if not case_id or not db.get(Case, case_id):
+        raise HTTPException(status_code=404, detail="Caso no encontrado")
+    try:
+        transaction = create_blockchain_transaction_record(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return blockchain_payload(transaction)
+
+
+@router.get("/blockchain/case/{case_id}")
+def list_case_blockchain_transactions(case_id: int, db: Session = Depends(get_db)):
+    if not db.get(Case, case_id):
+        raise HTTPException(status_code=404, detail="Caso no encontrado")
+    rows = db.query(BlockchainTransaction).filter(BlockchainTransaction.case_id == case_id).order_by(BlockchainTransaction.id.desc()).all()
+    return [blockchain_payload(row) for row in rows]
+
+
+@router.post("/blockchain/{transaction_id}/finding")
+def register_blockchain_finding(transaction_id: int, payload: dict[str, Any] | None = None, db: Session = Depends(get_db)):
+    transaction = db.get(BlockchainTransaction, transaction_id)
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaccion blockchain no encontrada")
+    finding = create_blockchain_finding(db, transaction, payload or {})
+    return {
+        "id": finding.id,
+        "transaction_id": transaction.id,
+        "case_id": finding.case_id,
+        "title": finding.title,
+        "confidence_level": finding.confidence_level,
+        "message": "Hallazgo blockchain creado con limites de atribucion y disponible para el informe.",
+        "warning": BLOCKCHAIN_WARNING,
+    }
+
+
+@router.post("/blockchain/{transaction_id}/apply-legal")
+def apply_blockchain_suggested_legal(transaction_id: int, payload: dict[str, Any] | None = None, db: Session = Depends(get_db)):
+    transaction = db.get(BlockchainTransaction, transaction_id)
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaccion blockchain no encontrada")
+    return apply_blockchain_legal_mapping(db, transaction, payload or {})
 
 
 @router.get("/proof-matrix")

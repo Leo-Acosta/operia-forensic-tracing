@@ -124,6 +124,17 @@ Cybercrime indicator analysis:
 
 - `POST /api/cybercrime/analyze-indicator`
 
+Cybercrime media and blockchain labs:
+
+- `POST /api/cybercrime/deepfake`
+- `GET /api/cybercrime/deepfake/case/{case_id}`
+- `POST /api/cybercrime/deepfake/{analysis_id}/finding`
+- `POST /api/cybercrime/deepfake/{analysis_id}/apply-legal`
+- `POST /api/cybercrime/blockchain`
+- `GET /api/cybercrime/blockchain/case/{case_id}`
+- `POST /api/cybercrime/blockchain/{transaction_id}/finding`
+- `POST /api/cybercrime/blockchain/{transaction_id}/apply-legal`
+
 Operational PDF export:
 
 - `GET /api/exports/reports/{report_id}/pdf`

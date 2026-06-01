@@ -39,6 +39,7 @@ type ModuleKey =
   | "ai"
   | "cybercrime"
   | "deepfakeMedia"
+  | "blockchainForensics"
   | "externalTools"
   | "aiSecurity"
   | "geoTrace"
@@ -498,6 +499,32 @@ type DeepfakeAnalysisItem = {
   warning: string;
 };
 
+type BlockchainTransactionItem = {
+  id: number;
+  case_id: number;
+  evidence_id?: number;
+  evidence_description?: string;
+  finding_id?: number;
+  source_wallet: string;
+  destination_wallet: string;
+  tx_hash: string;
+  blockchain: string;
+  token: string;
+  amount: number;
+  approximate_value: number;
+  tx_datetime: string;
+  explorer_url: string;
+  route_hypothesis: string;
+  wallet_classification: string;
+  evidence_hash: string;
+  tool_used: string;
+  limitations: string;
+  recommended_measures: string[];
+  legal_mapping_ids: number[];
+  analyst_name: string;
+  warning: string;
+};
+
 const modules: Array<{ key: ModuleKey; label: string; icon: typeof BarChart3 }> = [
   { key: "workflow", label: "Flujo Operativo", icon: CheckCircle2 },
   { key: "dashboard", label: "Dashboard", icon: BarChart3 },
@@ -509,6 +536,7 @@ const modules: Array<{ key: ModuleKey; label: string; icon: typeof BarChart3 }> 
   { key: "ai", label: "Asistente IA", icon: Bot },
   { key: "cybercrime", label: "Cybercrime", icon: Shield },
   { key: "deepfakeMedia", label: "Deepfake / Medios", icon: FileCheck2 },
+  { key: "blockchainForensics", label: "Blockchain Forensics", icon: Globe2 },
   { key: "externalTools", label: "Herramientas Externas", icon: Wrench },
   { key: "aiSecurity", label: "AI Security", icon: BrainCircuit },
   { key: "geoTrace", label: "Geo Trace", icon: Map },
@@ -573,6 +601,34 @@ const emptyDeepfakeForm = {
   findings: "",
   limitations: "Resultado preliminar sujeto a pericia especializada y corroboración independiente.",
   classification: "no concluyente"
+};
+
+const walletClassifications = [
+  "wallet personal no verificada",
+  "exchange",
+  "mixer",
+  "bridge",
+  "contrato inteligente",
+  "wallet receptora",
+  "wallet intermediaria",
+  "desconocido"
+];
+
+const emptyBlockchainForm = {
+  evidence_id: "",
+  source_wallet: "",
+  destination_wallet: "",
+  tx_hash: "",
+  blockchain: "Bitcoin",
+  token: "BTC",
+  amount: "",
+  approximate_value: "",
+  tx_datetime: "",
+  explorer_url: "",
+  route_hypothesis: "",
+  wallet_classification: "desconocido",
+  tool_used: "OPERIA Blockchain Forensics",
+  limitations: "Una wallet no identifica por sí sola a una persona sin evidencia externa corroborante."
 };
 
 function prettySpanish(value = "") {
@@ -778,6 +834,10 @@ export function App() {
   const [deepfakeChecklistState, setDeepfakeChecklistState] = useState<Record<string, boolean>>(emptyDeepfakeChecklist);
   const [deepfakeState, setDeepfakeState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [deepfakeMessage, setDeepfakeMessage] = useState("");
+  const [blockchainTransactions, setBlockchainTransactions] = useState<BlockchainTransactionItem[]>([]);
+  const [blockchainForm, setBlockchainForm] = useState(emptyBlockchainForm);
+  const [blockchainState, setBlockchainState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [blockchainMessage, setBlockchainMessage] = useState("");
   const [cyberToolForm, setCyberToolForm] = useState({ name: "", category: "osint", executable_path: "", default_command: "", notes: "", website_url: "", documentation_url: "", safety_notes: "" });
   const [cyberLabForm, setCyberLabForm] = useState({ title: "", purpose: "analisis de indicador", risk_level: "medio", operator: "" });
   const [cyberProofForm, setCyberProofForm] = useState({
@@ -832,6 +892,7 @@ export function App() {
       setLegalMappings([]);
       setLegalMappingEvidence([]);
       setDeepfakeAnalyses([]);
+      setBlockchainTransactions([]);
       setLegalProbatoryMatrix(null);
       setLegalQualityControl(null);
       setRubricEvaluation(null);
@@ -856,6 +917,7 @@ export function App() {
       probatoryMatrixData,
       qualityControlData,
       deepfakeData,
+      blockchainData,
       rubricData
     ] = await Promise.all([
       apiGet<CaseParticipant[]>(`/cases/${caseId}/participants`),
@@ -869,6 +931,7 @@ export function App() {
       apiGet<LegalProbatoryMatrix>(`/legal-knowledge/case/${caseId}/probatory-matrix`),
       apiGet<LegalQualityControl>(`/legal-knowledge/case/${caseId}/quality-control`),
       apiGet<DeepfakeAnalysisItem[]>(`/cybercrime/deepfake/case/${caseId}`).catch(() => []),
+      apiGet<BlockchainTransactionItem[]>(`/cybercrime/blockchain/case/${caseId}`).catch(() => []),
       apiGet<RubricEvaluation>(`/rubrics/case/${caseId}/score`).catch(() => null)
     ]);
     setParticipants(participantData);
@@ -880,6 +943,7 @@ export function App() {
     setLegalMappings(mappingData);
     setLegalMappingEvidence(mappingEvidenceData);
     setDeepfakeAnalyses(deepfakeData);
+    setBlockchainTransactions(blockchainData);
     setLegalProbatoryMatrix(probatoryMatrixData);
     setLegalQualityControl(qualityControlData);
     setRubricEvaluation(rubricData);
@@ -922,6 +986,10 @@ export function App() {
         return;
       }
       if (key === "deepfakeMedia") {
+        await refreshCybercrime();
+        return;
+      }
+      if (key === "blockchainForensics") {
         await refreshCybercrime();
         return;
       }
@@ -996,19 +1064,21 @@ export function App() {
 
   async function refreshCybercrime() {
     const caseParam = selectedCaseId ? `?case_id=${selectedCaseId}` : "";
-    const [dashboardData, toolsData, labData, proofRowsData, deepfakeData] = await Promise.all([
+    const [dashboardData, toolsData, labData, proofRowsData, deepfakeData, blockchainData] = await Promise.all([
       apiGet<CybercrimeDashboard>("/cybercrime/dashboard"),
       apiGet<CyberTool[]>("/cybercrime/tools"),
       apiGet<CyberLabSession[]>(`/cybercrime/lab/sessions${caseParam}`),
       selectedCaseId ? apiGet<CyberProofRow[]>(`/cybercrime/proof-matrix${caseParam}`) : Promise.resolve([]),
-      selectedCaseId ? apiGet<DeepfakeAnalysisItem[]>(`/cybercrime/deepfake/case/${selectedCaseId}`) : Promise.resolve([])
+      selectedCaseId ? apiGet<DeepfakeAnalysisItem[]>(`/cybercrime/deepfake/case/${selectedCaseId}`) : Promise.resolve([]),
+      selectedCaseId ? apiGet<BlockchainTransactionItem[]>(`/cybercrime/blockchain/case/${selectedCaseId}`) : Promise.resolve([])
     ]);
     setCyberDashboard(dashboardData);
     setCyberTools(toolsData);
     setCyberLabSessions(labData);
     setCyberProofRows(proofRowsData);
     setDeepfakeAnalyses(deepfakeData);
-    setModulePayload({ dashboard: dashboardData, tools: toolsData.length, lab_sessions: labData.length, proof_rows: proofRowsData.length, deepfake_analyses: deepfakeData.length });
+    setBlockchainTransactions(blockchainData);
+    setModulePayload({ dashboard: dashboardData, tools: toolsData.length, lab_sessions: labData.length, proof_rows: proofRowsData.length, deepfake_analyses: deepfakeData.length, blockchain_transactions: blockchainData.length });
   }
 
   async function login(event: FormEvent) {
@@ -1376,6 +1446,75 @@ export function App() {
     } catch (error) {
       setDeepfakeState("error");
       setDeepfakeMessage(error instanceof Error ? error.message : "No se pudieron aplicar las normas.");
+    }
+  }
+
+  async function saveBlockchainTransaction(event: FormEvent) {
+    event.preventDefault();
+    if (!selectedCaseId) {
+      setBlockchainState("error");
+      setBlockchainMessage("Selecciona un caso antes de registrar la transacción.");
+      return;
+    }
+    setBlockchainState("saving");
+    setBlockchainMessage("Registrando transacción blockchain...");
+    try {
+      const selectedEvidence = evidence.find((item) => item.id === Number(blockchainForm.evidence_id));
+      await apiPost<BlockchainTransactionItem>("/cybercrime/blockchain", {
+        ...blockchainForm,
+        case_id: Number(selectedCaseId),
+        evidence_id: blockchainForm.evidence_id ? Number(blockchainForm.evidence_id) : undefined,
+        amount: Number(blockchainForm.amount || 0),
+        approximate_value: Number(blockchainForm.approximate_value || 0),
+        evidence_hash: selectedEvidence?.sha256_hash || "",
+        analyst_name: analystName || identitySession.user?.name || "Analista local"
+      });
+      setBlockchainForm(emptyBlockchainForm);
+      setBlockchainState("saved");
+      setBlockchainMessage("Transacción registrada con límites de atribución.");
+      await refreshCaseCollections(selectedCaseId);
+      await refreshCybercrime();
+    } catch (error) {
+      setBlockchainState("error");
+      setBlockchainMessage(error instanceof Error ? error.message : "No se pudo registrar la transacción.");
+    }
+  }
+
+  async function createBlockchainFinding(transactionId: number) {
+    setBlockchainState("saving");
+    setBlockchainMessage("Creando hallazgo blockchain...");
+    try {
+      const result = await apiPost<{ id: number; message: string }>(`/cybercrime/blockchain/${transactionId}/finding`);
+      setBlockchainState("saved");
+      setBlockchainMessage(result.message || `Hallazgo #${result.id} creado.`);
+      if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+      await refreshCybercrime();
+    } catch (error) {
+      setBlockchainState("error");
+      setBlockchainMessage(error instanceof Error ? error.message : "No se pudo crear el hallazgo.");
+    }
+  }
+
+  async function applyBlockchainLegal(transaction: BlockchainTransactionItem) {
+    setBlockchainState("saving");
+    setBlockchainMessage("Aplicando normas registradas...");
+    try {
+      const text = `${transaction.route_hypothesis} ${transaction.wallet_classification} ${transaction.blockchain}`.toLowerCase();
+      const result = await apiPost<{ applied: Array<{ norm_reference: string }> }>(`/cybercrime/blockchain/${transaction.id}/apply-legal`, {
+        analyst_name: analystName || identitySession.user?.name || "Analista local",
+        fraud: text.includes("estafa") || text.includes("fraude") || text.includes("phishing"),
+        computer_manipulation: text.includes("manipulación") || text.includes("manipulacion") || text.includes("contrato inteligente"),
+        extortion: text.includes("extorsión") || text.includes("extorsion") || text.includes("ransomware"),
+        blackmail: text.includes("chantaje"),
+        personal_data: text.includes("exchange") || text.includes("cuenta") || text.includes("kyc")
+      });
+      setBlockchainState("saved");
+      setBlockchainMessage(`Normas aplicadas: ${result.applied.map((item) => item.norm_reference).join(", ") || "sin nuevas normas"}.`);
+      if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+      await refreshCybercrime();
+    } catch (error) {
+      setBlockchainState("error");
+      setBlockchainMessage(error instanceof Error ? error.message : "No se pudieron aplicar las normas.");
     }
   }
 
@@ -3597,6 +3736,116 @@ export function App() {
     );
   }
 
+  function renderBlockchainForensics() {
+    const highRisk = blockchainTransactions.filter((item) => ["mixer", "bridge", "contrato inteligente"].includes(item.wallet_classification)).length;
+    const linked = blockchainTransactions.filter((item) => item.evidence_id).length;
+    return (
+      <section className="work-surface cyber-workbench">
+        <div className="section-head">
+          <div>
+            <h2>Blockchain Forensics</h2>
+            <p>Registro pericial de wallets, transacciones y ruta probable sin consultar exploradores ni atribuir identidad personal automáticamente.</p>
+          </div>
+          <button className="secondary-button" onClick={refreshCybercrime}><RefreshCcw size={16} /> Actualizar</button>
+        </div>
+
+        {blockchainMessage && <div className={`action-feedback ${blockchainState}`}>{blockchainMessage}</div>}
+
+        <div className="risk-card medium blockchain-risk-row">
+          <div><span>Transacciones</span><strong>{blockchainTransactions.length}</strong></div>
+          <div><span>Con evidencia</span><strong>{linked}</strong></div>
+          <div><span>Riesgo reforzado</span><strong>{highRisk}</strong></div>
+        </div>
+
+        <div className="split blockchain-layout">
+          <form className="form blockchain-form" onSubmit={saveBlockchainTransaction}>
+            <h3>Registrar transacción</h3>
+            <div className="inline-grid">
+              <input placeholder="Red / blockchain" value={blockchainForm.blockchain} onChange={(e) => setBlockchainForm({ ...blockchainForm, blockchain: e.target.value })} />
+              <input placeholder="Token" value={blockchainForm.token} onChange={(e) => setBlockchainForm({ ...blockchainForm, token: e.target.value })} />
+            </div>
+            <input placeholder="Hash de transacción" value={blockchainForm.tx_hash} onChange={(e) => setBlockchainForm({ ...blockchainForm, tx_hash: e.target.value })} />
+            <div className="inline-grid">
+              <input placeholder="Wallet origen" value={blockchainForm.source_wallet} onChange={(e) => setBlockchainForm({ ...blockchainForm, source_wallet: e.target.value })} />
+              <input placeholder="Wallet destino" value={blockchainForm.destination_wallet} onChange={(e) => setBlockchainForm({ ...blockchainForm, destination_wallet: e.target.value })} />
+            </div>
+            <div className="inline-grid">
+              <input placeholder="Monto" type="number" step="any" value={blockchainForm.amount} onChange={(e) => setBlockchainForm({ ...blockchainForm, amount: e.target.value })} />
+              <input placeholder="Valor aproximado" type="number" step="any" value={blockchainForm.approximate_value} onChange={(e) => setBlockchainForm({ ...blockchainForm, approximate_value: e.target.value })} />
+            </div>
+            <div className="inline-grid">
+              <input placeholder="Fecha/hora" value={blockchainForm.tx_datetime} onChange={(e) => setBlockchainForm({ ...blockchainForm, tx_datetime: e.target.value })} />
+              <select value={blockchainForm.wallet_classification} onChange={(e) => setBlockchainForm({ ...blockchainForm, wallet_classification: e.target.value })}>
+                {walletClassifications.map((item) => <option value={item} key={item}>{prettySpanish(item)}</option>)}
+              </select>
+            </div>
+            <select value={blockchainForm.evidence_id} onChange={(e) => setBlockchainForm({ ...blockchainForm, evidence_id: e.target.value })}>
+              <option value="">Sin evidencia vinculada</option>
+              {evidence.map((item) => (
+                <option key={item.id} value={item.id}>#{item.id} - {item.description.slice(0, 60)}</option>
+              ))}
+            </select>
+            <input placeholder="URL del explorador preservada manualmente" value={blockchainForm.explorer_url} onChange={(e) => setBlockchainForm({ ...blockchainForm, explorer_url: e.target.value })} />
+            <input placeholder="Herramienta usada" value={blockchainForm.tool_used} onChange={(e) => setBlockchainForm({ ...blockchainForm, tool_used: e.target.value })} />
+            <textarea placeholder="Hipótesis de ruta" value={blockchainForm.route_hypothesis} onChange={(e) => setBlockchainForm({ ...blockchainForm, route_hypothesis: e.target.value })} />
+            <textarea placeholder="Limitaciones y evidencia faltante" value={blockchainForm.limitations} onChange={(e) => setBlockchainForm({ ...blockchainForm, limitations: e.target.value })} />
+            <button disabled={!selectedCaseId || !blockchainForm.tx_hash.trim() || blockchainState === "saving"}><Save size={17} /> Guardar transacción</button>
+          </form>
+
+          <div className="detail-panel">
+            <div className="panel-head">
+              <div>
+                <h3>Medidas recomendadas</h3>
+                <p>Checklist operativo para no saltar de wallet a identidad sin soporte.</p>
+              </div>
+              <span className="badge">No API externa</span>
+            </div>
+            <ul className="compact-list">
+              <li>Preservar captura del explorador y registrar fecha/hora.</li>
+              <li>Guardar URL del explorador si fue consultada manualmente.</li>
+              <li>Identificar exchange/plataforma si aplica y solicitar datos por vía legal.</li>
+              <li>Correlacionar con comunicaciones, pagos, cuentas e IPs.</li>
+              <li>Evitar atribución personal solo por wallet.</li>
+            </ul>
+            <p className="notice">OPERIA no consulta exploradores externos automáticamente. El enlace solo se abre si fue cargado manualmente.</p>
+          </div>
+        </div>
+
+        <div className="detail-panel">
+          <div className="panel-head">
+            <h3>Transacciones registradas</h3>
+          </div>
+          <div className="table blockchain-table">
+            {blockchainTransactions.map((item) => (
+              <div className="record blockchain-row" key={item.id}>
+                <div>
+                  <strong>{item.blockchain} · {item.amount} {item.token}</strong>
+                  <span>{item.tx_hash}</span>
+                  <small>{item.source_wallet || "origen pendiente"} → {item.destination_wallet || "destino pendiente"}</small>
+                </div>
+                <div>
+                  <span className={`badge ${["mixer", "bridge"].includes(item.wallet_classification) ? "blocked" : ""}`}>{prettySpanish(item.wallet_classification)}</span>
+                  <small>Valor aprox. {item.approximate_value}</small>
+                  <small>{item.evidence_id ? `Evidencia #${item.evidence_id}` : "Sin evidencia vinculada"}</small>
+                </div>
+                <p>{item.route_hypothesis || "Hipótesis de ruta pendiente."}</p>
+                <small>{item.warning}</small>
+                <div className="actions-line">
+                  <button className="secondary-button" onClick={() => createBlockchainFinding(item.id)}><FileCheck2 size={16} /> Crear hallazgo</button>
+                  <button onClick={() => applyBlockchainLegal(item)}><Gavel size={16} /> Aplicar normas</button>
+                  {item.explorer_url && (
+                    <a className="button-link" href={item.explorer_url} target="_blank" rel="noreferrer"><Globe2 size={16} /> Explorador</a>
+                  )}
+                </div>
+              </div>
+            ))}
+            {!blockchainTransactions.length && <EmptyState text="Sin transacciones blockchain registradas para el caso seleccionado." />}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
 
   function renderExternalTools() {
     const isAiTool = (item: CyberTool) => {
@@ -3957,6 +4206,7 @@ export function App() {
     if (active === "legalKnowledge") return renderLegalKnowledge();
     if (active === "cybercrime") return renderCybercrime();
     if (active === "deepfakeMedia") return renderDeepfakeMedia();
+    if (active === "blockchainForensics") return renderBlockchainForensics();
     if (active === "externalTools") return renderExternalTools();
     if (active === "ai") return renderAi();
     if (active === "aiSecurity") return renderAiSecurity();

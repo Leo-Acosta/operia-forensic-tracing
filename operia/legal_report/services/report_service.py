@@ -33,6 +33,7 @@ REPORT_SECTIONS = [
     "Análisis técnico-forense",
     "Matriz dato técnico -> evidencia -> hallazgo",
     "Autenticacion de medios y analisis deepfake",
+    "Analisis forense de blockchain",
     "Hallazgos principales",
     "Hipótesis investigativas",
     "Evaluación de hipótesis alternativas",
@@ -109,6 +110,7 @@ def build_integral_markdown(case: Case, legal_recommendations: list[Any] | None 
     executive_summary = build_smart_executive_summary(case, legal_probatory, exportability)
     exportability_lines = exportability_markdown(exportability)
     media_authentication_lines = _media_authentication_markdown(case)
+    blockchain_forensics_lines = _blockchain_forensics_markdown(case)
     rubric_lines = ""
     if getattr(case, "rubric_evaluations", None):
         from operia.rubrics.service import rubric_markdown
@@ -191,7 +193,7 @@ Se preservaron datos técnicos, se registraron acciones de cadena de custodia, s
 Evaluación pendiente según datos cargados.
 
 ### Blockchain / criptomonedas
-Evaluación pendiente según datos cargados.
+{blockchain_forensics_lines or 'Evaluacion pendiente segun datos cargados.'}
 
 ### Logs, IPs, dominios y red
 Evaluación pendiente según datos cargados.
@@ -200,6 +202,8 @@ Evaluación pendiente según datos cargados.
 Evaluación pendiente según datos cargados.
 
 {f'## Autenticacion de medios y analisis deepfake\n\n{media_authentication_lines}' if media_authentication_lines else ''}
+
+{f'## Analisis forense de blockchain\n\n{blockchain_forensics_lines}' if blockchain_forensics_lines else ''}
 
 ## Matriz dato técnico -> evidencia -> hallazgo
 
@@ -332,6 +336,56 @@ def _media_authentication_markdown(case: Case) -> str:
         "Conclusión prudente: la autenticación de medios es preliminar y no permite afirmar de forma concluyente que el archivo sea deepfake, auténtico o atribuible a una persona sin pericia especializada, preservación del original y corroboración independiente."
     )
     return normalize_spanish("\n".join(lines))
+
+
+def _blockchain_forensics_markdown(case: Case) -> str:
+    transactions = sorted(getattr(case, "blockchain_transactions", []) or [], key=lambda item: item.created_at, reverse=True)
+    if not transactions:
+        return ""
+    rows = [
+        "| ID | Red | Hash | Origen | Destino | Token/monto | Evidencia | Clasificacion |",
+        "| --- | --- | --- | --- | --- | ---: | --- | --- |",
+    ]
+    details = []
+    for tx in transactions:
+        rows.append(
+            f"| #{tx.id} | {tx.blockchain} | `{tx.tx_hash}` | {tx.source_wallet or 'pendiente'} | {tx.destination_wallet or 'pendiente'} | {tx.amount:.8g} {tx.token} | #{tx.evidence_id or '-'} / {tx.evidence_hash or 'pendiente'} | {tx.wallet_classification} |"
+        )
+        details.append(
+            "\n".join(
+                [
+                    f"- Transaccion #{tx.id}: valor aproximado {tx.approximate_value:.2f}; fecha/hora: {tx.tx_datetime or 'pendiente'}; URL: {tx.explorer_url or 'pendiente'}.",
+                    f"  - Hipotesis de ruta: {tx.route_hypothesis or 'pendiente'}.",
+                    f"  - Herramienta usada: {tx.tool_used or 'pendiente'}.",
+                    f"  - Evidencia que sostiene o limita: evidencia #{tx.evidence_id or '-'}, hash `{tx.evidence_hash or 'pendiente'}`; limites: {tx.limitations or 'requiere corroboracion externa'}.",
+                    f"  - Normas aplicables vinculadas: {tx.legal_mapping_ids or 'pendiente'}.",
+                ]
+            )
+        )
+    measures = "\n".join(
+        [
+            "- Preservar captura del explorador y registrar fecha/hora.",
+            "- Guardar URL usada manualmente y anexar captura o acta.",
+            "- Identificar exchange/plataforma si aplica y solicitar informacion por via legal.",
+            "- Correlacionar wallets con comunicaciones, pagos, cuentas, IPs y demas evidencia del caso.",
+            "- Evitar atribucion personal solo por wallet.",
+        ]
+    )
+    return normalize_spanish(
+        "\n".join(
+            [
+                *rows,
+                "",
+                "### Hipotesis de ruta y limites",
+                *details,
+                "",
+                "### Medidas procesales recomendadas",
+                measures,
+                "",
+                "Limite de atribucion: una wallet o transaccion permite orientar trazabilidad economica, pero no identifica por si sola a una persona sin evidencia externa corroborante, informacion de plataforma, comunicaciones, cuentas, IPs u otros registros.",
+            ]
+        )
+    )
 
 
 def _default_hypotheses_markdown(case: Case) -> str:

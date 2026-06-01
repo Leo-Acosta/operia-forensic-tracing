@@ -2012,6 +2012,40 @@ code {
   background: #ffffff;
 }
 
+.blockchain-layout {
+  align-items: start;
+}
+
+.blockchain-form textarea {
+  min-height: 88px;
+}
+
+.blockchain-risk-row {
+  margin-bottom: 14px;
+}
+
+.blockchain-table .blockchain-row {
+  align-items: start;
+  gap: 12px;
+  grid-template-columns: minmax(220px, 1.3fr) minmax(140px, 0.7fr) minmax(220px, 1fr);
+}
+
+.button-link {
+  align-items: center;
+  background: #113f67;
+  border: 1px solid #113f67;
+  border-radius: 8px;
+  color: #ffffff;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 7px;
+  justify-content: center;
+  min-height: 36px;
+  padding: 8px 12px;
+  text-decoration: none;
+}
+
 .sensitive-warning {
   background: #fff8ed;
   border-color: #efcf90;
@@ -2094,7 +2128,8 @@ pre {
   .case-dossier-hero,
   .dossier-grid,
   .rubric-score-row,
-  .rubric-section-grid {
+  .rubric-section-grid,
+  .blockchain-table .blockchain-row {
     grid-template-columns: 1fr;
   }
 

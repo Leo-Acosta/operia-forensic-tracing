@@ -79,6 +79,18 @@ SQLITE_PLATFORM_COLUMNS: dict[str, dict[str, str]] = {
         "legal_mapping_ids": "VARCHAR(255) DEFAULT ''",
         "analyst_name": "VARCHAR(160) DEFAULT ''",
     },
+    "cybercrime_blockchain_transactions": {
+        "evidence_id": "INTEGER",
+        "finding_id": "INTEGER",
+        "wallet_classification": "VARCHAR(120) DEFAULT 'desconocido'",
+        "evidence_hash": "VARCHAR(128) DEFAULT ''",
+        "tool_used": "VARCHAR(255) DEFAULT ''",
+        "limitations": "TEXT DEFAULT ''",
+        "recommended_measures": "TEXT DEFAULT ''",
+        "legal_mapping_ids": "VARCHAR(255) DEFAULT ''",
+        "analyst_name": "VARCHAR(160) DEFAULT ''",
+        "warning": "TEXT DEFAULT 'Una wallet no identifica por si sola a una persona sin evidencia externa corroborante.'",
+    },
 }
 
 

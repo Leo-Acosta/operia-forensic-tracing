@@ -35,6 +35,7 @@ class Case(Base, TimestampMixin):
     presentations: Mapped[list["Presentation"]] = relationship(back_populates="case", cascade="all, delete-orphan")
     rubric_evaluations: Mapped[list["RubricEvaluation"]] = relationship(back_populates="case", cascade="all, delete-orphan")
     deepfake_analyses: Mapped[list["DeepfakeAnalysis"]] = relationship(back_populates="case", cascade="all, delete-orphan")
+    blockchain_transactions: Mapped[list["BlockchainTransaction"]] = relationship(back_populates="case", cascade="all, delete-orphan")
 
 
 class CaseParticipant(Base, TimestampMixin):
