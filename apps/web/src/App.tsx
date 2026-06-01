@@ -27,6 +27,7 @@ import {
   Wrench
 } from "lucide-react";
 import { API_BASE, apiDelete, apiGet, apiPost, apiPostForm, apiPut, getAuthToken, setAuthToken } from "./api";
+import { externalToolsCatalog, type InventoryCyberTool } from "./externalToolsCatalog";
 
 type ModuleKey =
   | "workflow"
@@ -905,6 +906,13 @@ export function App() {
   const [iotState, setIotState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [iotMessage, setIotMessage] = useState("");
   const [cyberToolForm, setCyberToolForm] = useState({ name: "", category: "osint", executable_path: "", default_command: "", notes: "", website_url: "", documentation_url: "", safety_notes: "" });
+  const [externalToolQuery, setExternalToolQuery] = useState("");
+  const [externalToolCategory, setExternalToolCategory] = useState("Todas");
+  const [externalToolOs, setExternalToolOs] = useState("Todos");
+  const [externalToolDifficulty, setExternalToolDifficulty] = useState("Todas");
+  const [externalToolOnlineOnly, setExternalToolOnlineOnly] = useState(false);
+  const [externalToolGithubOnly, setExternalToolGithubOnly] = useState(false);
+  const [externalToolSpecialArea, setExternalToolSpecialArea] = useState("Todas");
   const [cyberLabForm, setCyberLabForm] = useState({ title: "", purpose: "analisis de indicador", risk_level: "medio", operator: "" });
   const [cyberProofForm, setCyberProofForm] = useState({
     defensible_conclusion: "",
@@ -1070,7 +1078,7 @@ export function App() {
         return;
       }
       if (key === "externalTools") {
-        await refreshCybercrime();
+        setModulePayload({ tools: externalToolsCatalog.length, mode: "external_inventory" });
         return;
       }
       const paths: Partial<Record<ModuleKey, string>> = {
@@ -4224,137 +4232,232 @@ export function App() {
 
 
   function renderExternalTools() {
-    const isAiTool = (item: CyberTool) => {
-      const haystack = `${item.name} ${item.category}`.toLowerCase();
-      return ["ia-", "ai ", "deepfake", "generativa", "imagen-forense", "media", "forensically", "faceforensics", "deepware", "hive"].some((token) => haystack.includes(token));
+    const categories = ["Todas", ...Array.from(new Set(externalToolsCatalog.map((item) => item.category))).sort()];
+    const operatingSystems = ["Todos", ...Array.from(new Set(externalToolsCatalog.flatMap((item) => item.operatingSystems))).sort()];
+    const specialAreas = ["Todas", "Deepfake / Media", "Blockchain Transactions", "IoT Devices"];
+    const normalize = (value: string) => value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const query = normalize(externalToolQuery.trim());
+    const filteredTools = externalToolsCatalog.filter((item) => {
+      const haystack = normalize([
+        item.name,
+        item.category,
+        item.description,
+        item.forensicUse,
+        item.license,
+        item.status,
+        item.difficulty,
+        item.kind.join(" "),
+        item.tags.join(" "),
+        item.specialArea || ""
+      ].join(" "));
+      return (
+        (!query || haystack.includes(query)) &&
+        (externalToolCategory === "Todas" || item.category === externalToolCategory) &&
+        (externalToolOs === "Todos" || item.operatingSystems.includes(externalToolOs)) &&
+        (externalToolDifficulty === "Todas" || item.difficulty === externalToolDifficulty) &&
+        (!externalToolOnlineOnly || Boolean(item.onlineUrl)) &&
+        (!externalToolGithubOnly || Boolean(item.githubUrl)) &&
+        (externalToolSpecialArea === "Todas" || item.specialArea === externalToolSpecialArea)
+      );
+    });
+    const totalCategories = new Set(externalToolsCatalog.map((item) => item.category)).size;
+    const openSourceTotal = externalToolsCatalog.filter((item) => item.kind.includes("Open Source")).length;
+    const onlineTotal = externalToolsCatalog.filter((item) => item.onlineUrl).length;
+    const specialTotal = externalToolsCatalog.filter((item) => item.specialArea).length;
+    const reviewTotal = externalToolsCatalog.filter((item) => item.status === "Legacy" || item.status === "Verificar").length;
+    const specialAreaCards = [
+      {
+        area: "Deepfake / Media",
+        title: "Deepfake / Media Forensics",
+        text: "Autenticación de imagen, video, audio, metadatos, compresión, frames y origen del contenido.",
+        warning: "Usar para verificación, autenticación, investigación legítima y preservación de evidencia. No usar para crear o difundir contenido engañoso."
+      },
+      {
+        area: "Blockchain Transactions",
+        title: "Blockchain Transactions",
+        text: "Exploradores, wallets, contratos, grafos, trazabilidad de fondos y análisis de smart contracts.",
+        warning: "Respetar legislación aplicable, privacidad, reglas probatorias y límites de investigación autorizada."
+      },
+      {
+        area: "IoT Devices",
+        title: "IoT Devices Forensics",
+        text: "Firmware, dispositivos, tráfico, puertos, servicios, sistemas embebidos y análisis de laboratorio.",
+        warning: "Analizar únicamente dispositivos propios, entornos de laboratorio o sistemas con autorización expresa."
+      }
+    ];
+    const openExternalLink = (url: string, item: InventoryCyberTool, action: string) => {
+      const notice = item.externalExecutionNotice || "Vas a salir de Operia. El análisis, descarga o consulta se realizará en una plataforma externa. Operia no procesa ni almacena tus datos.";
+      const ok = window.confirm(`${notice}\n\nAcción: ${action}\nHerramienta: ${item.name}`);
+      if (ok) window.open(url, "_blank", "noopener,noreferrer");
     };
-    const onlineTools = cyberTools.filter((item) => item.website_url);
-    const aiMediaTools = cyberTools.filter(isAiTool);
-    const localTools = cyberTools.filter((item) => item.default_command || item.executable_path);
-    const verifiedTools = cyberTools.filter((item) => item.installed_status === "encontrada");
-    const categories = new Set(cyberTools.map((item) => item.category || "sin categoria"));
-    const highlightedTools = [
-      ...onlineTools.filter((item) => isAiTool(item)),
-      ...onlineTools.filter((item) => !isAiTool(item))
-    ].slice(0, 8);
+    const toolButton = (item: InventoryCyberTool, url: string | null | undefined, label: string, className: string, action: string, icon: ReactNode) => (
+      url ? (
+        <button type="button" className={className} onClick={() => openExternalLink(url, item, action)}>
+          {icon}
+          {label}
+        </button>
+      ) : (
+        <button type="button" className="tool-link disabled" disabled>
+          <Globe2 size={15} />
+          Sin ejecución online
+        </button>
+      )
+    );
+    const renderToolCard = (item: InventoryCyberTool) => (
+      <article className={`inventory-card risk-${item.privacyRiskLevel.toLowerCase()}`} key={item.id}>
+        <div className="inventory-card-head">
+          <div>
+            <span className="tool-kicker">{item.category}</span>
+            <h4>{item.name}</h4>
+          </div>
+          <span className={`tool-status ${item.status.toLowerCase().replace(/\s+/g, "-")}`}>{item.status}</span>
+        </div>
+        <p>{item.description}</p>
+        <div className="forensic-use">
+          <strong>Uso forense</strong>
+          <span>{item.forensicUse}</span>
+        </div>
+        <div className="tool-badges left">
+          <span className="tool-badge local">{item.difficulty}</span>
+          <span className="tool-badge">{item.license}</span>
+          <span className={`tool-badge privacy-${item.privacyRiskLevel.toLowerCase()}`}>Riesgo {item.privacyRiskLevel}</span>
+          {item.specialArea && <span className="tool-badge ai">{item.specialArea}</span>}
+        </div>
+        <div className="tool-meta">
+          <span>Sistemas: {item.operatingSystems.join(", ")}</span>
+          <span>Modo: {item.executionMode}</span>
+          <span>{item.dataHandling}</span>
+        </div>
+        <div className="tag-cloud">
+          {item.kind.map((kind) => <span key={`${item.id}-${kind}`}>{kind}</span>)}
+          {item.tags.slice(0, 5).map((tag) => <span key={`${item.id}-${tag}`}>{tag}</span>)}
+        </div>
+        {(item.warning || item.externalExecutionNotice) && (
+          <small className="tool-safety">{item.warning || item.externalExecutionNotice}</small>
+        )}
+        <div className="inventory-actions">
+          {toolButton(item, item.officialUrl, "Página oficial", "tool-link official", "Página oficial", <Globe2 size={15} />)}
+          {toolButton(item, item.downloadUrl || item.githubUrl, item.githubUrl ? "Repositorio" : "Descargar", "tool-link download", "Descarga o repositorio oficial", <Download size={15} />)}
+          {toolButton(item, item.onlineUrl, "Usar online externo", "tool-link online", "Uso online externo", <Globe2 size={15} />)}
+        </div>
+      </article>
+    );
 
     return (
-      <section className="work-surface cyber-workbench">
-        <div className="section-head">
+      <section className="work-surface external-inventory-workbench">
+        <div className="inventory-hero">
           <div>
+            <span className="tool-kicker">Cyber Forensics Open Source Inventory</span>
             <h2>Herramientas Externas</h2>
-            <p>Catalogo pericial para documentar herramientas auxiliares, enlaces oficiales, uso online y limites tecnicos.</p>
+            <p>Inventario de herramientas para informática forense, seguridad informática, OSINT, DFIR, deepfake/media, blockchain e IoT.</p>
           </div>
-          <div className="actions-line">
-            <button onClick={seedForensicToolSet}><Wrench size={16} /> Cargar set pericial base</button>
-            <button className="secondary-button" onClick={refreshCybercrime}><RefreshCcw size={16} /> Actualizar</button>
+          <div className="inventory-hero-badge">
+            <strong>{externalToolsCatalog.length}</strong>
+            <span>herramientas curadas</span>
           </div>
         </div>
 
         <div className="tool-dashboard">
-          <div className="tool-stat"><span>Total registradas</span><strong>{cyberTools.length}</strong></div>
-          <div className="tool-stat"><span>Con enlace web</span><strong>{onlineTools.length}</strong></div>
-          <div className="tool-stat"><span>IA / deepfake / media</span><strong>{aiMediaTools.length}</strong></div>
-          <div className="tool-stat"><span>Locales o comando</span><strong>{localTools.length}</strong></div>
-          <div className="tool-stat"><span>Verificadas</span><strong>{verifiedTools.length}</strong></div>
-          <div className="tool-stat"><span>Categorias</span><strong>{categories.size}</strong></div>
+          <div className="tool-stat"><span>Total</span><strong>{externalToolsCatalog.length}</strong></div>
+          <div className="tool-stat"><span>Categorías</span><strong>{totalCategories}</strong></div>
+          <div className="tool-stat"><span>Open source</span><strong>{openSourceTotal}</strong></div>
+          <div className="tool-stat"><span>Uso online</span><strong>{onlineTotal}</strong></div>
+          <div className="tool-stat"><span>Áreas especiales</span><strong>{specialTotal}</strong></div>
+          <div className="tool-stat"><span>Legacy / verificar</span><strong>{reviewTotal}</strong></div>
         </div>
 
-        <div className="notice">
-          OPERIA registra que herramienta se uso, con que proposito, fuente y limites. Si una herramienta opera online, trata su boton como salida externa: no cargues evidencia sensible sin autorizacion y sin preservar copia/hash local.
+        <div className="inventory-notice">
+          OPERIA funciona como inventario y panel de acceso externo. No ejecuta análisis, no almacena evidencia, no recibe archivos, no conserva resultados y no procesa datos del usuario. Toda operación se realiza fuera de OPERIA, en la página oficial, repositorio, descarga local o servicio externo correspondiente.
         </div>
 
-        <div className="detail-panel">
-          <div className="panel-head">
-            <div>
-              <h3>Herramientas online destacadas</h3>
-              <p>Accesos rapidos a recursos web utiles para OSINT, imagen forense, deepfake e indicadores.</p>
-            </div>
+        <div className="inventory-search-panel">
+          <div className="search-box">
+            <Search size={18} />
+            <input
+              placeholder="Buscar por herramienta, categoría, descripción, tags o uso forense"
+              value={externalToolQuery}
+              onChange={(event) => setExternalToolQuery(event.target.value)}
+            />
           </div>
-          <div className="tool-grid">
-            {highlightedTools.map((item) => (
-              <article className={`tool-card ${isAiTool(item) ? "is-ai" : ""}`} key={`highlight-${item.id}`}>
-                <div className="tool-card-head">
-                  <div>
-                    <span className="tool-kicker">{prettySpanish(item.category)}</span>
-                    <h4>{item.name}</h4>
-                  </div>
-                  <span className="tool-badge online">Online</span>
-                </div>
-                <p>{item.notes || "Herramienta externa registrada para consulta controlada."}</p>
-                {item.safety_notes && <small className="tool-safety">{item.safety_notes}</small>}
-                <div className="tool-actions">
-                  {item.website_url && <a className="button-link" href={item.website_url} target="_blank" rel="noreferrer"><Globe2 size={15} /> Abrir web</a>}
-                  {item.documentation_url && <a className="button-link secondary-link" href={item.documentation_url} target="_blank" rel="noreferrer"><BookOpen size={15} /> Docs</a>}
-                </div>
-              </article>
+          <div className="inventory-filters">
+            <select value={externalToolCategory} onChange={(event) => setExternalToolCategory(event.target.value)}>
+              {categories.map((category) => <option key={category}>{category}</option>)}
+            </select>
+            <select value={externalToolOs} onChange={(event) => setExternalToolOs(event.target.value)}>
+              {operatingSystems.map((os) => <option key={os}>{os}</option>)}
+            </select>
+            <select value={externalToolDifficulty} onChange={(event) => setExternalToolDifficulty(event.target.value)}>
+              {["Todas", "Básico", "Intermedio", "Avanzado", "Experto"].map((level) => <option key={level}>{level}</option>)}
+            </select>
+            <select value={externalToolSpecialArea} onChange={(event) => setExternalToolSpecialArea(event.target.value)}>
+              {specialAreas.map((area) => <option key={area}>{area}</option>)}
+            </select>
+            <label><input type="checkbox" checked={externalToolOnlineOnly} onChange={(event) => setExternalToolOnlineOnly(event.target.checked)} /> Con uso online</label>
+            <label><input type="checkbox" checked={externalToolGithubOnly} onChange={(event) => setExternalToolGithubOnly(event.target.checked)} /> Con repositorio</label>
+          </div>
+        </div>
+
+        <div className="special-areas">
+          {specialAreaCards.map((area) => {
+            const areaCount = externalToolsCatalog.filter((item) => item.specialArea === area.area).length;
+            return (
+              <button
+                className={externalToolSpecialArea === area.area ? "special-area active" : "special-area"}
+                type="button"
+                key={area.area}
+                onClick={() => setExternalToolSpecialArea(area.area)}
+              >
+                <span>{area.title}</span>
+                <strong>{areaCount} herramientas</strong>
+                <small>{area.text}</small>
+                <em>{area.warning}</em>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="inventory-layout">
+          <aside className="inventory-sidebar">
+            <h3>Categorías</h3>
+            <button className={externalToolCategory === "Todas" ? "active" : ""} onClick={() => setExternalToolCategory("Todas")}>Todas</button>
+            {categories.filter((category) => category !== "Todas").map((category) => (
+              <button className={externalToolCategory === category ? "active" : ""} key={category} onClick={() => setExternalToolCategory(category)}>
+                {category}
+              </button>
             ))}
-            {!highlightedTools.length && <EmptyState text="Carga el set pericial base para ver herramientas online." />}
+          </aside>
+
+          <div className="inventory-results">
+            <div className="panel-head">
+              <div>
+                <h3>Inventario de herramientas</h3>
+                <p>{filteredTools.length} resultado(s). Cada acceso abre una fuente externa y no procesa evidencia dentro de OPERIA.</p>
+              </div>
+              <button
+                className="secondary-button"
+                onClick={() => {
+                  setExternalToolQuery("");
+                  setExternalToolCategory("Todas");
+                  setExternalToolOs("Todos");
+                  setExternalToolDifficulty("Todas");
+                  setExternalToolSpecialArea("Todas");
+                  setExternalToolOnlineOnly(false);
+                  setExternalToolGithubOnly(false);
+                }}
+              >
+                <RefreshCcw size={15} /> Limpiar filtros
+              </button>
+            </div>
+            <div className="inventory-grid">
+              {filteredTools.map(renderToolCard)}
+              {!filteredTools.length && <EmptyState text="No hay herramientas para esos filtros. Limpia filtros o busca por otra categoría." />}
+            </div>
           </div>
         </div>
 
-        <div className="external-tools-layout">
-          <div className="detail-panel">
-            <div className="panel-head">
-              <div>
-                <h3>Herramientas registradas</h3>
-                <p>Catalogo completo con verificacion local, enlaces, categoria y notas de uso.</p>
-              </div>
-            </div>
-            <div className="tool-list">
-              {cyberTools.map((item) => (
-                <article className="tool-row" key={item.id}>
-                  <div className="tool-row-main">
-                    <div className="tool-card-head">
-                      <div>
-                        <span className="tool-kicker">{prettySpanish(item.category)}</span>
-                        <h4>{item.name}</h4>
-                      </div>
-                      <div className="tool-badges">
-                        {item.website_url && <span className="tool-badge online">Web</span>}
-                        {(item.default_command || item.executable_path) && <span className="tool-badge local">Local</span>}
-                        {isAiTool(item) && <span className="tool-badge ai">IA</span>}
-                      </div>
-                    </div>
-                    <p>{item.notes || item.default_command || item.executable_path || "Sin notas registradas."}</p>
-                    <div className="tool-meta">
-                      <span>Estado: {prettySpanish(item.installed_status || "no verificado")}</span>
-                      {item.result_import_formats && <span>Formatos: {item.result_import_formats}</span>}
-                    </div>
-                    {item.safety_notes && <small className="tool-safety">{item.safety_notes}</small>}
-                  </div>
-                  <div className="tool-actions vertical">
-                    <button className="secondary-button" onClick={() => verifyCyberTool(item.id)}>Verificar</button>
-                    {item.website_url && <a className="button-link" href={item.website_url} target="_blank" rel="noreferrer"><Globe2 size={15} /> Web</a>}
-                    {item.documentation_url && <a className="button-link secondary-link" href={item.documentation_url} target="_blank" rel="noreferrer"><BookOpen size={15} /> Docs</a>}
-                  </div>
-                </article>
-              ))}
-              {!cyberTools.length && <EmptyState text="Sin herramientas registradas." />}
-            </div>
-          </div>
-
-          <form className="detail-panel" onSubmit={createCyberTool}>
-            <div className="panel-head">
-              <div>
-                <h3>Registrar herramienta externa</h3>
-                <p>Agrega recursos propios, paginas web, comandos o suites locales usadas en una pericia.</p>
-              </div>
-            </div>
-            <div className="inline-grid">
-              <input placeholder="Nombre. Ej: whois, nslookup, exiftool, nmap" value={cyberToolForm.name} onChange={(e) => setCyberToolForm({ ...cyberToolForm, name: e.target.value })} required />
-              <input placeholder="Categoria. Ej: osint, red, metadatos" value={cyberToolForm.category} onChange={(e) => setCyberToolForm({ ...cyberToolForm, category: e.target.value })} />
-            </div>
-            <input placeholder="Ruta ejecutable o comando base" value={cyberToolForm.executable_path} onChange={(e) => setCyberToolForm({ ...cyberToolForm, executable_path: e.target.value })} />
-            <div className="inline-grid">
-              <input placeholder="URL web oficial o servicio online" value={cyberToolForm.website_url} onChange={(e) => setCyberToolForm({ ...cyberToolForm, website_url: e.target.value })} />
-              <input placeholder="URL de documentacion" value={cyberToolForm.documentation_url} onChange={(e) => setCyberToolForm({ ...cyberToolForm, documentation_url: e.target.value })} />
-            </div>
-            <textarea placeholder="Notas de uso seguro, limites y formato de resultados" value={cyberToolForm.notes} onChange={(e) => setCyberToolForm({ ...cyberToolForm, notes: e.target.value })} />
-            <textarea placeholder="Advertencias de privacidad, autorizacion o alcance pericial" value={cyberToolForm.safety_notes} onChange={(e) => setCyberToolForm({ ...cyberToolForm, safety_notes: e.target.value })} />
-            <button><Wrench size={17} /> Registrar herramienta</button>
-          </form>
-        </div>
+        <footer className="inventory-footer">
+          Este inventario está destinado a fines de informática forense, investigación defensiva, respuesta a incidentes, auditoría autorizada, preservación de evidencia, docencia y análisis técnico-jurídico. No debe utilizarse para acceder, interferir, explotar o analizar sistemas sin autorización expresa.
+        </footer>
       </section>
     );
   }
