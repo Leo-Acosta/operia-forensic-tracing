@@ -539,6 +539,22 @@ def calculate_damage(case_id: int, methodology: str = "DaÃ±o total estimado", 
 @router.post("/cases/{case_id}/reports/generate", response_model=ReportRead)
 def generate_report(case_id: int, author: str = "", db: Session = Depends(get_db)):
     case = get_or_404(db, Case, case_id)
+    db.expire(
+        case,
+        [
+            "evidence",
+            "actions",
+            "findings",
+            "hypotheses",
+            "legal_mappings",
+            "participants",
+            "damage_items",
+            "rubric_evaluations",
+            "deepfake_analyses",
+            "blockchain_transactions",
+            "iot_devices",
+        ],
+    )
     markdown = build_integral_markdown(case)
     report = Report(case=case, title=f"Informe integral - {case.title}", author=author, markdown_content=markdown)
     db.add(report)

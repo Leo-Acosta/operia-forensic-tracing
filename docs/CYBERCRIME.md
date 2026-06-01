@@ -1,6 +1,6 @@
 # Cybercrime Module
 
-The cybercrime workspace includes controlled indicator analysis, forensic lab sessions, proof-matrix rows, Deepfake / Medios and Blockchain Forensics.
+The cybercrime workspace includes controlled indicator analysis, forensic lab sessions, proof-matrix rows, Deepfake / Medios, Blockchain Forensics and IoT Forensics.
 
 ## Deepfake / Medios
 
@@ -48,6 +48,7 @@ Report integration:
 - the final markdown report includes `Autenticación de medios y análisis deepfake` when a case has analyses;
 - the PDF export includes the same material in a dedicated section;
 - both outputs include tools, evidence/hash, findings, limitations and a prudence note.
+- the integrated `Written Legal Evidence Report 2026` section also uses media-authentication data in sections A and D when the analysis exists.
 
 Required caution:
 
@@ -103,6 +104,12 @@ Recommended measures:
 
 Legal integration is limited to registered legal-library articles. The current blockchain flow maps CP 172, CP 173 subsection 16, CP 168, CP 169 and Law 25.326 articles 5/9 only when the facts entered by the analyst support those links. Other norms must exist in the legal library before they can be applied.
 
+Report integration:
+
+- the final markdown report includes `Análisis forense de blockchain` when a case has registered transactions;
+- the PDF export includes a transaction table, route hypothesis, evidence/hash, limitations and attribution warning;
+- the integrated `Written Legal Evidence Report 2026` section uses blockchain data in sections A and D when transaction records exist.
+
 ## IoT Forensics
 
 IoT Forensics registers connected devices inside a case without executing real scans automatically and without using the external network by default. The module avoids dangerous command recommendations; active probing must be handled outside OPERIA with authorization, preservation and methodology.
@@ -156,3 +163,9 @@ Required caution:
 - IP, MAC, hostname, firmware or open port does not identify a person by itself;
 - preserve device state before manipulation;
 - correlate with logs, authorization records, network evidence, accounts and timeline.
+
+Report integration:
+
+- the final markdown report includes `Análisis forense de dispositivos IoT` when a case has registered devices;
+- the PDF export includes device identification, network data, evidence/hash, logs, ports, findings and attribution limits;
+- the integrated `Written Legal Evidence Report 2026` section uses IoT data in sections A and D when device records exist.

@@ -51,6 +51,22 @@ def generate_report(
     current_user: CurrentUser | None = Depends(get_optional_user),
 ):
     case = get_or_404(db, Case, case_id)
+    db.expire(
+        case,
+        [
+            "evidence",
+            "actions",
+            "findings",
+            "hypotheses",
+            "legal_mappings",
+            "participants",
+            "damage_items",
+            "rubric_evaluations",
+            "deepfake_analyses",
+            "blockchain_transactions",
+            "iot_devices",
+        ],
+    )
     ensure_legal_articles(db)
     incident_text = " ".join([case.incident_type or "", case.description or "", case.general_observations or ""])
     legal_recommendations = recommend_articles_for_incident(db, incident_text, limit=8)

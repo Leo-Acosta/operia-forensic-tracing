@@ -113,6 +113,18 @@ def build_integral_markdown(case: Case, legal_recommendations: list[Any] | None 
     media_authentication_lines = _media_authentication_markdown(case)
     blockchain_forensics_lines = _blockchain_forensics_markdown(case)
     iot_forensics_lines = _iot_forensics_markdown(case)
+    challenge_2026_lines = _challenge_2026_markdown(
+        case,
+        legal_probatory,
+        media_authentication_lines,
+        blockchain_forensics_lines,
+        iot_forensics_lines,
+    )
+    technical_overview_lines = _technical_forensic_overview_markdown(
+        media_authentication_lines,
+        blockchain_forensics_lines,
+        iot_forensics_lines,
+    )
     rubric_lines = ""
     if getattr(case, "rubric_evaluations", None):
         from operia.rubrics.service import rubric_markdown
@@ -170,6 +182,8 @@ Se preservaron datos técnicos, se registraron acciones de cadena de custodia, s
 
 {exportability_lines}
 
+{challenge_2026_lines}
+
 ## Descripción del incidente
 
 {description_text}
@@ -188,20 +202,7 @@ Se preservaron datos técnicos, se registraron acciones de cadena de custodia, s
 
 ## Análisis técnico-forense
 
-### Deepfake / IA
-{media_authentication_lines or 'Evaluacion pendiente segun datos cargados.'}
-
-### IoT / dispositivos conectados
-{iot_forensics_lines or 'Evaluacion pendiente segun datos cargados.'}
-
-### Blockchain / criptomonedas
-{blockchain_forensics_lines or 'Evaluacion pendiente segun datos cargados.'}
-
-### Logs, IPs, dominios y red
-Evaluación pendiente según datos cargados.
-
-### OSINT y fuentes abiertas
-Evaluación pendiente según datos cargados.
+{technical_overview_lines}
 
 {f'## Autenticacion de medios y analisis deepfake\n\n{media_authentication_lines}' if media_authentication_lines else ''}
 
@@ -311,6 +312,182 @@ Anexos pendientes de selección y exportación.
 **Respuesta sugerida:** Permite verificar integridad del archivo analizado, pero no demuestra por sí solo autoría personal.
 """
     return normalize_spanish(markdown)
+
+
+def _challenge_2026_markdown(
+    case: Case,
+    legal_probatory: dict,
+    media_authentication_lines: str,
+    blockchain_forensics_lines: str,
+    iot_forensics_lines: str,
+) -> str:
+    technical_rows = _challenge_technical_rows(
+        case,
+        bool(media_authentication_lines),
+        bool(blockchain_forensics_lines),
+        bool(iot_forensics_lines),
+    )
+    evidence_rows = _challenge_evidence_rows(case)
+    legal_rows = _challenge_legal_rows(case, legal_probatory)
+    findings_rows = _challenge_findings_rows(case)
+    summary_lines = _challenge_summary_lines(case)
+    return normalize_spanish(
+        "\n".join(
+            [
+                "## Written Legal Evidence Report 2026",
+                "",
+                "### A. Technical Approach & Investigative Techniques Used",
+                "",
+                "| Herramienta o metodologia | Motivo de seleccion | Tareas investigativas realizadas | Limites |",
+                "| --- | --- | --- | --- |",
+                *technical_rows,
+                "",
+                "### B. Evidence Identification, Categorization & Handling",
+                "",
+                "| Evidencia | Tipo o categoria | Preservacion e integridad | Hash | Manejo y custodia |",
+                "| --- | --- | --- | --- | --- |",
+                *evidence_rows,
+                "",
+                "### C. Legal Authority & Investigative Requests",
+                "",
+                "| Autoridad legal | Solicitud investigativa | Fundamento | Estado o resolucion | Documentacion |",
+                "| --- | --- | --- | --- | --- |",
+                *legal_rows,
+                "",
+                "### D. Summary Analysis of Evidence & Investigative Findings",
+                "",
+                "| Evidencia o hallazgo | Relevancia investigativa | Significancia legal | Atribucion y limites |",
+                "| --- | --- | --- | --- |",
+                *findings_rows,
+                "",
+                "### Final Investigative Summary",
+                "",
+                *summary_lines,
+            ]
+        )
+    )
+
+
+def _challenge_technical_rows(case: Case, has_media: bool, has_blockchain: bool, has_iot: bool) -> list[str]:
+    rows: list[str] = []
+    tools = []
+    for evidence in case.evidence:
+        if evidence.tool_used:
+            tools.append(evidence.tool_used)
+    for action in case.actions:
+        if action.tool_used:
+            tools.append(action.tool_used)
+    for finding in case.findings:
+        if finding.tools_used:
+            tools.append(finding.tools_used)
+    for tool in dict.fromkeys(normalize_spanish(item).strip() for item in tools if normalize_spanish(item).strip()):
+        rows.append(
+            f"| {tool} | Seleccionada por su relacion con la evidencia cargada. | Preservacion, verificacion, analisis o documentacion segun registro del caso. | No sustituye validacion pericial ni autorizacion legal cuando corresponda. |"
+        )
+    if has_media:
+        rows.append(
+            "| Autenticacion de medios | Necesaria para evaluar imagen, video, audio, documento o captura sospechosa. | Revision de origen, hash, metadatos, inconsistencias, comparacion y limitaciones. | Resultado preliminar; no afirma autenticidad, falsedad ni autoria sin corroboracion. |"
+        )
+    if has_blockchain:
+        rows.append(
+            "| Analisis forense de blockchain | Necesario para registrar transacciones, wallets y ruta economica. | Registro de hash, red, monto, URL aportada, hipotesis de ruta y evidencia vinculada. | Una wallet no identifica por si sola a una persona. |"
+        )
+    if has_iot:
+        rows.append(
+            "| Analisis forense de dispositivos conectados | Necesario para documentar dispositivo, firmware, red, logs y evidencia. | Identificacion, preservacion de estado, checklist, puertos observados y limitaciones. | IP, MAC, puerto o firmware no acreditan autoria sin evidencia externa. |"
+        )
+    if not rows:
+        rows.append(
+            "| Metodologia documental forense | Adecuada al estado inicial del caso. | Ordenamiento de evidencia, custodia, hallazgos, matriz legal-probatoria y conclusiones prudentes. | Requiere completar evidencia tecnica y revision profesional. |"
+        )
+    return rows
+
+
+def _challenge_evidence_rows(case: Case) -> list[str]:
+    rows = []
+    for evidence in case.evidence:
+        custody = [
+            action.action_type
+            for action in case.actions
+            if getattr(action, "evidence_id", None) == evidence.id
+        ]
+        rows.append(
+            f"| Evidencia #{evidence.id}: {evidence.description} | {evidence.evidence_type or 'digital'} | {evidence.preservation_method or evidence.integrity_status or 'preservacion pendiente de detalle'} | `{evidence.sha256_hash or 'pendiente'}` | {', '.join(custody) if custody else 'cadena de custodia pendiente de ampliar'} |"
+        )
+    if not rows:
+        rows.append("| Sin evidencia individual cargada | Pendiente | Pendiente de preservacion | pendiente | Pendiente de custodia |")
+    return rows
+
+
+def _challenge_legal_rows(case: Case, legal_probatory: dict) -> list[str]:
+    rows = []
+    approved = [
+        item for item in case.legal_mappings if getattr(item, "decision_status", "sugerido") != "descartado"
+    ]
+    for mapping in approved:
+        rows.append(
+            f"| {mapping.norm_reference} | Medidas de corroboracion y autorizaciones necesarias segun hechos del caso. | {mapping.applicability_to_case or mapping.analysis or 'fundamento pendiente de ampliar'} | {getattr(mapping, 'decision_status', '') or mapping.verification_status} | {mapping.probatory_limits or 'documentacion y fuente registradas en biblioteca legal'} |"
+        )
+    if not rows:
+        measures = legal_probatory.get("recommended_measures") if isinstance(legal_probatory, dict) else None
+        measure_text = "; ".join(measures[:2]) if measures else "Completar mapeo legal y solicitudes investigativas."
+        rows.append(
+            f"| Autoridad legal pendiente de vincular | {measure_text} | No se formula encuadre definitivo sin evidencia y fuente legal registrada. | Pendiente | Registrar autorizacion, oficio, requerimiento o decision profesional aplicable. |"
+        )
+    return rows
+
+
+def _challenge_findings_rows(case: Case) -> list[str]:
+    rows = []
+    for finding in case.findings:
+        rows.append(
+            f"| {finding.title} | {finding.technical_finding or finding.supporting_evidence or 'hallazgo pendiente de ampliar'} | {finding.preliminary_legal_relevance or 'relevancia legal pendiente de matriz'} | {finding.weaknesses_or_limitations or 'no atribuir autoria personal sin evidencia suficiente'} |"
+        )
+    if not rows:
+        rows.append(
+            "| Sin hallazgos conclusivos cargados | El caso requiere analisis adicional. | No corresponde sostener significancia legal definitiva. | No atribuir autoria ni identidad sin evidencia suficiente. |"
+        )
+    return rows
+
+
+def _challenge_summary_lines(case: Case) -> list[str]:
+    major_findings = "; ".join(f.title for f in case.findings[:3]) or "hallazgos mayores pendientes de carga"
+    next_steps = []
+    if not case.evidence:
+        next_steps.append("incorporar evidencia identificable")
+    if not any(e.sha256_hash for e in case.evidence):
+        next_steps.append("calcular o registrar hash")
+    if not case.actions:
+        next_steps.append("registrar cadena de custodia")
+    if not case.legal_mappings:
+        next_steps.append("vincular matriz legal-probatoria")
+    if not next_steps:
+        next_steps.append("mantener revision profesional, anexos y corroboracion externa")
+    return [
+        f"- Importancia general: el informe organiza el incidente {case.incident_type} con evidencia, custodia, hallazgos y encuadre legal disponible.",
+        f"- Hallazgos mayores: {major_findings}.",
+        "- Observaciones y limitaciones: las conclusiones son prudentes y no atribuyen autoria personal sin evidencia tecnica y legal suficiente.",
+        f"- Proximos pasos: {', '.join(next_steps)}.",
+    ]
+
+
+def _technical_forensic_overview_markdown(
+    media_authentication_lines: str,
+    blockchain_forensics_lines: str,
+    iot_forensics_lines: str,
+) -> str:
+    sections = []
+    if media_authentication_lines:
+        sections.append(f"### Autenticacion de medios\n{media_authentication_lines}")
+    if blockchain_forensics_lines:
+        sections.append(f"### Blockchain y criptoactivos\n{blockchain_forensics_lines}")
+    if iot_forensics_lines:
+        sections.append(f"### Dispositivos conectados\n{iot_forensics_lines}")
+    if not sections:
+        sections.append(
+            "El analisis tecnico especifico se documenta en las secciones de evidencia, custodia, hallazgos y matriz legal-probatoria cargadas para el caso."
+        )
+    return normalize_spanish("\n\n".join(sections))
 
 
 def _media_authentication_markdown(case: Case) -> str:

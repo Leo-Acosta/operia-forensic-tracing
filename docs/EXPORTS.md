@@ -31,6 +31,18 @@ Professional report PDF controls:
 - visible Spanish text is normalized for accents and `ñ`;
 - PDF metadata and manifest information are separated from the narrative body.
 
+Integrated final report for the Cybercrime Investigation Challenge 2026:
+
+- the professional PDF keeps the executive cover, metrics, clean tables and case metadata;
+- the report includes `Written Legal Evidence Report 2026` with sections A, B, C, D and `Final Investigative Summary`;
+- section A documents tools, methodology, selection reason, tasks performed and limits;
+- section B documents evidence identification, category, preservation, hash and custody;
+- section C documents legal authority, investigative requests, legal basis, status and authorization documentation;
+- section D connects evidence and findings with investigative relevance, legal significance, attribution limits and next steps;
+- the rubric score is rendered only when a rubric evaluation exists for the case;
+- media-authentication, blockchain and IoT sections are rendered only when the corresponding data exists;
+- the public PDF must not expose raw JSON, internal model names, fallback states or implementation technology.
+
 Manifest fields:
 
 - product;

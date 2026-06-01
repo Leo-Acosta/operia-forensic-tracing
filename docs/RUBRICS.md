@@ -53,3 +53,11 @@ Integration:
 - The frontend shows the rubric panel inside `Informes` as `Cumplimiento de Rúbrica`.
 - The report/PDF includes `Cumplimiento de rúbrica del informe` only when a rubric evaluation exists for the case.
 - The rubric does not invent legal content; it only evaluates whether registered evidence, report content and legal mappings are present and connected.
+
+Final report integration:
+
+- the markdown report and professional PDF now include the challenge structure as `Written Legal Evidence Report 2026`;
+- sections A, B, C and D are populated from case evidence, custody actions, tools, findings, legal mappings, specialized lab records and report text;
+- `Final Investigative Summary` is treated as part of section D and summarizes importance, major findings, limitations and next steps;
+- rubric observations are appended as a separate `Cumplimiento de rúbrica del informe` section when an evaluation exists;
+- missing items are shown as professional pending work, not as internal states or raw payloads.

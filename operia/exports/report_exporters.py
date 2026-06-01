@@ -297,6 +297,8 @@ def export_pdf(report: Report) -> Path:
     story.append(Paragraph("Nivel de exportabilidad del informe", styles["subheading"]))
     _append_markdown_content(story, exportability_markdown(exportability), styles)
 
+    _append_challenge_2026_pdf_sections(story, case, legal_probatory, styles)
+
     if case.participants:
         _section(story, "2. Personas y entidades involucradas", styles)
         story.append(
@@ -772,6 +774,8 @@ def _report_styles() -> dict[str, ParagraphStyle]:
 def _public_text(value: object) -> str:
     text = normalize_spanish("" if value is None else str(value))
     text = text.replace("enriquecido_con_ia", "En Proceso Investigativo")
+    text = text.replace("manifiesto_exportacion", "manifiesto de exportación")
+    text = text.replace("manifesto_exportacion", "manifiesto de exportación")
     text = re.sub(r"\bBORRADOR_CONTROLADO\b", "Borrador controlado", text, flags=re.IGNORECASE)
     text = re.sub(r"\bVersion\b", "Versión", text)
     text = re.sub(r"\bgeneracion\b", "generación", text)
@@ -920,6 +924,208 @@ def _data_table(headers: list[str], rows: list[list[object]], styles: dict[str, 
     table = Table(data, colWidths=col_widths, repeatRows=1)
     table.setStyle(_base_table_style())
     return table
+
+
+def _append_challenge_2026_pdf_sections(story: list, case, legal_probatory: dict, styles: dict[str, ParagraphStyle]) -> None:
+    _section(story, "Written Legal Evidence Report 2026", styles)
+    story.append(Paragraph("A. Technical Approach & Investigative Techniques Used", styles["subheading"]))
+    story.append(
+        _data_table(
+            ["Herramienta / metodologia", "Motivo", "Tareas realizadas", "Limites"],
+            _challenge_pdf_technical_rows(case),
+            styles,
+            [124, 124, 150, 126],
+        )
+    )
+    story.append(Spacer(1, 8))
+    story.append(Paragraph("B. Evidence Identification, Categorization & Handling", styles["subheading"]))
+    story.append(
+        _data_table(
+            ["Evidencia", "Tipo", "Preservacion", "Hash", "Custodia"],
+            _challenge_pdf_evidence_rows(case),
+            styles,
+            [116, 70, 116, 108, 114],
+        )
+    )
+    story.append(Spacer(1, 8))
+    story.append(Paragraph("C. Legal Authority & Investigative Requests", styles["subheading"]))
+    story.append(
+        _data_table(
+            ["Autoridad legal", "Solicitud", "Fundamento", "Estado", "Documentacion"],
+            _challenge_pdf_legal_rows(case, legal_probatory),
+            styles,
+            [100, 118, 132, 66, 108],
+        )
+    )
+    story.append(Spacer(1, 8))
+    story.append(Paragraph("D. Summary Analysis of Evidence & Investigative Findings", styles["subheading"]))
+    story.append(
+        _data_table(
+            ["Evidencia / hallazgo", "Relevancia investigativa", "Significancia legal", "Atribucion / limites"],
+            _challenge_pdf_finding_rows(case),
+            styles,
+            [130, 134, 128, 132],
+        )
+    )
+    story.append(Spacer(1, 8))
+    story.append(Paragraph("Final Investigative Summary", styles["subheading"]))
+    for line in _challenge_pdf_summary_lines(case):
+        story.append(Paragraph(_html(line), styles["body"]))
+
+
+def _challenge_pdf_technical_rows(case) -> list[list[object]]:
+    rows: list[list[object]] = []
+    tools = []
+    for evidence in case.evidence:
+        if evidence.tool_used:
+            tools.append(evidence.tool_used)
+    for action in case.actions:
+        if action.tool_used:
+            tools.append(action.tool_used)
+    for finding in case.findings:
+        if finding.tools_used:
+            tools.append(finding.tools_used)
+    for tool in dict.fromkeys(_public_text(item).strip() for item in tools if _public_text(item).strip()):
+        rows.append(
+            [
+                tool,
+                "Relacion directa con evidencia registrada.",
+                "Preservacion, verificacion, analisis o documentacion.",
+                "No sustituye autorizacion legal ni revision pericial.",
+            ]
+        )
+    if getattr(case, "deepfake_analyses", None):
+        rows.append(
+            [
+                "Autenticacion de medios",
+                "Evaluar medio sospechoso.",
+                "Origen, hash, metadatos, inconsistencias y comparacion.",
+                "Resultado preliminar; no afirma autenticidad ni autoria.",
+            ]
+        )
+    if getattr(case, "blockchain_transactions", None):
+        rows.append(
+            [
+                "Analisis forense de blockchain",
+                "Documentar ruta economica.",
+                "Wallets, hash de transaccion, red, monto, URL aportada e hipotesis.",
+                "Una wallet no identifica por si sola a una persona.",
+            ]
+        )
+    if getattr(case, "iot_devices", None):
+        rows.append(
+            [
+                "Analisis de dispositivos conectados",
+                "Documentar dispositivo y estado observable.",
+                "Identificacion, firmware, red, logs, checklist y limitaciones.",
+                "IP, MAC o puerto requieren corroboracion externa.",
+            ]
+        )
+    if not rows:
+        rows.append(
+            [
+                "Metodologia documental forense",
+                "Estado inicial del caso.",
+                "Ordenamiento de evidencia, custodia, hallazgos y matriz legal.",
+                "Requiere completar evidencia y revision profesional.",
+            ]
+        )
+    return rows
+
+
+def _challenge_pdf_evidence_rows(case) -> list[list[object]]:
+    rows = []
+    for evidence in case.evidence:
+        custody = [
+            action.action_type
+            for action in case.actions
+            if getattr(action, "evidence_id", None) == evidence.id
+        ]
+        rows.append(
+            [
+                f"#{evidence.id} {evidence.description}",
+                evidence.evidence_type or "digital",
+                evidence.preservation_method or evidence.integrity_status or "pendiente",
+                _short_hash(evidence.sha256_hash or ""),
+                ", ".join(custody) if custody else "pendiente de ampliar",
+            ]
+        )
+    if not rows:
+        rows.append(["Sin evidencia individual cargada", "Pendiente", "Pendiente", "-", "Pendiente"])
+    return rows
+
+
+def _challenge_pdf_legal_rows(case, legal_probatory: dict) -> list[list[object]]:
+    rows = []
+    approved = [
+        item for item in case.legal_mappings if getattr(item, "decision_status", "sugerido") != "descartado"
+    ]
+    for mapping in approved:
+        rows.append(
+            [
+                mapping.norm_reference,
+                "Corroboracion y autorizaciones segun hechos.",
+                mapping.applicability_to_case or mapping.analysis or "pendiente de ampliar",
+                getattr(mapping, "decision_status", "") or mapping.verification_status,
+                mapping.probatory_limits or "fuente registrada en biblioteca legal",
+            ]
+        )
+    if not rows:
+        measures = legal_probatory.get("recommended_measures") if isinstance(legal_probatory, dict) else None
+        rows.append(
+            [
+                "Pendiente de vincular",
+                "; ".join(measures[:2]) if measures else "Completar mapeo legal.",
+                "No formular encuadre definitivo sin fuente y evidencia.",
+                "Pendiente",
+                "Registrar autorizacion, oficio o decision profesional.",
+            ]
+        )
+    return rows
+
+
+def _challenge_pdf_finding_rows(case) -> list[list[object]]:
+    rows = []
+    for finding in case.findings:
+        rows.append(
+            [
+                finding.title,
+                finding.technical_finding or finding.supporting_evidence or "pendiente",
+                finding.preliminary_legal_relevance or "pendiente",
+                finding.weaknesses_or_limitations or "No atribuir autoria personal sin evidencia suficiente.",
+            ]
+        )
+    if not rows:
+        rows.append(
+            [
+                "Sin hallazgos conclusivos cargados",
+                "Requiere analisis adicional.",
+                "Sin significancia legal definitiva.",
+                "No atribuir identidad ni autoria sin evidencia suficiente.",
+            ]
+        )
+    return rows
+
+
+def _challenge_pdf_summary_lines(case) -> list[str]:
+    major_findings = "; ".join(f.title for f in case.findings[:3]) or "hallazgos mayores pendientes de carga"
+    next_steps = []
+    if not case.evidence:
+        next_steps.append("incorporar evidencia identificable")
+    if not any(e.sha256_hash for e in case.evidence):
+        next_steps.append("registrar hash")
+    if not case.actions:
+        next_steps.append("registrar cadena de custodia")
+    if not case.legal_mappings:
+        next_steps.append("vincular matriz legal-probatoria")
+    if not next_steps:
+        next_steps.append("mantener revision profesional, anexos y corroboracion externa")
+    return [
+        f"Importancia general: el informe organiza el incidente {case.incident_type} con evidencia, custodia, hallazgos y encuadre legal disponible.",
+        f"Hallazgos mayores: {major_findings}.",
+        "Observaciones y limitaciones: las conclusiones son prudentes y no atribuyen autoria personal sin evidencia tecnica y legal suficiente.",
+        f"Proximos pasos: {', '.join(next_steps)}.",
+    ]
 
 
 def _base_table_style(header_column: bool = False) -> TableStyle:
