@@ -932,6 +932,8 @@ export function App() {
   const [closureStatus, setClosureStatus] = useState<ClosureStatus | null>(null);
   const [closureNote, setClosureNote] = useState("Cierre operativo con evidencia preservada, informe revisado y PDF exportado.");
   const [aiSecurityResult, setAiSecurityResult] = useState<unknown>(null);
+  const [ctfDashboardState, setCtfDashboardState] = useState<"idle" | "working" | "success" | "error">("idle");
+  const [ctfDashboardMessage, setCtfDashboardMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -1816,6 +1818,24 @@ export function App() {
     setReviewResult({ generated_report_id: report.id, status: "generated" });
   }
 
+  async function generateReportFromCtfDashboard() {
+    if (!selectedCaseId) {
+      setCtfDashboardState("error");
+      setCtfDashboardMessage("Selecciona un caso antes de generar el informe.");
+      return;
+    }
+    setCtfDashboardState("working");
+    setCtfDashboardMessage("Generando informe integral para el caso activo...");
+    try {
+      await generateReport();
+      setCtfDashboardState("success");
+      setCtfDashboardMessage("Informe generado y asociado al caso activo.");
+    } catch (error) {
+      setCtfDashboardState("error");
+      setCtfDashboardMessage(error instanceof Error ? error.message : "No se pudo generar el informe.");
+    }
+  }
+
   async function reviewReport() {
     if (!latestReport) return;
     const result = await apiPost<ReportReviewResult>(`/reports/${latestReport.id}/review`);
@@ -1850,6 +1870,30 @@ export function App() {
       setRubricState("error");
       setRubricMessage(error instanceof Error ? error.message : "No se pudo actualizar la rúbrica.");
     }
+  }
+
+  async function updateRubricFromCtfDashboard() {
+    setCtfDashboardState("working");
+    setCtfDashboardMessage("Evaluando cumplimiento de rúbrica CTF...");
+    try {
+      await updateRubricEvaluation();
+      setCtfDashboardState("success");
+      setCtfDashboardMessage("Rúbrica evaluada. Revisa el semáforo de preparación.");
+    } catch (error) {
+      setCtfDashboardState("error");
+      setCtfDashboardMessage(error instanceof Error ? error.message : "No se pudo evaluar la rúbrica.");
+    }
+  }
+
+  function exportPdfFromCtfDashboard() {
+    if (!latestReport) {
+      setCtfDashboardState("error");
+      setCtfDashboardMessage("Genera un informe antes de exportar el PDF.");
+      return;
+    }
+    window.open(`${API_BASE}/exports/reports/${latestReport.id}/pdf`, "_blank", "noopener,noreferrer");
+    setCtfDashboardState("success");
+    setCtfDashboardMessage("Exportación PDF iniciada. El manifiesto queda registrado por el backend.");
   }
 
   async function saveExecutiveSummary() {
@@ -2501,6 +2545,36 @@ export function App() {
   }
 
   function renderDashboard() {
+    const hashedEvidence = evidence.filter((item) => Boolean(item.sha256_hash)).length;
+    const approvedLegalMappings = legalMappings.filter((item) => item.decision_status !== "descartado").length;
+    const reportReviewed = Boolean(latestReport && latestReport.review_score >= 80);
+    const pdfExports = manifests.filter((item) => item.report_id === latestReport?.id || item.export_type.toLowerCase().includes("pdf"));
+    const rubricPercent = rubricEvaluation?.percentage ?? 0;
+    const technicalFindingCount = dashboard.metrics?.proof_matrix_rows ?? legalProbatoryMatrix?.rows.length ?? 0;
+    const hasTechnicalFindings = technicalFindingCount > 0;
+    const ctfStatusClass = (status: string) => status === "crítico" ? "critical" : status === "listo" ? "ready" : status === "parcial" ? "partial" : "incomplete";
+    const ctfItems = [
+      { key: "case", label: "Caso activo", value: selectedCase ? selectedCase.case_code : "Sin caso seleccionado", status: selectedCase ? "listo" : "crítico", detail: selectedCase ? selectedCase.title : "Selecciona o crea un caso para iniciar el tablero." },
+      { key: "evidence", label: "Evidencia cargada", value: `${evidence.length}`, status: evidence.length ? "listo" : "incompleto", detail: evidence.length ? "Hay evidencia asociada al caso." : "Carga evidencia y preserva el archivo o fuente." },
+      { key: "hashes", label: "Hashes completos", value: `${hashedEvidence}/${evidence.length || 0}`, status: evidence.length && hashedEvidence === evidence.length ? "listo" : evidence.length ? "parcial" : "incompleto", detail: evidence.length ? "Verifica SHA-256 en cada evidencia." : "Primero carga evidencia." },
+      { key: "custody", label: "Cadena de custodia", value: `${custody.length}`, status: custody.length ? "listo" : "incompleto", detail: custody.length ? "Acciones de custodia registradas." : "Registra preservación, responsable y procedimiento." },
+      { key: "deepfake", label: "Deepfake / medios", value: `${deepfakeAnalyses.length}`, status: deepfakeAnalyses.length ? "listo" : "parcial", detail: deepfakeAnalyses.length ? "Hay análisis de autenticación de medios." : "Opcional según el caso; úsalo si hay imagen, video o audio." },
+      { key: "blockchain", label: "Blockchain", value: `${blockchainTransactions.length}`, status: blockchainTransactions.length ? "listo" : "parcial", detail: blockchainTransactions.length ? "Hay transacciones registradas." : "Opcional según el caso; úsalo si hay wallets, pagos o tx hash." },
+      { key: "iot", label: "IoT", value: `${iotDevices.length}`, status: iotDevices.length ? "listo" : "parcial", detail: iotDevices.length ? "Hay dispositivos IoT registrados." : "Opcional según el caso; úsalo si hay cámaras, sensores o dispositivos." },
+      { key: "legal", label: "Normas aplicadas", value: `${approvedLegalMappings}`, status: approvedLegalMappings ? "listo" : "incompleto", detail: approvedLegalMappings ? "Existe encuadre legal aprobado o sugerido." : "Tipifica el incidente desde biblioteca legal registrada." },
+      { key: "findings", label: "Hallazgos", value: `${technicalFindingCount}`, status: hasTechnicalFindings ? "listo" : "incompleto", detail: hasTechnicalFindings ? "Hay hallazgos o matriz técnica/probatoria." : "Guarda hallazgos desde Cybercrime o laboratorios." },
+      { key: "report", label: "Informe generado", value: reports.length ? "Sí" : "No", status: reports.length ? "listo" : "incompleto", detail: reports.length ? latestReport?.title || "Informe disponible." : "Genera el informe integral." },
+      { key: "review", label: "Informe revisado", value: latestReport ? `${latestReport.review_score}/100` : "Sin revisión", status: reportReviewed ? "listo" : latestReport ? "parcial" : "incompleto", detail: reportReviewed ? "La revisión supera el umbral operativo." : "Ejecuta revisión y corrige advertencias." },
+      { key: "export", label: "PDF exportado", value: `${pdfExports.length}`, status: pdfExports.length ? "listo" : "incompleto", detail: pdfExports.length ? "Hay exportación registrada." : "Exporta PDF con manifiesto antes de entregar." },
+      { key: "rubric", label: "Rúbrica completada", value: rubricEvaluation ? `${rubricEvaluation.percentage}%` : "Sin evaluar", status: rubricEvaluation ? (rubricPercent >= 80 ? "listo" : rubricPercent >= 50 ? "parcial" : "crítico") : "incompleto", detail: rubricEvaluation ? rubricEvaluation.summary : "Evalúa la rúbrica del desafío." },
+    ];
+    const statusWeight: Record<string, number> = { listo: 1, parcial: 0.55, incompleto: 0, crítico: 0 };
+    const ctfScore = Math.round((ctfItems.reduce((total, item) => total + statusWeight[item.status], 0) / ctfItems.length) * 100);
+    const criticalCount = ctfItems.filter((item) => item.status === "crítico").length;
+    const incompleteCount = ctfItems.filter((item) => item.status === "incompleto").length;
+    const ctfLevel = criticalCount ? "Crítico" : ctfScore >= 82 ? "Listo" : ctfScore >= 52 ? "Parcial" : "Incompleto";
+    const ctfLevelClass = criticalCount ? "critical" : ctfScore >= 82 ? "ready" : ctfScore >= 52 ? "partial" : "incomplete";
+    const ctfMissing = ctfItems.filter((item) => item.status === "crítico" || item.status === "incompleto").slice(0, 6);
     const currentCaseReadiness = [
       { label: "Caso seleccionado", ok: Boolean(selectedCase), detail: selectedCase?.case_code || "Sin caso" },
       { label: "Evidencia preservada", ok: evidence.length > 0, detail: `${evidence.length} evidencia(s)` },
@@ -2548,6 +2622,56 @@ export function App() {
           ))}
         </div>
         {dashboard.metrics ? <MetricGrid metrics={dashboard.metrics} /> : <EmptyState text="Sin metricas cargadas." />}
+        <div className="ctf-panel">
+          <div className="ctf-hero">
+            <div>
+              <span className="tool-kicker">Preparación CTF</span>
+              <h3>Estado de entrega del caso</h3>
+              <p>
+                Semáforo operativo para verificar evidencia, laboratorios, encuadre legal, informe, exportación y rúbrica antes de entregar.
+              </p>
+            </div>
+            <div className={`ctf-score ${ctfLevelClass}`}>
+              <span>{ctfLevel}</span>
+              <strong>{ctfScore}/100</strong>
+              <small>{incompleteCount} pendiente(s)</small>
+            </div>
+          </div>
+          {ctfDashboardMessage && (
+            <div className={`action-feedback ${ctfDashboardState === "working" ? "updating" : ctfDashboardState === "success" ? "updated" : ctfDashboardState}`}>
+              {ctfDashboardMessage}
+            </div>
+          )}
+          <div className="ctf-action-row">
+            <button className="secondary-button" onClick={() => setActive("deepfakeMedia")} disabled={!selectedCaseId}><FileCheck2 size={16} /> Ir a Deepfake Lab</button>
+            <button className="secondary-button" onClick={() => setActive("blockchainForensics")} disabled={!selectedCaseId}><Globe2 size={16} /> Ir a Blockchain Lab</button>
+            <button className="secondary-button" onClick={() => setActive("iotForensics")} disabled={!selectedCaseId}><Shield size={16} /> Ir a IoT Lab</button>
+            <button className="secondary-button" onClick={() => setActive("legalKnowledge")} disabled={!selectedCaseId}><BookOpen size={16} /> Ir a Biblioteca Legal</button>
+            <button className="secondary-button" onClick={updateRubricFromCtfDashboard} disabled={!selectedCaseId || ctfDashboardState === "working"}><Gavel size={16} /> Evaluar rúbrica</button>
+            <button onClick={generateReportFromCtfDashboard} disabled={!selectedCaseId || ctfDashboardState === "working"}><FileText size={16} /> Generar informe</button>
+            <button onClick={exportPdfFromCtfDashboard} disabled={!latestReport}><Download size={16} /> Exportar PDF</button>
+          </div>
+          <div className="ctf-grid">
+            {ctfItems.map((item) => (
+              <div className={`ctf-card ${ctfStatusClass(item.status)}`} key={item.key}>
+                <div>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </div>
+                <em>{prettySpanish(item.status)}</em>
+                <p>{item.detail}</p>
+              </div>
+            ))}
+          </div>
+          <div className={`ctf-guidance ${ctfLevelClass}`}>
+            <strong>{ctfLevel === "Listo" ? "El caso está cerca de una entrega defendible." : "Qué falta para mejorar la entrega"}</strong>
+            {ctfMissing.length ? (
+              ctfMissing.map((item) => <span key={item.key}>{item.label}: {item.detail}</span>)
+            ) : (
+              <span>Revisa visualmente el PDF final, valida conclusiones y conserva el manifiesto de exportación.</span>
+            )}
+          </div>
+        </div>
         <div className="preview-grid">
           <div>
             <h4>Casos por estado</h4>

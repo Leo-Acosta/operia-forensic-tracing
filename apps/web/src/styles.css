@@ -1159,6 +1159,159 @@ button.text-link {
   font-size: 28px;
 }
 
+.ctf-panel {
+  background: #f8fbff;
+  border: 1px solid #d7e3ee;
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  margin: 0 0 20px;
+  padding: 16px;
+}
+
+.ctf-hero {
+  align-items: center;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.ctf-hero h3 {
+  color: #10233d;
+  font-size: 22px;
+  margin: 4px 0;
+}
+
+.ctf-hero p {
+  color: #52647a;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.ctf-score {
+  border-radius: 8px;
+  border: 1px solid #dce5ee;
+  display: grid;
+  gap: 4px;
+  min-width: 150px;
+  padding: 13px;
+  text-align: right;
+}
+
+.ctf-score span,
+.ctf-score small {
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.ctf-score strong {
+  color: #10233d;
+  font-size: 28px;
+}
+
+.ctf-score.ready,
+.ctf-card.ready,
+.ctf-guidance.ready {
+  background: #effaf3;
+  border-color: #b8dfc6;
+  color: #12613f;
+}
+
+.ctf-score.partial,
+.ctf-card.partial,
+.ctf-guidance.partial {
+  background: #fff8ed;
+  border-color: #f1d6aa;
+  color: #6d4a18;
+}
+
+.ctf-score.incomplete,
+.ctf-card.incomplete {
+  background: #f5f8fb;
+  border-color: #dce5ee;
+  color: #52647a;
+}
+
+.ctf-score.critical,
+.ctf-card.critical,
+.ctf-guidance.critical {
+  background: #fff0f0;
+  border-color: #edb7b7;
+  color: #8d1f1f;
+}
+
+.ctf-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ctf-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.ctf-card {
+  border: 1px solid #dce5ee;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.ctf-card > div {
+  align-items: start;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.ctf-card span {
+  color: #52647a;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.ctf-card strong {
+  color: #10233d;
+  font-size: 18px;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.ctf-card em {
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.ctf-card p {
+  color: #34465d;
+  line-height: 1.42;
+  margin: 0;
+}
+
+.ctf-guidance {
+  border: 1px solid #dce5ee;
+  border-radius: 8px;
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+}
+
+.ctf-guidance strong,
+.ctf-guidance span {
+  display: block;
+}
+
+.ctf-guidance span {
+  color: #34465d;
+}
+
 .split {
   display: grid;
   gap: 18px;
