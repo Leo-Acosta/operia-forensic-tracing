@@ -533,6 +533,35 @@ def export_pdf(report: Report) -> Path:
             )
         )
 
+    if getattr(case, "iot_devices", None):
+        _section(story, "7.3 An\u00e1lisis forense de dispositivos IoT", styles)
+        story.append(
+            _data_table(
+                ["Dispositivo", "Red", "Evidencia", "Logs / puertos", "Hallazgos y l\u00edmites"],
+                [
+                    [
+                        f"{item.device_type} / {item.manufacturer or ''} {item.model or ''}",
+                        f"IP int. {item.internal_ip or '-'} / IP ext. {item.external_ip or '-'} / MAC {item.mac or '-'}",
+                        f"#{item.evidence_id or '-'} / {item.evidence_hash or 'pendiente'}",
+                        f"Logs: {item.logs_available or 'pendiente'}; puertos: {item.open_ports or 'pendiente'}",
+                        f"Vulnerabilidades: {item.known_vulnerabilities or 'pendiente'}. L\u00edmites: {item.limitations or 'No atribuir por IP, MAC o puerto sin corroboraci\u00f3n.'}",
+                    ]
+                    for item in sorted(case.iot_devices, key=lambda row: row.created_at, reverse=True)
+                ],
+                styles,
+                [86, 116, 90, 108, 124],
+            )
+        )
+        story.append(Spacer(1, 6))
+        story.append(
+            Paragraph(
+                _html(
+                    "L\u00edmite de atribuci\u00f3n: un dispositivo IoT, IP, MAC, puerto o firmware observado no identifica por s\u00ed solo a una persona ni acredita acceso ileg\u00edtimo sin logs, autorizaciones, timeline y evidencia externa corroborante."
+                ),
+                styles["body"],
+            )
+        )
+
     conclusion_content = _extract_named_sections(
         report.markdown_content,
         [

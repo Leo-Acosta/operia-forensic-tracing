@@ -40,6 +40,7 @@ type ModuleKey =
   | "cybercrime"
   | "deepfakeMedia"
   | "blockchainForensics"
+  | "iotForensics"
   | "externalTools"
   | "aiSecurity"
   | "geoTrace"
@@ -525,6 +526,32 @@ type BlockchainTransactionItem = {
   warning: string;
 };
 
+type IoTDeviceItem = {
+  id: number;
+  case_id: number;
+  evidence_id?: number;
+  evidence_description?: string;
+  finding_id?: number;
+  device_type: string;
+  manufacturer: string;
+  model: string;
+  firmware: string;
+  internal_ip: string;
+  external_ip: string;
+  mac: string;
+  open_ports: string;
+  known_vulnerabilities: string;
+  logs_available: string;
+  evidence_hash: string;
+  checklist: Array<{ key: string; label: string; ok: boolean; note: string }>;
+  tool_used: string;
+  limitations: string;
+  recommended_measures: string[];
+  legal_mapping_ids: number[];
+  analyst_name: string;
+  warning: string;
+};
+
 const modules: Array<{ key: ModuleKey; label: string; icon: typeof BarChart3 }> = [
   { key: "workflow", label: "Flujo Operativo", icon: CheckCircle2 },
   { key: "dashboard", label: "Dashboard", icon: BarChart3 },
@@ -537,6 +564,7 @@ const modules: Array<{ key: ModuleKey; label: string; icon: typeof BarChart3 }> 
   { key: "cybercrime", label: "Cybercrime", icon: Shield },
   { key: "deepfakeMedia", label: "Deepfake / Medios", icon: FileCheck2 },
   { key: "blockchainForensics", label: "Blockchain Forensics", icon: Globe2 },
+  { key: "iotForensics", label: "IoT Forensics", icon: Shield },
   { key: "externalTools", label: "Herramientas Externas", icon: Wrench },
   { key: "aiSecurity", label: "AI Security", icon: BrainCircuit },
   { key: "geoTrace", label: "Geo Trace", icon: Map },
@@ -629,6 +657,39 @@ const emptyBlockchainForm = {
   wallet_classification: "desconocido",
   tool_used: "OPERIA Blockchain Forensics",
   limitations: "Una wallet no identifica por sí sola a una persona sin evidencia externa corroborante."
+};
+
+const iotChecklist = [
+  { key: "physical_identification", label: "Identificación física" },
+  { key: "photo_capture", label: "Fotografía/captura" },
+  { key: "evidence_hash", label: "Hash de evidencia" },
+  { key: "firmware", label: "Firmware" },
+  { key: "configuration", label: "Configuración" },
+  { key: "logs", label: "Logs" },
+  { key: "ports", label: "Puertos" },
+  { key: "default_credentials", label: "Credenciales por defecto" },
+  { key: "network_connection", label: "Conexión a red" },
+  { key: "timeline", label: "Línea temporal" },
+  { key: "state_preservation", label: "Preservación de estado" },
+  { key: "alteration_risk", label: "Riesgo de alteración" }
+];
+
+const emptyIoTChecklist = Object.fromEntries(iotChecklist.map((item) => [item.key, false])) as Record<string, boolean>;
+
+const emptyIoTForm = {
+  evidence_id: "",
+  device_type: "cámara IP",
+  manufacturer: "",
+  model: "",
+  firmware: "",
+  internal_ip: "",
+  external_ip: "",
+  mac: "",
+  open_ports: "",
+  known_vulnerabilities: "",
+  logs_available: "",
+  tool_used: "OPERIA IoT Forensics",
+  limitations: "No se ejecutaron escaneos reales. Requiere autorización, preservación de estado y correlación externa."
 };
 
 function prettySpanish(value = "") {
@@ -838,6 +899,11 @@ export function App() {
   const [blockchainForm, setBlockchainForm] = useState(emptyBlockchainForm);
   const [blockchainState, setBlockchainState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [blockchainMessage, setBlockchainMessage] = useState("");
+  const [iotDevices, setIotDevices] = useState<IoTDeviceItem[]>([]);
+  const [iotForm, setIotForm] = useState(emptyIoTForm);
+  const [iotChecklistState, setIotChecklistState] = useState<Record<string, boolean>>(emptyIoTChecklist);
+  const [iotState, setIotState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [iotMessage, setIotMessage] = useState("");
   const [cyberToolForm, setCyberToolForm] = useState({ name: "", category: "osint", executable_path: "", default_command: "", notes: "", website_url: "", documentation_url: "", safety_notes: "" });
   const [cyberLabForm, setCyberLabForm] = useState({ title: "", purpose: "analisis de indicador", risk_level: "medio", operator: "" });
   const [cyberProofForm, setCyberProofForm] = useState({
@@ -893,6 +959,7 @@ export function App() {
       setLegalMappingEvidence([]);
       setDeepfakeAnalyses([]);
       setBlockchainTransactions([]);
+      setIotDevices([]);
       setLegalProbatoryMatrix(null);
       setLegalQualityControl(null);
       setRubricEvaluation(null);
@@ -918,6 +985,7 @@ export function App() {
       qualityControlData,
       deepfakeData,
       blockchainData,
+      iotData,
       rubricData
     ] = await Promise.all([
       apiGet<CaseParticipant[]>(`/cases/${caseId}/participants`),
@@ -932,6 +1000,7 @@ export function App() {
       apiGet<LegalQualityControl>(`/legal-knowledge/case/${caseId}/quality-control`),
       apiGet<DeepfakeAnalysisItem[]>(`/cybercrime/deepfake/case/${caseId}`).catch(() => []),
       apiGet<BlockchainTransactionItem[]>(`/cybercrime/blockchain/case/${caseId}`).catch(() => []),
+      apiGet<IoTDeviceItem[]>(`/cybercrime/iot/case/${caseId}`).catch(() => []),
       apiGet<RubricEvaluation>(`/rubrics/case/${caseId}/score`).catch(() => null)
     ]);
     setParticipants(participantData);
@@ -944,6 +1013,7 @@ export function App() {
     setLegalMappingEvidence(mappingEvidenceData);
     setDeepfakeAnalyses(deepfakeData);
     setBlockchainTransactions(blockchainData);
+    setIotDevices(iotData);
     setLegalProbatoryMatrix(probatoryMatrixData);
     setLegalQualityControl(qualityControlData);
     setRubricEvaluation(rubricData);
@@ -990,6 +1060,10 @@ export function App() {
         return;
       }
       if (key === "blockchainForensics") {
+        await refreshCybercrime();
+        return;
+      }
+      if (key === "iotForensics") {
         await refreshCybercrime();
         return;
       }
@@ -1064,13 +1138,14 @@ export function App() {
 
   async function refreshCybercrime() {
     const caseParam = selectedCaseId ? `?case_id=${selectedCaseId}` : "";
-    const [dashboardData, toolsData, labData, proofRowsData, deepfakeData, blockchainData] = await Promise.all([
+    const [dashboardData, toolsData, labData, proofRowsData, deepfakeData, blockchainData, iotData] = await Promise.all([
       apiGet<CybercrimeDashboard>("/cybercrime/dashboard"),
       apiGet<CyberTool[]>("/cybercrime/tools"),
       apiGet<CyberLabSession[]>(`/cybercrime/lab/sessions${caseParam}`),
       selectedCaseId ? apiGet<CyberProofRow[]>(`/cybercrime/proof-matrix${caseParam}`) : Promise.resolve([]),
       selectedCaseId ? apiGet<DeepfakeAnalysisItem[]>(`/cybercrime/deepfake/case/${selectedCaseId}`) : Promise.resolve([]),
-      selectedCaseId ? apiGet<BlockchainTransactionItem[]>(`/cybercrime/blockchain/case/${selectedCaseId}`) : Promise.resolve([])
+      selectedCaseId ? apiGet<BlockchainTransactionItem[]>(`/cybercrime/blockchain/case/${selectedCaseId}`) : Promise.resolve([]),
+      selectedCaseId ? apiGet<IoTDeviceItem[]>(`/cybercrime/iot/case/${selectedCaseId}`) : Promise.resolve([])
     ]);
     setCyberDashboard(dashboardData);
     setCyberTools(toolsData);
@@ -1078,7 +1153,8 @@ export function App() {
     setCyberProofRows(proofRowsData);
     setDeepfakeAnalyses(deepfakeData);
     setBlockchainTransactions(blockchainData);
-    setModulePayload({ dashboard: dashboardData, tools: toolsData.length, lab_sessions: labData.length, proof_rows: proofRowsData.length, deepfake_analyses: deepfakeData.length, blockchain_transactions: blockchainData.length });
+    setIotDevices(iotData);
+    setModulePayload({ dashboard: dashboardData, tools: toolsData.length, lab_sessions: labData.length, proof_rows: proofRowsData.length, deepfake_analyses: deepfakeData.length, blockchain_transactions: blockchainData.length, iot_devices: iotData.length });
   }
 
   async function login(event: FormEvent) {
@@ -1515,6 +1591,75 @@ export function App() {
     } catch (error) {
       setBlockchainState("error");
       setBlockchainMessage(error instanceof Error ? error.message : "No se pudieron aplicar las normas.");
+    }
+  }
+
+  async function saveIoTDevice(event: FormEvent) {
+    event.preventDefault();
+    if (!selectedCaseId) {
+      setIotState("error");
+      setIotMessage("Selecciona un caso antes de registrar el dispositivo.");
+      return;
+    }
+    setIotState("saving");
+    setIotMessage("Registrando dispositivo IoT...");
+    try {
+      const selectedEvidence = evidence.find((item) => item.id === Number(iotForm.evidence_id));
+      await apiPost<IoTDeviceItem>("/cybercrime/iot", {
+        ...iotForm,
+        case_id: Number(selectedCaseId),
+        evidence_id: iotForm.evidence_id ? Number(iotForm.evidence_id) : undefined,
+        evidence_hash: selectedEvidence?.sha256_hash || "",
+        checklist: iotChecklistState,
+        analyst_name: analystName || identitySession.user?.name || "Analista local"
+      });
+      setIotForm(emptyIoTForm);
+      setIotChecklistState(emptyIoTChecklist);
+      setIotState("saved");
+      setIotMessage("Dispositivo IoT registrado con metodología y límites.");
+      await refreshCaseCollections(selectedCaseId);
+      await refreshCybercrime();
+    } catch (error) {
+      setIotState("error");
+      setIotMessage(error instanceof Error ? error.message : "No se pudo registrar el dispositivo.");
+    }
+  }
+
+  async function createIoTFinding(deviceId: number) {
+    setIotState("saving");
+    setIotMessage("Creando hallazgo IoT...");
+    try {
+      const result = await apiPost<{ id: number; message: string }>(`/cybercrime/iot/${deviceId}/finding`);
+      setIotState("saved");
+      setIotMessage(result.message || `Hallazgo #${result.id} creado.`);
+      if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+      await refreshCybercrime();
+    } catch (error) {
+      setIotState("error");
+      setIotMessage(error instanceof Error ? error.message : "No se pudo crear el hallazgo.");
+    }
+  }
+
+  async function applyIoTLegal(device: IoTDeviceItem) {
+    setIotState("saving");
+    setIotMessage("Aplicando normas registradas...");
+    try {
+      const text = `${device.known_vulnerabilities} ${device.logs_available} ${device.open_ports} ${device.device_type}`.toLowerCase();
+      const result = await apiPost<{ applied: Array<{ norm_reference: string }> }>(`/cybercrime/iot/${device.id}/apply-legal`, {
+        analyst_name: analystName || identitySession.user?.name || "Analista local",
+        unauthorized_access: text.includes("acceso") || text.includes("credencial") || text.includes("puerto"),
+        damage: text.includes("daño") || text.includes("dano") || text.includes("malware") || text.includes("alter"),
+        public_systems: text.includes("servicio") || text.includes("infraestructura") || text.includes("publico"),
+        communications_interruption: text.includes("interrup") || text.includes("red") || text.includes("comunicacion"),
+        personal_data: text.includes("camara") || text.includes("audio") || text.includes("usuario")
+      });
+      setIotState("saved");
+      setIotMessage(`Normas aplicadas: ${result.applied.map((item) => item.norm_reference).join(", ") || "sin nuevas normas"}.`);
+      if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+      await refreshCybercrime();
+    } catch (error) {
+      setIotState("error");
+      setIotMessage(error instanceof Error ? error.message : "No se pudieron aplicar las normas.");
     }
   }
 
@@ -3846,6 +3991,113 @@ export function App() {
     );
   }
 
+  function renderIoTForensics() {
+    const checklistDone = iotChecklist.filter((item) => iotChecklistState[item.key]).length;
+    const linked = iotDevices.filter((item) => item.evidence_id).length;
+    return (
+      <section className="work-surface cyber-workbench">
+        <div className="section-head">
+          <div>
+            <h2>IoT Forensics</h2>
+            <p>Registro forense de dispositivos conectados, estado observable, evidencia, logs y límites sin ejecutar escaneos reales automáticamente.</p>
+          </div>
+          <button className="secondary-button" onClick={refreshCybercrime}><RefreshCcw size={16} /> Actualizar</button>
+        </div>
+
+        {iotMessage && <div className={`action-feedback ${iotState}`}>{iotMessage}</div>}
+
+        <div className="risk-card medium iot-risk-row">
+          <div><span>Dispositivos</span><strong>{iotDevices.length}</strong></div>
+          <div><span>Con evidencia</span><strong>{linked}</strong></div>
+          <div><span>Checklist actual</span><strong>{checklistDone}/{iotChecklist.length}</strong></div>
+        </div>
+
+        <div className="split iot-layout">
+          <form className="form iot-form" onSubmit={saveIoTDevice}>
+            <h3>Registrar dispositivo</h3>
+            <div className="inline-grid">
+              <input placeholder="Tipo de dispositivo" value={iotForm.device_type} onChange={(e) => setIotForm({ ...iotForm, device_type: e.target.value })} />
+              <input placeholder="Fabricante" value={iotForm.manufacturer} onChange={(e) => setIotForm({ ...iotForm, manufacturer: e.target.value })} />
+            </div>
+            <div className="inline-grid">
+              <input placeholder="Modelo" value={iotForm.model} onChange={(e) => setIotForm({ ...iotForm, model: e.target.value })} />
+              <input placeholder="Firmware" value={iotForm.firmware} onChange={(e) => setIotForm({ ...iotForm, firmware: e.target.value })} />
+            </div>
+            <div className="inline-grid">
+              <input placeholder="IP interna" value={iotForm.internal_ip} onChange={(e) => setIotForm({ ...iotForm, internal_ip: e.target.value })} />
+              <input placeholder="IP externa" value={iotForm.external_ip} onChange={(e) => setIotForm({ ...iotForm, external_ip: e.target.value })} />
+            </div>
+            <input placeholder="MAC" value={iotForm.mac} onChange={(e) => setIotForm({ ...iotForm, mac: e.target.value })} />
+            <select value={iotForm.evidence_id} onChange={(e) => setIotForm({ ...iotForm, evidence_id: e.target.value })}>
+              <option value="">Sin evidencia vinculada</option>
+              {evidence.map((item) => (
+                <option key={item.id} value={item.id}>#{item.id} - {item.description.slice(0, 60)}</option>
+              ))}
+            </select>
+            <textarea placeholder="Puertos abiertos observados o declarados" value={iotForm.open_ports} onChange={(e) => setIotForm({ ...iotForm, open_ports: e.target.value })} />
+            <textarea placeholder="Vulnerabilidades conocidas" value={iotForm.known_vulnerabilities} onChange={(e) => setIotForm({ ...iotForm, known_vulnerabilities: e.target.value })} />
+            <textarea placeholder="Logs disponibles" value={iotForm.logs_available} onChange={(e) => setIotForm({ ...iotForm, logs_available: e.target.value })} />
+            <input placeholder="Herramienta o metodología usada" value={iotForm.tool_used} onChange={(e) => setIotForm({ ...iotForm, tool_used: e.target.value })} />
+            <textarea placeholder="Limitaciones" value={iotForm.limitations} onChange={(e) => setIotForm({ ...iotForm, limitations: e.target.value })} />
+            <button disabled={!selectedCaseId || iotState === "saving"}><Save size={17} /> Guardar dispositivo</button>
+          </form>
+
+          <div className="detail-panel">
+            <div className="panel-head">
+              <div>
+                <h3>Checklist IoT</h3>
+                <p>Preservación y contexto antes de cualquier análisis intrusivo.</p>
+              </div>
+              <span className="badge">Sin escaneo</span>
+            </div>
+            <div className="checklist-grid">
+              {iotChecklist.map((item) => (
+                <label className={`check-pill ${iotChecklistState[item.key] ? "checked" : ""}`} key={item.key}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(iotChecklistState[item.key])}
+                    onChange={(e) => setIotChecklistState({ ...iotChecklistState, [item.key]: e.target.checked })}
+                  />
+                  <span>{item.label}</span>
+                </label>
+              ))}
+            </div>
+            <p className="notice">No se recomiendan comandos peligrosos ni escaneos reales desde esta pantalla. Todo análisis activo requiere autorización y metodología documentada.</p>
+          </div>
+        </div>
+
+        <div className="detail-panel">
+          <div className="panel-head">
+            <h3>Dispositivos registrados</h3>
+          </div>
+          <div className="table iot-table">
+            {iotDevices.map((item) => (
+              <div className="record iot-row" key={item.id}>
+                <div>
+                  <strong>{item.device_type} · {item.manufacturer || "fabricante pendiente"} {item.model}</strong>
+                  <span>Firmware {item.firmware || "pendiente"} · MAC {item.mac || "pendiente"}</span>
+                  <small>IP interna {item.internal_ip || "-"} · IP externa {item.external_ip || "-"}</small>
+                </div>
+                <div>
+                  <span>{item.evidence_id ? `Evidencia #${item.evidence_id}` : "Sin evidencia vinculada"}</span>
+                  <small>Hash {item.evidence_hash || "pendiente"}</small>
+                  <small>{item.finding_id ? `Hallazgo #${item.finding_id}` : "Sin hallazgo"}</small>
+                </div>
+                <p>{item.known_vulnerabilities || item.logs_available || "Hallazgos pendientes."}</p>
+                <small>{item.warning}</small>
+                <div className="actions-line">
+                  <button className="secondary-button" onClick={() => createIoTFinding(item.id)}><FileCheck2 size={16} /> Crear hallazgo</button>
+                  <button onClick={() => applyIoTLegal(item)}><Gavel size={16} /> Aplicar normas</button>
+                </div>
+              </div>
+            ))}
+            {!iotDevices.length && <EmptyState text="Sin dispositivos IoT registrados para el caso seleccionado." />}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
 
   function renderExternalTools() {
     const isAiTool = (item: CyberTool) => {
@@ -4207,6 +4459,7 @@ export function App() {
     if (active === "cybercrime") return renderCybercrime();
     if (active === "deepfakeMedia") return renderDeepfakeMedia();
     if (active === "blockchainForensics") return renderBlockchainForensics();
+    if (active === "iotForensics") return renderIoTForensics();
     if (active === "externalTools") return renderExternalTools();
     if (active === "ai") return renderAi();
     if (active === "aiSecurity") return renderAiSecurity();

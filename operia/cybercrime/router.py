@@ -25,14 +25,19 @@ from operia.cybercrime.models import (
 from operia.cybercrime.services import (
     BLOCKCHAIN_WARNING,
     DEEPFAKE_WARNING,
+    IOT_WARNING,
     apply_blockchain_legal_mapping,
     apply_deepfake_legal_mapping,
+    apply_iot_legal_mapping,
     blockchain_payload,
     create_blockchain_finding,
     create_blockchain_transaction_record,
     create_deepfake_analysis_record,
     create_deepfake_finding,
+    create_iot_device_record,
+    create_iot_finding,
     deepfake_payload,
+    iot_payload,
     run_lab_command,
     verify_tool,
 )
@@ -775,6 +780,51 @@ def list_iot_devices(case_id: int | None = None, db: Session = Depends(get_db)):
 @router.post("/iot-devices")
 def create_iot_device(payload: dict[str, Any], db: Session = Depends(get_db)):
     return create_cybercrime_collection_item("iot-devices", payload, db)
+
+
+@router.post("/iot")
+def register_iot_device(payload: dict[str, Any], db: Session = Depends(get_db)):
+    case_id = int(payload.get("case_id") or 0)
+    if not case_id or not db.get(Case, case_id):
+        raise HTTPException(status_code=404, detail="Caso no encontrado")
+    try:
+        device = create_iot_device_record(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return iot_payload(device)
+
+
+@router.get("/iot/case/{case_id}")
+def list_case_iot_devices(case_id: int, db: Session = Depends(get_db)):
+    if not db.get(Case, case_id):
+        raise HTTPException(status_code=404, detail="Caso no encontrado")
+    rows = db.query(IoTDevice).filter(IoTDevice.case_id == case_id).order_by(IoTDevice.id.desc()).all()
+    return [iot_payload(row) for row in rows]
+
+
+@router.post("/iot/{device_id}/finding")
+def register_iot_finding(device_id: int, payload: dict[str, Any] | None = None, db: Session = Depends(get_db)):
+    device = db.get(IoTDevice, device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Dispositivo IoT no encontrado")
+    finding = create_iot_finding(db, device, payload or {})
+    return {
+        "id": finding.id,
+        "device_id": device.id,
+        "case_id": finding.case_id,
+        "title": finding.title,
+        "confidence_level": finding.confidence_level,
+        "message": "Hallazgo IoT creado con metodologia y limites documentados.",
+        "warning": IOT_WARNING,
+    }
+
+
+@router.post("/iot/{device_id}/apply-legal")
+def apply_iot_suggested_legal(device_id: int, payload: dict[str, Any] | None = None, db: Session = Depends(get_db)):
+    device = db.get(IoTDevice, device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Dispositivo IoT no encontrado")
+    return apply_iot_legal_mapping(db, device, payload or {})
 
 
 @router.get("/blockchain-transactions")

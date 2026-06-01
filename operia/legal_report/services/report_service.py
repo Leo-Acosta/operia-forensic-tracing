@@ -34,6 +34,7 @@ REPORT_SECTIONS = [
     "Matriz dato técnico -> evidencia -> hallazgo",
     "Autenticacion de medios y analisis deepfake",
     "Analisis forense de blockchain",
+    "Analisis forense de dispositivos IoT",
     "Hallazgos principales",
     "Hipótesis investigativas",
     "Evaluación de hipótesis alternativas",
@@ -111,6 +112,7 @@ def build_integral_markdown(case: Case, legal_recommendations: list[Any] | None 
     exportability_lines = exportability_markdown(exportability)
     media_authentication_lines = _media_authentication_markdown(case)
     blockchain_forensics_lines = _blockchain_forensics_markdown(case)
+    iot_forensics_lines = _iot_forensics_markdown(case)
     rubric_lines = ""
     if getattr(case, "rubric_evaluations", None):
         from operia.rubrics.service import rubric_markdown
@@ -190,7 +192,7 @@ Se preservaron datos técnicos, se registraron acciones de cadena de custodia, s
 {media_authentication_lines or 'Evaluacion pendiente segun datos cargados.'}
 
 ### IoT / dispositivos conectados
-Evaluación pendiente según datos cargados.
+{iot_forensics_lines or 'Evaluacion pendiente segun datos cargados.'}
 
 ### Blockchain / criptomonedas
 {blockchain_forensics_lines or 'Evaluacion pendiente segun datos cargados.'}
@@ -204,6 +206,8 @@ Evaluación pendiente según datos cargados.
 {f'## Autenticacion de medios y analisis deepfake\n\n{media_authentication_lines}' if media_authentication_lines else ''}
 
 {f'## Analisis forense de blockchain\n\n{blockchain_forensics_lines}' if blockchain_forensics_lines else ''}
+
+{f'## Analisis forense de dispositivos IoT\n\n{iot_forensics_lines}' if iot_forensics_lines else ''}
 
 ## Matriz dato técnico -> evidencia -> hallazgo
 
@@ -383,6 +387,59 @@ def _blockchain_forensics_markdown(case: Case) -> str:
                 measures,
                 "",
                 "Limite de atribucion: una wallet o transaccion permite orientar trazabilidad economica, pero no identifica por si sola a una persona sin evidencia externa corroborante, informacion de plataforma, comunicaciones, cuentas, IPs u otros registros.",
+            ]
+        )
+    )
+
+
+def _iot_forensics_markdown(case: Case) -> str:
+    devices = sorted(getattr(case, "iot_devices", []) or [], key=lambda item: item.created_at, reverse=True)
+    if not devices:
+        return ""
+    rows = [
+        "| ID | Dispositivo | Fabricante/modelo | Firmware | IP interna/externa | Evidencia |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    details = []
+    for device in devices:
+        rows.append(
+            f"| #{device.id} | {device.device_type} | {device.manufacturer or 'pendiente'} {device.model or ''} | {device.firmware or 'pendiente'} | {device.internal_ip or '-'} / {device.external_ip or '-'} | #{device.evidence_id or '-'} / {device.evidence_hash or 'pendiente'} |"
+        )
+        details.append(
+            "\n".join(
+                [
+                    f"- Dispositivo #{device.id}: MAC {device.mac or 'pendiente'}; puertos observados: {device.open_ports or 'pendiente'}.",
+                    f"  - Metodologia/herramienta: {device.tool_used or 'OPERIA IoT Forensics'}; no se ejecutan escaneos reales automaticamente.",
+                    f"  - Logs disponibles: {device.logs_available or 'pendiente'}.",
+                    f"  - Vulnerabilidades conocidas: {device.known_vulnerabilities or 'pendiente'}.",
+                    f"  - Evidencia: #{device.evidence_id or '-'}, hash `{device.evidence_hash or 'pendiente'}`.",
+                    f"  - Limites: {device.limitations or 'requiere preservacion de estado, autorizacion y correlacion externa'}.",
+                    f"  - Normas aplicables vinculadas: {device.legal_mapping_ids or 'pendiente'}.",
+                ]
+            )
+        )
+    measures = "\n".join(
+        [
+            "- Preservar fotografia, captura, configuracion exportada o acta del dispositivo.",
+            "- Registrar fecha/hora, ubicacion, responsable y estado observable.",
+            "- Vincular evidencia con hash y cadena de custodia.",
+            "- Documentar firmware, configuracion, logs disponibles y timeline.",
+            "- Correlacionar con logs de red, usuarios, IPs y comunicaciones.",
+            "- Evitar atribucion personal por IP, MAC, puerto o nombre de dispositivo sin corroboracion.",
+        ]
+    )
+    return normalize_spanish(
+        "\n".join(
+            [
+                *rows,
+                "",
+                "### Metodologia, hallazgos y limites",
+                *details,
+                "",
+                "### Medidas recomendadas",
+                measures,
+                "",
+                "Limite de atribucion: un dispositivo IoT, IP, MAC, puerto o firmware observado no identifica por si solo a una persona ni acredita acceso ilegitimo sin logs, autorizaciones, timeline y evidencia externa corroborante.",
             ]
         )
     )

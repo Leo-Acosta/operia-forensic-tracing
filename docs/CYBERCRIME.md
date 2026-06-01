@@ -102,3 +102,57 @@ Recommended measures:
 - avoid personal attribution based only on a wallet.
 
 Legal integration is limited to registered legal-library articles. The current blockchain flow maps CP 172, CP 173 subsection 16, CP 168, CP 169 and Law 25.326 articles 5/9 only when the facts entered by the analyst support those links. Other norms must exist in the legal library before they can be applied.
+
+## IoT Forensics
+
+IoT Forensics registers connected devices inside a case without executing real scans automatically and without using the external network by default. The module avoids dangerous command recommendations; active probing must be handled outside OPERIA with authorization, preservation and methodology.
+
+Operational fields:
+
+- case and optional evidence link;
+- device type;
+- manufacturer, model and firmware;
+- internal IP, external IP and MAC;
+- observed or declared open ports;
+- known vulnerabilities;
+- available logs;
+- evidence hash;
+- checklist;
+- tool or methodology used;
+- limitations and recommended measures.
+
+Minimum checklist:
+
+- physical identification;
+- photo or capture;
+- evidence hash;
+- firmware;
+- configuration;
+- logs;
+- ports;
+- default credentials;
+- network connection;
+- timeline;
+- state preservation;
+- alteration risk.
+
+Canonical API:
+
+- `POST /api/cybercrime/iot`
+- `GET /api/cybercrime/iot/case/{case_id}`
+- `POST /api/cybercrime/iot/{device_id}/finding`
+- `POST /api/cybercrime/iot/{device_id}/apply-legal`
+
+Legal integration:
+
+- CP article 153 bis when unauthorized access is supported by facts;
+- CP article 183 when data, programs or systems were damaged or altered;
+- CP article 184 when public systems, services or critical infrastructure are affected;
+- CP article 197 when communications were interrupted or obstructed;
+- Law 25.326 articles 5 and 9 when personal data is involved.
+
+Required caution:
+
+- IP, MAC, hostname, firmware or open port does not identify a person by itself;
+- preserve device state before manipulation;
+- correlate with logs, authorization records, network evidence, accounts and timeline.

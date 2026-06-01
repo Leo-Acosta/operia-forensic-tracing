@@ -918,6 +918,24 @@ h3 {
   text-decoration: none;
 }
 
+.iot-layout {
+  align-items: start;
+}
+
+.iot-form textarea {
+  min-height: 84px;
+}
+
+.iot-risk-row {
+  margin-bottom: 14px;
+}
+
+.iot-table .iot-row {
+  align-items: start;
+  gap: 12px;
+  grid-template-columns: minmax(230px, 1.2fr) minmax(150px, 0.7fr) minmax(220px, 1fr);
+}
+
 .button-link.secondary-link {
   background: #eef3f8;
   border: 1px solid #d2deea;
@@ -2129,7 +2147,8 @@ pre {
   .dossier-grid,
   .rubric-score-row,
   .rubric-section-grid,
-  .blockchain-table .blockchain-row {
+  .blockchain-table .blockchain-row,
+  .iot-table .iot-row {
     grid-template-columns: 1fr;
   }
 

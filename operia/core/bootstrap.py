@@ -91,6 +91,18 @@ SQLITE_PLATFORM_COLUMNS: dict[str, dict[str, str]] = {
         "analyst_name": "VARCHAR(160) DEFAULT ''",
         "warning": "TEXT DEFAULT 'Una wallet no identifica por si sola a una persona sin evidencia externa corroborante.'",
     },
+    "cybercrime_iot_devices": {
+        "evidence_id": "INTEGER",
+        "finding_id": "INTEGER",
+        "logs_available": "TEXT DEFAULT ''",
+        "evidence_hash": "VARCHAR(128) DEFAULT ''",
+        "tool_used": "VARCHAR(255) DEFAULT ''",
+        "limitations": "TEXT DEFAULT ''",
+        "recommended_measures": "TEXT DEFAULT ''",
+        "legal_mapping_ids": "VARCHAR(255) DEFAULT ''",
+        "analyst_name": "VARCHAR(160) DEFAULT ''",
+        "warning": "TEXT DEFAULT 'No ejecutar escaneos ni modificar el dispositivo sin autorizacion, resguardo de estado y metodologia documentada.'",
+    },
 }
 
 
