@@ -7,6 +7,7 @@ Canonical routes:
 - `/api/cases`
 - `/api/evidence`
 - `/api/reports`
+- `/api/rubrics`
 - `/api/exports`
 - `/api/legal`
 - `/api/legal-knowledge`
@@ -59,6 +60,15 @@ Precedent and doctrine list routes only expose verified registered records.
 Mapping decisions store analyst approval or rejection for a specific case/article pair and write audit logs.
 Mapping-evidence routes link approved legal theories to concrete evidence records.
 The probatory matrix and quality-control routes expose legal element coverage, missing proof, contradiction risk and report impact.
+
+Rubric routes:
+
+- `GET /api/rubrics`
+- `GET /api/rubrics/report-2026`
+- `GET /api/rubrics/case/{case_id}/score`
+- `POST /api/rubrics/case/{case_id}/evaluate`
+
+`/api/rubrics/case/{case_id}/evaluate` persists a snapshot of `Written Legal Evidence Report 2026` compliance and enables the PDF section `Cumplimiento de rúbrica del informe`.
 
 `/api/ai-security/evaluations` supports `run_tests=true` for controlled local tests against the configured Ollama model.
 

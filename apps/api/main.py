@@ -9,6 +9,7 @@ from operia.geo_proximity.bootstrap import init_geo_proximity_module
 from operia.geo_trace.bootstrap import init_geo_trace_module
 from operia.legal_knowledge.bootstrap import init_legal_knowledge_module
 from operia.legal_report.bootstrap import init_legal_report_module
+from operia.rubrics.bootstrap import init_rubrics_module
 
 
 def create_app() -> FastAPI:
@@ -33,6 +34,7 @@ def create_app() -> FastAPI:
         init_platform_schema()
         init_legal_report_module()
         init_legal_knowledge_module()
+        init_rubrics_module()
         init_cybercrime_module()
         init_geo_trace_module()
         init_geo_proximity_module()

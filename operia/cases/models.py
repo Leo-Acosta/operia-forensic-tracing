@@ -33,6 +33,7 @@ class Case(Base, TimestampMixin):
     damage_items: Mapped[list["DamageItem"]] = relationship(back_populates="case", cascade="all, delete-orphan")
     reports: Mapped[list["Report"]] = relationship(back_populates="case", cascade="all, delete-orphan")
     presentations: Mapped[list["Presentation"]] = relationship(back_populates="case", cascade="all, delete-orphan")
+    rubric_evaluations: Mapped[list["RubricEvaluation"]] = relationship(back_populates="case", cascade="all, delete-orphan")
 
 
 class CaseParticipant(Base, TimestampMixin):

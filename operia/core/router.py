@@ -15,6 +15,7 @@ from operia.legal_knowledge.router import router as legal_knowledge_router
 from operia.legal_report.legal_router import router as legal_router
 from operia.legal_report.router import router as legal_report_router
 from operia.reports.router import router as reports_router
+from operia.rubrics.router import router as rubrics_router
 from operia.settings.router import router as settings_router
 from operia.users_cases.router import router as users_cases_router
 
@@ -43,5 +44,6 @@ api_router.include_router(geo_trace_router, prefix="/geo-trace", tags=["geo-trac
 api_router.include_router(geo_proximity_router, prefix="/geo/proximity", tags=["geo-proximity"])
 api_router.include_router(geo_proximity_router, prefix="/geo-proximity", tags=["geo-proximity-legacy"])
 api_router.include_router(reports_router, prefix="/reports", tags=["reports"])
+api_router.include_router(rubrics_router, prefix="/rubrics", tags=["rubrics"])
 api_router.include_router(exports_router, prefix="/exports", tags=["exports"])
 api_router.include_router(settings_router, prefix="/settings", tags=["settings"])

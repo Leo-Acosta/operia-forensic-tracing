@@ -107,6 +107,12 @@ def build_integral_markdown(case: Case, legal_recommendations: list[Any] | None 
     exportability = report_exportability_assessment(case, legal_probatory)
     executive_summary = build_smart_executive_summary(case, legal_probatory, exportability)
     exportability_lines = exportability_markdown(exportability)
+    rubric_lines = ""
+    if getattr(case, "rubric_evaluations", None):
+        from operia.rubrics.service import rubric_markdown
+
+        latest_rubric = sorted(case.rubric_evaluations, key=lambda item: item.created_at, reverse=True)[0]
+        rubric_lines = "\n\n" + rubric_markdown(latest_rubric)
 
     responsible_text = case.responsible or NO_ATTRIBUTION_TEXT
     client_or_victim = case.client_or_victim or ""
@@ -276,6 +282,7 @@ La evidencia resulta compatible con los hallazgos indicados, con las limitacione
 ## Recomendaciones procesales automÃ¡ticas
 
 {procedural_recommendations}
+{rubric_lines}
 
 ## Anexos
 

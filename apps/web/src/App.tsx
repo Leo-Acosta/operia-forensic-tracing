@@ -320,6 +320,39 @@ type LegalQualityControl = {
   matrix_summary: Record<string, number>;
 };
 
+type RubricSection = {
+  key: string;
+  label: string;
+  weight: number;
+  criteria: string[];
+  expected_components: string[];
+  minimum_fields: string[];
+  status: "incompleto" | "parcial" | "completo";
+  estimated_score: number;
+  max_score: number;
+  completion_ratio: number;
+  missing: string[];
+  recommendations: string[];
+};
+
+type RubricEvaluation = {
+  id: number;
+  case_id: number;
+  rubric_key: string;
+  rubric_title: string;
+  total_score: number;
+  max_score: number;
+  percentage: number;
+  status: "incompleto" | "parcial" | "completo";
+  sections: RubricSection[];
+  missing: string[];
+  recommendations: string[];
+  summary: string;
+  evaluated_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
 type DashboardPayload = {
   metrics?: Record<string, number>;
   alerts?: string[];
@@ -708,6 +741,9 @@ export function App() {
   const [reviewResult, setReviewResult] = useState<unknown>(null);
   const [reviewAudit, setReviewAudit] = useState<ReportReviewResult | null>(null);
   const [reportPreview, setReportPreview] = useState<ReportPreview | null>(null);
+  const [rubricEvaluation, setRubricEvaluation] = useState<RubricEvaluation | null>(null);
+  const [rubricState, setRubricState] = useState<"idle" | "updating" | "updated" | "error">("idle");
+  const [rubricMessage, setRubricMessage] = useState("");
   const [executiveSummaryDraft, setExecutiveSummaryDraft] = useState("");
   const [exportFinalResult, setExportFinalResult] = useState<unknown>(null);
   const [closureStatus, setClosureStatus] = useState<ClosureStatus | null>(null);
@@ -740,6 +776,9 @@ export function App() {
       setLegalMappingEvidence([]);
       setLegalProbatoryMatrix(null);
       setLegalQualityControl(null);
+      setRubricEvaluation(null);
+      setRubricState("idle");
+      setRubricMessage("");
       setLegalElementSelection({});
       setLegalLinkDrafts({});
       setReportPreview(null);
@@ -757,7 +796,8 @@ export function App() {
       mappingData,
       mappingEvidenceData,
       probatoryMatrixData,
-      qualityControlData
+      qualityControlData,
+      rubricData
     ] = await Promise.all([
       apiGet<CaseParticipant[]>(`/cases/${caseId}/participants`),
       apiGet<EvidenceItem[]>(`/evidence/case/${caseId}`),
@@ -768,7 +808,8 @@ export function App() {
       apiGet<LegalMapping[]>(`/legal-knowledge/case/${caseId}/mappings`),
       apiGet<LegalMappingEvidence[]>(`/legal-knowledge/case/${caseId}/mapping-evidence`),
       apiGet<LegalProbatoryMatrix>(`/legal-knowledge/case/${caseId}/probatory-matrix`),
-      apiGet<LegalQualityControl>(`/legal-knowledge/case/${caseId}/quality-control`)
+      apiGet<LegalQualityControl>(`/legal-knowledge/case/${caseId}/quality-control`),
+      apiGet<RubricEvaluation>(`/rubrics/case/${caseId}/score`).catch(() => null)
     ]);
     setParticipants(participantData);
     setEvidence(evidenceData);
@@ -780,6 +821,7 @@ export function App() {
     setLegalMappingEvidence(mappingEvidenceData);
     setLegalProbatoryMatrix(probatoryMatrixData);
     setLegalQualityControl(qualityControlData);
+    setRubricEvaluation(rubricData);
     setReportPreview(null);
     setExecutiveSummaryDraft("");
     setClosureStatus(await apiGet<ClosureStatus>(`/cases/${caseId}/closure-status`));
@@ -1367,6 +1409,26 @@ export function App() {
     const preview = await apiGet<ReportPreview>(`/reports/${reportId}/preview`);
     setReportPreview(preview);
     setExecutiveSummaryDraft(preview.executive_summary);
+  }
+
+  async function updateRubricEvaluation() {
+    if (!selectedCaseId) {
+      setRubricState("error");
+      setRubricMessage("Selecciona un caso para evaluar la rúbrica.");
+      return;
+    }
+    setRubricState("updating");
+    setRubricMessage("Actualizando evaluación de rúbrica...");
+    try {
+      const result = await apiPost<RubricEvaluation>(`/rubrics/case/${selectedCaseId}/evaluate`);
+      setRubricEvaluation(result);
+      setRubricState("updated");
+      setRubricMessage(`Evaluación actualizada: ${result.total_score}/${result.max_score} (${result.percentage}%).`);
+      if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+    } catch (error) {
+      setRubricState("error");
+      setRubricMessage(error instanceof Error ? error.message : "No se pudo actualizar la rúbrica.");
+    }
   }
 
   async function saveExecutiveSummary() {
@@ -2685,6 +2747,57 @@ export function App() {
     );
   }
 
+  function renderRubricCompliance() {
+    const statusClass = rubricEvaluation?.status === "completo" ? "ok" : rubricEvaluation?.status === "parcial" ? "pending" : "blocked";
+    return (
+      <div className="report-card rubric-panel">
+        <div className="panel-head">
+          <div>
+            <h4>Cumplimiento de Rúbrica</h4>
+            <p>Written Legal Evidence Report 2026: secciones A-D y resumen investigativo final.</p>
+          </div>
+          <button onClick={updateRubricEvaluation} disabled={!selectedCaseId || rubricState === "updating"}>
+            <RefreshCcw size={16} /> {rubricState === "updating" ? "Actualizando..." : "Actualizar evaluación"}
+          </button>
+        </div>
+        {rubricMessage && <div className={`action-feedback ${rubricState}`}>{prettySpanish(rubricMessage)}</div>}
+        {rubricEvaluation ? (
+          <>
+            <div className="rubric-score-row">
+              <div className={statusClass}>
+                <span>Score total</span>
+                <strong>{rubricEvaluation.total_score}/{rubricEvaluation.max_score}</strong>
+                <small>{rubricEvaluation.percentage}% - {prettySpanish(rubricEvaluation.status)}</small>
+              </div>
+              <p>{prettySpanish(rubricEvaluation.summary)}</p>
+            </div>
+            <div className="rubric-section-grid">
+              {rubricEvaluation.sections.map((section) => (
+                <article className={`rubric-section ${section.status}`} key={section.key}>
+                  <div>
+                    <span>Sección {section.key} - {section.weight}%</span>
+                    <h4>{section.label}</h4>
+                  </div>
+                  <strong>{section.estimated_score}/{section.max_score}</strong>
+                  <small>Estado: {prettySpanish(section.status)}</small>
+                  {!!section.missing.length && (
+                    <div className="summary-list">
+                      {section.missing.slice(0, 4).map((item) => <span key={item}>{prettySpanish(item)}</span>)}
+                    </div>
+                  )}
+                  {!section.missing.length && <small>Sin faltantes críticos detectados.</small>}
+                  <em>{prettySpanish(section.recommendations[0] || "Mantener consistencia documental.")}</em>
+                </article>
+              ))}
+            </div>
+          </>
+        ) : (
+          <EmptyState text="Todavía no hay evaluación de rúbrica para este caso. Actualiza la evaluación para calcular puntaje y faltantes." />
+        )}
+      </div>
+    );
+  }
+
   function renderReportsProfessional() {
     const includedSections = reportPreview?.sections.filter((section) => section.word_count > 0) || [];
     const emptySections = reportPreview?.sections.filter((section) => section.word_count <= 0) || [];
@@ -2714,6 +2827,7 @@ export function App() {
           </div>
         )}
         {!latestReport && <EmptyState text="Todavia no hay informe para el caso seleccionado. Genera un informe para activar la vista de control final." />}
+        {renderRubricCompliance()}
         {reportPreview && (
           <div className="report-preview professional">
             <div className="preview-cover">

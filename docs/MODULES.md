@@ -49,6 +49,28 @@ Current API prefix:
 /api/legal-knowledge
 ```
 
+## Rubrics
+
+Path:
+
+```text
+operia/rubrics
+```
+
+Responsibilities:
+
+- Written Legal Evidence Report 2026 rubric definition
+- Case-level rubric scoring snapshots
+- Section status for technical approach, evidence handling, legal authority and summary findings
+- Recommendations for missing rubric components
+- Optional report/PDF inclusion after an evaluation exists
+
+Current API prefix:
+
+```text
+/api/rubrics
+```
+
 ## Cybercrime Intelligence Analyst
 
 Path:

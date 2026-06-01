@@ -500,7 +500,42 @@ def export_pdf(report: Report) -> Path:
         _section(story, "9. Recomendaciones procesales", styles)
         _append_markdown_content(story, recommendations_content, styles)
 
-    _section(story, "10. Anexo de exportaci\u00f3n", styles)
+    if getattr(case, "rubric_evaluations", None):
+        from operia.rubrics.service import evaluation_payload
+
+        latest_rubric = sorted(case.rubric_evaluations, key=lambda item: item.created_at, reverse=True)[0]
+        rubric = evaluation_payload(latest_rubric)
+        _section(story, "10. Cumplimiento de r\u00fabrica del informe", styles)
+        story.append(
+            _key_value_table(
+                [
+                    ("R\u00fabrica", rubric["rubric_title"]),
+                    ("Score", f"{rubric['total_score']} / {rubric['max_score']} ({rubric['percentage']}%)"),
+                    ("Estado", rubric["status"]),
+                    ("Observaci\u00f3n", rubric["summary"]),
+                ],
+                styles,
+            )
+        )
+        story.append(Spacer(1, 8))
+        story.append(
+            _data_table(
+                ["Secci\u00f3n", "Estado", "Puntaje", "Faltantes / observaciones"],
+                [
+                    [
+                        f"{section['key']}. {section['label']}",
+                        section["status"],
+                        f"{section['estimated_score']} / {section['max_score']}",
+                        "; ".join(section.get("missing") or section.get("recommendations") or ["Sin observaciones cr\u00edticas"]),
+                    ]
+                    for section in rubric["sections"]
+                ],
+                styles,
+                [150, 62, 58, 254],
+            )
+        )
+
+    _section(story, "11. Anexo de exportaci\u00f3n", styles)
     story.append(
         Paragraph(
             _html(
