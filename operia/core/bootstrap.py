@@ -4,7 +4,7 @@ from operia.core.database import Base, engine
 from operia.core.migrations import record_schema_version
 
 # Import model modules so SQLAlchemy registers their tables before create_all.
-from operia import ai_assistant, ai_security, audit, cases, cybercrime, evidence, exports, identity, legal_knowledge, reports, rubrics  # noqa: F401
+from operia import ai_assistant, ai_security, audit, cases, cybercrime, evidence, exports, identity, legal_knowledge, mind, reports, rubrics  # noqa: F401
 from operia.ai_assistant import models as ai_assistant_models  # noqa: F401
 from operia.ai_security import models as ai_security_models  # noqa: F401
 from operia.audit import models as audit_models  # noqa: F401
@@ -14,6 +14,7 @@ from operia.evidence import models as evidence_models  # noqa: F401
 from operia.exports import models as export_models  # noqa: F401
 from operia.identity import models as identity_models  # noqa: F401
 from operia.legal_knowledge import models as legal_knowledge_models  # noqa: F401
+from operia.mind import models as mind_models  # noqa: F401
 from operia.reports import models as report_models  # noqa: F401
 from operia.rubrics import models as rubric_models  # noqa: F401
 

@@ -15,6 +15,7 @@ from operia.identity.dependencies import require_permission
 from operia.legal_knowledge.router import router as legal_knowledge_router
 from operia.legal_report.legal_router import router as legal_router
 from operia.legal_report.router import router as legal_report_router
+from operia.mind.router import router as mind_router
 from operia.reports.router import router as reports_router
 from operia.rubrics.router import router as rubrics_router
 from operia.settings.router import router as settings_router
@@ -45,6 +46,7 @@ api_router.include_router(
 api_router.include_router(legal_knowledge_router, prefix="/legal-knowledge", tags=["legal-knowledge"])
 api_router.include_router(ai_assistant_router, prefix="/ai", tags=["ai"])
 api_router.include_router(ai_security_router, prefix="/ai-security", tags=["ai-security"])
+api_router.include_router(mind_router, prefix="/mind", tags=["mind"])
 api_router.include_router(geo_trace_router, prefix="/geo/trace", tags=["geo-trace"])
 api_router.include_router(geo_trace_router, prefix="/geo-trace", tags=["geo-trace-legacy"])
 api_router.include_router(geo_proximity_router, prefix="/geo/proximity", tags=["geo-proximity"])

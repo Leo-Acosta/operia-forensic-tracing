@@ -39,6 +39,7 @@ type ModuleKey =
   | "evidence"
   | "reports"
   | "casePresentation"
+  | "mind"
   | "legalKnowledge"
   | "ai"
   | "cybercrime"
@@ -653,6 +654,45 @@ type IoTDeviceItem = {
   warning: string;
 };
 
+type MindNote = {
+  id: number;
+  case_id?: number;
+  note_type: string;
+  title: string;
+  vault_path: string;
+  tags: string;
+  confidence: string;
+  review_status: string;
+  summary?: string;
+  content: string;
+  updated_at?: string;
+};
+
+type MindPrompt = {
+  id: number;
+  key: string;
+  title: string;
+  purpose: string;
+  prompt_text: string;
+  output_format: string;
+};
+
+type MindAgent = {
+  id: number;
+  key: string;
+  name: string;
+  role: string;
+  scope: string;
+  allowed_tools: string;
+  guardrails: string;
+};
+
+type MindGraphPayload = {
+  case_id: number;
+  nodes: Array<{ id: number; node_key: string; node_type: string; label: string; source_module?: string }>;
+  edges: Array<{ id: number; source_node_key: string; target_node_key: string; relation_type: string; label?: string; confidence?: string }>;
+};
+
 const modules: Array<{ key: ModuleKey; label: string; icon: typeof BarChart3 }> = [
   { key: "workflow", label: "Flujo Operativo", icon: CheckCircle2 },
   { key: "dashboard", label: "Dashboard", icon: BarChart3 },
@@ -661,6 +701,7 @@ const modules: Array<{ key: ModuleKey; label: string; icon: typeof BarChart3 }> 
   { key: "evidence", label: "Evidencia", icon: Fingerprint },
   { key: "reports", label: "Informes", icon: FileText },
   { key: "casePresentation", label: "Exposición del Caso", icon: MonitorPlay },
+  { key: "mind", label: "Cerebro / Memoria", icon: BrainCircuit },
   { key: "legalKnowledge", label: "Biblioteca Legal", icon: BookOpen },
   { key: "ai", label: "Asistente IA", icon: Bot },
   { key: "cybercrime", label: "Cybercrime", icon: Shield },
@@ -674,7 +715,7 @@ const modules: Array<{ key: ModuleKey; label: string; icon: typeof BarChart3 }> 
   { key: "identity", label: "Usuarios", icon: Users },
   { key: "exports", label: "Exportaciones", icon: Download },
   { key: "history", label: "Historial", icon: History },
-  { key: "settings", label: "Configuracion", icon: Settings }
+  { key: "settings", label: "Configuración", icon: Settings }
 ];
 
 const emptyCase = {
@@ -1263,6 +1304,18 @@ export function App() {
   const [legalEvidenceSelection, setLegalEvidenceSelection] = useState<Record<number, string>>({});
   const [legalElementSelection, setLegalElementSelection] = useState<Record<number, string>>({});
   const [legalLinkDrafts, setLegalLinkDrafts] = useState<Record<number, Partial<LegalMappingEvidence>>>({});
+  const [mindNotes, setMindNotes] = useState<MindNote[]>([]);
+  const [mindPrompts, setMindPrompts] = useState<MindPrompt[]>([]);
+  const [mindAgents, setMindAgents] = useState<MindAgent[]>([]);
+  const [mindGraph, setMindGraph] = useState<MindGraphPayload | null>(null);
+  const [mindMessage, setMindMessage] = useState("");
+  const [mindState, setMindState] = useState<"idle" | "working" | "success" | "error">("idle");
+  const [mindNoteForm, setMindNoteForm] = useState({
+    note_type: "nota",
+    title: "",
+    content: "",
+    tags: "operia, memoria"
+  });
   const [articles, setArticles] = useState<LegalArticle[]>([]);
   const [modulePayload, setModulePayload] = useState<unknown>(null);
   const [authToken, setAuthTokenState] = useState(getAuthToken());
@@ -1524,6 +1577,20 @@ export function App() {
     await refreshCaseCollections(nextCaseId);
   }
 
+  async function refreshMind() {
+    const caseQuery = selectedCaseId ? `?case_id=${selectedCaseId}` : "";
+    const [notesData, promptsData, agentsData, graphData] = await Promise.all([
+      apiGet<MindNote[]>(`/mind/notes${caseQuery}`).catch(() => []),
+      apiGet<MindPrompt[]>("/mind/prompts").catch(() => []),
+      apiGet<MindAgent[]>("/mind/agents").catch(() => []),
+      selectedCaseId ? apiGet<MindGraphPayload>(`/mind/cases/${selectedCaseId}/graph`).catch(() => null) : Promise.resolve(null)
+    ]);
+    setMindNotes(notesData);
+    setMindPrompts(promptsData);
+    setMindAgents(agentsData);
+    setMindGraph(graphData);
+  }
+
   async function loadModule(key: ModuleKey) {
     setLoading(true);
     setError("");
@@ -1534,6 +1601,10 @@ export function App() {
       }
       if (key === "legalKnowledge") {
         setArticles(await apiGet<LegalArticle[]>(`/legal-knowledge/articles?q=${encodeURIComponent(legalQuery)}`));
+        return;
+      }
+      if (key === "mind") {
+        await refreshMind();
         return;
       }
       if (key === "identity") {
@@ -1633,6 +1704,55 @@ export function App() {
       return;
     }
     setError(raw || fallback);
+  }
+
+  async function createMindNote(event: FormEvent) {
+    event.preventDefault();
+    if (!mindNoteForm.title.trim() || !mindNoteForm.content.trim()) {
+      setMindState("error");
+      setMindMessage("Completa título y contenido para guardar la nota en memoria.");
+      return;
+    }
+    setMindState("working");
+    setMindMessage("");
+    try {
+      await apiPost<MindNote>("/mind/notes", {
+        case_id: selectedCaseId || undefined,
+        note_type: mindNoteForm.note_type,
+        title: mindNoteForm.title.trim(),
+        content: mindNoteForm.content.trim(),
+        tags: mindNoteForm.tags.split(",").map((item) => item.trim()).filter(Boolean),
+        source_module: "frontend",
+        confidence: "medio",
+        review_status: "borrador"
+      });
+      setMindNoteForm({ note_type: "nota", title: "", content: "", tags: "operia, memoria" });
+      setMindState("success");
+      setMindMessage("Nota guardada en la memoria forense y en el vault Markdown.");
+      await refreshMind();
+    } catch (err) {
+      setMindState("error");
+      handleUiError(err, "No se pudo guardar la nota en memoria.", { focusIdentity: true });
+    }
+  }
+
+  async function createMindSnapshot() {
+    if (!selectedCaseId) {
+      setMindState("error");
+      setMindMessage("Selecciona un caso para crear un snapshot de memoria.");
+      return;
+    }
+    setMindState("working");
+    setMindMessage("");
+    try {
+      const result = await apiPost<{ message: string; graph_nodes: number; graph_edges: number }>(`/mind/cases/${selectedCaseId}/snapshot`);
+      setMindState("success");
+      setMindMessage(`${result.message} Grafo actualizado: ${result.graph_nodes} nodos y ${result.graph_edges} relaciones.`);
+      await refreshMind();
+    } catch (err) {
+      setMindState("error");
+      handleUiError(err, "No se pudo crear el snapshot del caso.", { focusIdentity: true });
+    }
   }
 
   function caseTimestamp(item: CaseItem) {
@@ -6470,6 +6590,135 @@ export function App() {
     );
   }
 
+  function renderMind() {
+    const graphNodeCount = mindGraph?.nodes.length || 0;
+    const graphEdgeCount = mindGraph?.edges.length || 0;
+    return (
+      <section className="work-surface mind-workbench">
+        <div className="section-head">
+          <div>
+            <h2>Cerebro / Memoria Forense</h2>
+            <p>Vault Markdown compatible con Obsidian, notas por caso, agentes, prompts y grafo de relaciones.</p>
+          </div>
+          <div className="button-row">
+            <button className="secondary-button" onClick={refreshMind}><RefreshCcw size={16} /> Actualizar</button>
+            <button onClick={createMindSnapshot} disabled={!selectedCaseId || mindState === "working"}><BrainCircuit size={16} /> Crear snapshot del caso</button>
+          </div>
+        </div>
+
+        {mindMessage && (
+          <div className={`inline-status ${mindState === "error" ? "danger" : mindState === "success" ? "success" : ""}`}>
+            {mindMessage}
+          </div>
+        )}
+
+        <div className="mind-hero">
+          <div>
+            <span className="eyebrow">Caso activo</span>
+            <h3>{selectedCase ? `${selectedCase.case_code} - ${selectedCase.title}` : "Memoria general"}</h3>
+            <p>{selectedCase ? selectedCase.description || "Caso sin narrativa inicial cargada." : "Selecciona un caso para generar memoria contextual, notas y grafo operativo."}</p>
+          </div>
+          <div className="mind-metrics">
+            <div><span>Notas</span><strong>{mindNotes.length}</strong></div>
+            <div><span>Nodos</span><strong>{graphNodeCount}</strong></div>
+            <div><span>Relaciones</span><strong>{graphEdgeCount}</strong></div>
+          </div>
+        </div>
+
+        <div className="mind-grid">
+          <form className="panel-card mind-note-form" onSubmit={createMindNote}>
+            <h3>Nueva nota de memoria</h3>
+            <p>Guarda una observación, hipótesis, hallazgo o contexto como archivo Markdown auditable.</p>
+            <div className="form-grid two">
+              <select value={mindNoteForm.note_type} onChange={(event) => setMindNoteForm({ ...mindNoteForm, note_type: event.target.value })}>
+                <option value="nota">Nota</option>
+                <option value="hallazgo">Hallazgo</option>
+                <option value="hipotesis">Hipótesis</option>
+                <option value="matriz">Matriz</option>
+                <option value="documento">Documento</option>
+                <option value="auditoria">Auditoría</option>
+              </select>
+              <input value={mindNoteForm.tags} onChange={(event) => setMindNoteForm({ ...mindNoteForm, tags: event.target.value })} placeholder="Tags separados por coma" />
+            </div>
+            <input value={mindNoteForm.title} onChange={(event) => setMindNoteForm({ ...mindNoteForm, title: event.target.value })} placeholder="Título de la nota" />
+            <textarea value={mindNoteForm.content} onChange={(event) => setMindNoteForm({ ...mindNoteForm, content: event.target.value })} placeholder="Contenido, contexto, fuente, límite probatorio o decisión del analista" />
+            <button disabled={mindState === "working"}><Save size={16} /> Guardar en memoria</button>
+          </form>
+
+          <div className="panel-card">
+            <h3>Agentes configurables</h3>
+            <p>Perfiles lógicos para coordinar memoria, documentación, grafo, redacción y auditoría.</p>
+            <div className="compact-list">
+              {mindAgents.slice(0, 8).map((agent) => (
+                <article key={agent.id}>
+                  <strong>{agent.name}</strong>
+                  <span>{agent.role}</span>
+                  <small>{agent.scope}</small>
+                </article>
+              ))}
+              {!mindAgents.length && <EmptyState text="Sin agentes cargados. Ejecuta actualización o revisa el backend." />}
+            </div>
+          </div>
+        </div>
+
+        <div className="mind-grid">
+          <div className="panel-card">
+            <h3>Notas recientes</h3>
+            <p>Memoria persistente del caso y notas generales del vault.</p>
+            <div className="mind-note-list">
+              {mindNotes.map((note) => (
+                <article className="mind-note-card" key={note.id}>
+                  <div>
+                    <span className="eyebrow">{prettySpanish(note.note_type)} · {prettySpanish(note.review_status)}</span>
+                    <h4>{note.title}</h4>
+                    <p>{note.summary || note.content || "Sin resumen cargado."}</p>
+                    <small>{note.vault_path}</small>
+                  </div>
+                  <span className="pill">{prettySpanish(note.confidence)}</span>
+                </article>
+              ))}
+              {!mindNotes.length && <EmptyState text="Todavía no hay notas en memoria para este contexto." />}
+            </div>
+          </div>
+
+          <div className="panel-card">
+            <h3>Grafo de relaciones</h3>
+            <p>Relaciones entre caso, evidencia, hallazgos, fuentes legales, informes y notas.</p>
+            <div className="graph-summary">
+              {(mindGraph?.nodes || []).slice(0, 12).map((node) => (
+                <span key={node.node_key}>{prettySpanish(node.node_type)}: {node.label}</span>
+              ))}
+            </div>
+            <div className="compact-list relation-list">
+              {(mindGraph?.edges || []).slice(0, 12).map((edge) => (
+                <article key={edge.id}>
+                  <strong>{prettySpanish(edge.relation_type)}</strong>
+                  <span>{edge.source_node_key} → {edge.target_node_key}</span>
+                </article>
+              ))}
+              {!mindGraph?.edges.length && <EmptyState text="Crea un snapshot para construir relaciones del caso." />}
+            </div>
+          </div>
+        </div>
+
+        <div className="panel-card">
+          <h3>Prompts base</h3>
+          <p>Prompts internos para resumir, extraer conceptos, crear notas, vincular memoria, auditar conclusiones y generar informe.</p>
+          <div className="prompt-grid">
+            {mindPrompts.map((prompt) => (
+              <article key={prompt.id}>
+                <strong>{prompt.title}</strong>
+                <span>{prompt.purpose}</span>
+                <small>Salida: {prompt.output_format}</small>
+              </article>
+            ))}
+            {!mindPrompts.length && <EmptyState text="Sin prompts cargados." />}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   function renderModuleStatus(title: string) {
     return (
       <section className="work-surface">
@@ -6492,6 +6741,7 @@ export function App() {
     if (active === "evidence") return renderEvidence();
     if (active === "reports") return renderReportsProfessional();
     if (active === "casePresentation") return renderCasePresentation();
+    if (active === "mind") return renderMind();
     if (active === "legalKnowledge") return renderLegalKnowledge();
     if (active === "cybercrime") return renderCybercrime();
     if (active === "deepfakeMedia") return renderDeepfakeMedia();

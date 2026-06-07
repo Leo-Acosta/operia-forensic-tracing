@@ -16,6 +16,7 @@ from operia.core.bootstrap import init_platform_schema
 from operia.core.database import Base, get_db
 from operia.legal_knowledge.bootstrap import init_legal_knowledge_module
 from operia.legal_report.bootstrap import init_legal_report_module
+from operia.mind.bootstrap import init_mind_module
 
 
 @pytest.fixture()
@@ -36,18 +37,22 @@ def client(monkeypatch):
     import operia.legal_report.config as legal_config
     import operia.legal_report.bootstrap as legal_bootstrap
     import operia.legal_knowledge.bootstrap as legal_knowledge_bootstrap
+    import operia.mind.bootstrap as mind_bootstrap
 
     monkeypatch.setattr(database, "engine", engine)
     monkeypatch.setattr(database, "SessionLocal", TestingSessionLocal)
     monkeypatch.setattr(bootstrap, "engine", engine)
     monkeypatch.setattr(legal_bootstrap, "SessionLocal", TestingSessionLocal)
     monkeypatch.setattr(legal_knowledge_bootstrap, "SessionLocal", TestingSessionLocal)
+    monkeypatch.setattr(mind_bootstrap, "SessionLocal", TestingSessionLocal)
     monkeypatch.setattr(legal_config, "EXPORT_DIR", storage_dir / "exports")
     monkeypatch.setattr(legal_config, "UPLOAD_DIR", storage_dir / "uploads")
 
     import operia.exports.service as export_service
+    import operia.mind.vault as mind_vault
 
     monkeypatch.setattr(export_service.settings, "storage_dir", storage_dir)
+    monkeypatch.setattr(mind_vault.settings, "storage_dir", storage_dir)
 
     def override_get_db():
         db = TestingSessionLocal()
@@ -60,6 +65,7 @@ def client(monkeypatch):
     init_platform_schema()
     init_legal_report_module()
     init_legal_knowledge_module()
+    init_mind_module()
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
