@@ -7,6 +7,7 @@ from operia.ai_security.scoring import recommendation_from_risk, risk_level_from
 from operia.ai_security.service import catalog_entry, default_test_prompt, run_controlled_model_test
 from operia.ai_security.tests_catalog import AI_SECURITY_TESTS
 from operia.core.database import get_db
+from operia.identity.dependencies import CurrentUser, require_permission
 
 router = APIRouter()
 
@@ -31,7 +32,11 @@ def list_tests() -> list[dict[str, str]]:
 
 
 @router.post("/evaluations")
-def create_evaluation(payload: dict, db: Session = Depends(get_db)):
+def create_evaluation(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("audit:read")),
+):
     run_tests = bool(payload.get("run_tests", False))
     requested_tests = payload.get("tests") if isinstance(payload.get("tests"), list) else [item["code"] for item in AI_SECURITY_TESTS]
     model_name = str(payload.get("model_name") or "mistral")
@@ -43,7 +48,7 @@ def create_evaluation(payload: dict, db: Session = Depends(get_db)):
     score = int(payload.get("overall_score") or (sum(item[2] for item in test_results) / len(test_results) if test_results else 70))
     risk = risk_level_from_score(score)
     evaluation = AIModelEvaluation(
-        organization_id=payload.get("organization_id"),
+        organization_id=current_user.organization_id or payload.get("organization_id"),
         provider=str(payload.get("provider") or "ollama"),
         model_name=model_name,
         model_identifier=str(payload.get("model_identifier") or ""),
@@ -88,16 +93,30 @@ def create_evaluation(payload: dict, db: Session = Depends(get_db)):
 
 
 @router.get("/evaluations")
-def list_evaluations(db: Session = Depends(get_db)):
-    return [as_dict(row) for row in db.query(AIModelEvaluation).order_by(AIModelEvaluation.created_at.desc()).all()]
+def list_evaluations(
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("audit:read")),
+):
+    query = db.query(AIModelEvaluation)
+    if current_user.organization_id:
+        query = query.filter(AIModelEvaluation.organization_id.in_([current_user.organization_id, None]))
+    return [as_dict(row) for row in query.order_by(AIModelEvaluation.created_at.desc()).all()]
 
 
 @router.get("/evaluations/{evaluation_id}/report")
-def read_evaluation_report(evaluation_id: int, db: Session = Depends(get_db)):
+def read_evaluation_report(
+    evaluation_id: int,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("audit:read")),
+):
     evaluation = db.get(AIModelEvaluation, evaluation_id)
     if not evaluation:
         from fastapi import HTTPException
 
         raise HTTPException(status_code=404, detail="Evaluacion no encontrada")
+    if current_user.organization_id and evaluation.organization_id not in {current_user.organization_id, None}:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=404, detail="Evaluación no encontrada")
     tests = db.query(AIModelTestRun).filter_by(evaluation_id=evaluation_id).order_by(AIModelTestRun.id.asc()).all()
     return {"markdown": evaluation_markdown(evaluation, tests)}

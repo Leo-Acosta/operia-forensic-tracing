@@ -22,6 +22,12 @@ SQLITE_PLATFORM_COLUMNS: dict[str, dict[str, str]] = {
     "users": {
         "organization_id": "INTEGER",
         "status": "VARCHAR(60) DEFAULT 'active'",
+        "title": "VARCHAR(160) DEFAULT ''",
+        "agency": "VARCHAR(180) DEFAULT ''",
+        "registration_id": "VARCHAR(120) DEFAULT ''",
+        "phone": "VARCHAR(80) DEFAULT ''",
+        "signature": "TEXT DEFAULT ''",
+        "profile_notes": "TEXT DEFAULT ''",
         "password_hash": "VARCHAR(255) DEFAULT ''",
         "failed_login_attempts": "INTEGER DEFAULT 0",
         "last_login_at": "VARCHAR(80) DEFAULT ''",
@@ -89,6 +95,9 @@ SQLITE_PLATFORM_COLUMNS: dict[str, dict[str, str]] = {
         "recommended_measures": "TEXT DEFAULT ''",
         "legal_mapping_ids": "VARCHAR(255) DEFAULT ''",
         "analyst_name": "VARCHAR(160) DEFAULT ''",
+        "route_order": "INTEGER DEFAULT 0",
+        "include_in_report": "BOOLEAN DEFAULT 1",
+        "preservation_checklist": "TEXT DEFAULT ''",
         "warning": "TEXT DEFAULT 'Una wallet no identifica por si sola a una persona sin evidencia externa corroborante.'",
     },
     "cybercrime_iot_devices": {

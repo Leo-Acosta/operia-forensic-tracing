@@ -11,6 +11,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         "legal:write",
         "ai:use",
         "audit:read",
+        "identity:read",
     },
     "analista": {
         "cases:read",
@@ -38,4 +39,3 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
 def has_permission(role: str, permission: str) -> bool:
     permissions = ROLE_PERMISSIONS.get(role, set())
     return "*" in permissions or permission in permissions
-

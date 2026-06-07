@@ -7,6 +7,7 @@ from operia.ai_assistant.models import AIInteraction
 from operia.ai_assistant.ollama_client import OllamaUnavailable, generate_with_ollama
 from operia.cases.models import Case
 from operia.core.database import get_db
+from operia.identity.dependencies import CurrentUser, require_permission
 from operia.legal_knowledge.models import LegalMapping
 from operia.legal_knowledge.service import ensure_legal_articles, recommend_legal_profile
 
@@ -52,7 +53,11 @@ def ai_health(model_name: str = "mistral") -> dict[str, object]:
 
 
 @router.post("/assist")
-def assist(payload: dict, db: Session = Depends(get_db)):
+def assist(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("ai:use")),
+):
     prompt = str(payload.get("prompt") or "")
     model_name = str(payload.get("model_name") or "mistral")
     case = db.get(Case, payload.get("case_id")) if payload.get("case_id") else None
@@ -60,8 +65,8 @@ def assist(payload: dict, db: Session = Depends(get_db)):
     case_context = case_context_for_prompt(case)
     guarded_prompt = build_forensic_prompt(prompt, legal_context=legal_context, case_context=case_context)
     interaction = AIInteraction(
-        organization_id=payload.get("organization_id"),
-        user_id=payload.get("user_id"),
+        organization_id=current_user.organization_id or payload.get("organization_id"),
+        user_id=current_user.id,
         case_id=payload.get("case_id"),
         provider="ollama",
         model_name=model_name,
@@ -85,7 +90,12 @@ def assist(payload: dict, db: Session = Depends(get_db)):
 
 
 @router.post("/case/{case_id}/recommendations")
-def case_recommendations(case_id: int, payload: dict | None = None, db: Session = Depends(get_db)):
+def case_recommendations(
+    case_id: int,
+    payload: dict | None = None,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("ai:use")),
+):
     case = db.get(Case, case_id)
     if not case:
         return {"case_id": case_id, "error": "Caso no encontrado"}
@@ -116,7 +126,12 @@ def case_recommendations(case_id: int, payload: dict | None = None, db: Session 
 
 
 @router.post("/case/{case_id}/legal-typification")
-def legal_typification(case_id: int, payload: dict | None = None, db: Session = Depends(get_db)):
+def legal_typification(
+    case_id: int,
+    payload: dict | None = None,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("ai:use")),
+):
     case = db.get(Case, case_id)
     if not case:
         return {"case_id": case_id, "error": "Caso no encontrado"}

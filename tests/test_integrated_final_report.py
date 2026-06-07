@@ -185,3 +185,70 @@ def test_final_report_with_rubric_renders_score_and_public_pdf(client, admin_hea
     assert "written legal evidence report 2026" in lowered
     for forbidden in ("json", "ollama", "mistral", "fallback", "manifesto_exportacion", "manifiesto_exportacion", "{", "}"):
         assert forbidden not in lowered
+
+
+def test_report_generation_isolates_case_evidence_custody_and_damage(client, admin_headers):
+    case_a = _case(client, admin_headers, "FINAL-ISOLATED-A", "acceso ilegitimo")
+    case_b = _case(client, admin_headers, "FINAL-ISOLATED-B", "phishing")
+    evidence_a, _ = _evidence(client, admin_headers, case_a, "a")
+    evidence_b, _ = _evidence(client, admin_headers, case_b, "b")
+
+    custody_a = client.post(
+        "/api/evidence/custody-actions",
+        json={
+            "case_id": case_a,
+            "evidence_id": evidence_a,
+            "action_type": "preservacion",
+            "detailed_description": "Evento exclusivo caso Alfa",
+            "hash_after": "a" * 64,
+        },
+        headers=admin_headers,
+    )
+    assert custody_a.status_code == 200
+    custody_b = client.post(
+        "/api/evidence/custody-actions",
+        json={
+            "case_id": case_b,
+            "evidence_id": evidence_b,
+            "action_type": "analisis",
+            "detailed_description": "CONTAMINANTE-CASO-B URL externa que no debe aparecer",
+            "hash_after": "b" * 64,
+        },
+        headers=admin_headers,
+    )
+    assert custody_b.status_code == 200
+    damage_b = client.post(
+        f"/api/cases/{case_b}/damage-items",
+        json={
+            "case_id": case_b,
+            "concept": "CONTAMINANTE-DANO-CASO-B",
+            "amount": 999999,
+            "currency": "ARS",
+            "value_source": "comprobante de otro caso",
+            "formula_used": "suma de otro caso",
+        },
+        headers=admin_headers,
+    )
+    assert damage_b.status_code == 200
+
+    report = _report(client, admin_headers, case_a)
+    markdown = report["markdown_content"]
+    pdf_text = _pdf_text(client, admin_headers, report["id"])
+
+    combined = f"{markdown}\n{pdf_text}"
+    assert "Evento exclusivo caso Alfa" in combined
+    assert "CONTAMINANTE-CASO-B" not in combined
+    assert "CONTAMINANTE-DANO-CASO-B" not in combined
+    assert "999999" not in combined
+    assert "Narrativa ejecutiva del caso" in markdown
+    assert "Tecnicas usadas, herramientas forenses y metodologia" in markdown or "TÃ©cnicas usadas, herramientas forenses y metodologÃ­a" in markdown
+    assert "Identificacion, categorizacion y preservacion de evidencia" in markdown or "IdentificaciÃ³n, categorizaciÃ³n y preservaciÃ³n de evidencia" in markdown
+    assert "Documentacion investigada" in markdown or "DocumentaciÃ³n investigada" in markdown
+    assert (
+        "Evidencia de analisis y trazabilidad del hallazgo" in markdown
+        or "Evidencia de análisis y trazabilidad del hallazgo" in markdown
+        or "Evidencia de anÃ¡lisis y trazabilidad del hallazgo" in markdown
+    )
+    assert "Fundamentacion penal y legal aplicada" in markdown or "FundamentaciÃ³n penal y legal aplicada" in markdown
+    assert "Punteo pericial de evidencias informáticas" in markdown
+    assert "Metodología de cuantificación" in markdown

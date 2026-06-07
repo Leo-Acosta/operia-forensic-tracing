@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import re
 from html import escape
 from textwrap import wrap
@@ -25,6 +26,7 @@ from operia.legal_report.services.report_service import (
     build_matrix_based_conclusion,
     build_smart_executive_summary,
     exportability_markdown,
+    isolated_case_snapshot,
     legal_probatory_assessment,
     report_annexes_payload,
     report_exportability_assessment,
@@ -247,7 +249,7 @@ def export_pdf(report: Report) -> Path:
 
 def export_pdf(report: Report) -> Path:
     path = EXPORT_DIR / f"report-{report.id}.pdf"
-    case = report.case
+    case = isolated_case_snapshot(report.case)
     styles = _report_styles()
     story: list = []
     total_damage = sum(item.amount for item in case.damage_items)
@@ -298,6 +300,23 @@ def export_pdf(report: Report) -> Path:
     _append_markdown_content(story, exportability_markdown(exportability), styles)
 
     _append_challenge_2026_pdf_sections(story, case, legal_probatory, styles)
+
+    investigative_content = _extract_named_sections(
+        report.markdown_content,
+        [
+            "Tecnicas usadas, herramientas forenses y metodologia",
+            "T\u00e9cnicas usadas, herramientas forenses y metodolog\u00eda",
+            "Identificacion, categorizacion y preservacion de evidencia",
+            "Identificaci\u00f3n, categorizaci\u00f3n y preservaci\u00f3n de evidencia",
+            "Documentacion investigada",
+            "Documentaci\u00f3n investigada",
+            "Evidencia de analisis y trazabilidad del hallazgo",
+            "Evidencia de an\u00e1lisis y trazabilidad del hallazgo",
+        ],
+    )
+    if investigative_content:
+        _section(story, "T\u00e9cnicas, documentaci\u00f3n y trazabilidad probatoria", styles)
+        _append_markdown_content(story, investigative_content, styles)
 
     if case.participants:
         _section(story, "2. Personas y entidades involucradas", styles)
@@ -399,6 +418,8 @@ def export_pdf(report: Report) -> Path:
             "Encuadre jur\u00eddico argentino",
             "Fundamentacion legal argentina con articulos citados",
             "Fundamentaci\u00f3n legal argentina con art\u00edculos citados",
+            "Fundamentacion penal y legal aplicada",
+            "Fundamentaci\u00f3n penal y legal aplicada",
         ],
     )
     approved_mappings = [
@@ -505,24 +526,74 @@ def export_pdf(report: Report) -> Path:
             )
         )
 
-    if getattr(case, "blockchain_transactions", None):
-        _section(story, "7.2 An\u00e1lisis forense de blockchain", styles)
+    blockchain_transactions = [item for item in (getattr(case, "blockchain_transactions", []) or []) if getattr(item, "include_in_report", True)]
+    if not blockchain_transactions:
+        blockchain_transactions = list(getattr(case, "blockchain_transactions", []) or [])
+    blockchain_transactions = sorted(blockchain_transactions, key=lambda item: (getattr(item, "route_order", 0) or 999999, item.created_at))
+    if blockchain_transactions:
+        _section(story, "7.2 An\u00e1lisis forense de blockchain - Blockchain Investigation Lab", styles)
+        story.append(
+            Paragraph(
+                _html(
+                    "Se documentan movimientos de criptoactivos, wallets, exploradores consultados, evidencia vinculada y "
+                    "ruta economica probable. La trazabilidad blockchain orienta el recorrido patrimonial, pero no acredita "
+                    "por si sola identidad personal ni titularidad efectiva de una wallet."
+                ),
+                styles["body"],
+            )
+        )
+        story.append(Spacer(1, 6))
         story.append(
             _data_table(
-                ["Red", "Hash", "Origen / destino", "Monto", "Clasificaci\u00f3n", "Hip\u00f3tesis y l\u00edmites"],
+                ["Red", "Hash / fuente", "Ruta", "Monto", "Soporte", "Hipotesis, suficiencia y limites"],
                 [
                     [
                         item.blockchain,
-                        item.tx_hash,
+                        f"{item.tx_hash}\n{item.explorer_url or 'URL no informada'}",
                         f"{item.source_wallet or 'pendiente'} -> {item.destination_wallet or 'pendiente'}",
                         f"{item.amount} {item.token} / valor aprox. {item.approximate_value:.2f}",
-                        item.wallet_classification,
-                        f"{item.route_hypothesis or 'Pendiente.'} L\u00edmites: {item.limitations or 'No atribuir identidad personal solo por wallet.'}",
+                        f"Evidencia #{item.evidence_id or '-'}\nHash: {item.evidence_hash or 'pendiente'}\nHerramienta: {item.tool_used or 'pendiente'}\nClasificacion: {item.wallet_classification}",
+                        f"{item.route_hypothesis or 'Pendiente.'} Suficiencia: {_blockchain_pdf_readiness(item)[0]} ({_blockchain_pdf_readiness(item)[1]}/100). Limites: {item.limitations or 'No atribuir identidad personal solo por wallet.'}",
                     ]
-                    for item in sorted(case.blockchain_transactions, key=lambda row: row.created_at, reverse=True)
+                    for item in blockchain_transactions
                 ],
                 styles,
                 [52, 104, 112, 72, 76, 108],
+            )
+        )
+        story.append(Spacer(1, 6))
+        story.append(
+            Paragraph(
+                _html("Ruta multi-salto observada:"),
+                styles["subheading"],
+            )
+        )
+        story.append(
+            _data_table(
+                ["Salto", "Origen", "Destino", "Monto", "Hash"],
+                _blockchain_pdf_multihop_rows(blockchain_transactions),
+                styles,
+                [42, 128, 128, 82, 144],
+            )
+        )
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(_html("Anexo blockchain profesional:"), styles["subheading"]))
+        story.append(
+            _data_table(
+                ["Registro", "Acta / fuente", "Preservación", "Checklist", "Uso pericial"],
+                _blockchain_pdf_annex_rows(blockchain_transactions),
+                styles,
+                [50, 130, 128, 108, 108],
+            )
+        )
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(_html("Puntos críticos y requerimientos sugeridos:"), styles["subheading"]))
+        story.append(
+            _data_table(
+                ["Registro", "Punto crítico", "Medida sugerida"],
+                _blockchain_pdf_critical_rows(blockchain_transactions),
+                styles,
+                [62, 210, 252],
             )
         )
         story.append(Spacer(1, 6))
@@ -539,14 +610,14 @@ def export_pdf(report: Report) -> Path:
         _section(story, "7.3 An\u00e1lisis forense de dispositivos IoT", styles)
         story.append(
             _data_table(
-                ["Dispositivo", "Red", "Evidencia", "Logs / puertos", "Hallazgos y l\u00edmites"],
+                ["Dispositivo", "Red", "Evidencia", "Checklist / timeline", "Hallazgos y l\u00edmites"],
                 [
                     [
                         f"{item.device_type} / {item.manufacturer or ''} {item.model or ''}",
                         f"IP int. {item.internal_ip or '-'} / IP ext. {item.external_ip or '-'} / MAC {item.mac or '-'}",
                         f"#{item.evidence_id or '-'} / {item.evidence_hash or 'pendiente'}",
-                        f"Logs: {item.logs_available or 'pendiente'}; puertos: {item.open_ports or 'pendiente'}",
-                        f"Vulnerabilidades: {item.known_vulnerabilities or 'pendiente'}. L\u00edmites: {item.limitations or 'No atribuir por IP, MAC o puerto sin corroboraci\u00f3n.'}",
+                        f"Checklist: {_iot_pdf_checklist_summary(item.checklist or '')}\nTimeline: identificaci\u00f3n, preservaci\u00f3n, observaci\u00f3n t\u00e9cnica, hallazgo, norma e informe.",
+                        f"Logs: {item.logs_available or 'pendiente'}; puertos: {item.open_ports or 'pendiente'}; vulnerabilidades: {item.known_vulnerabilities or 'pendiente'}. L\u00edmites: {item.limitations or 'No atribuir por IP, MAC o puerto sin corroboraci\u00f3n.'}",
                     ]
                     for item in sorted(case.iot_devices, key=lambda row: row.created_at, reverse=True)
                 ],
@@ -868,6 +939,122 @@ def _section(story: list, title: str, styles: dict[str, ParagraphStyle]) -> None
         )
     )
     story.append(table)
+
+
+def _blockchain_pdf_readiness(tx) -> tuple[str, int, list[str]]:
+    checks = [
+        ("hash de transaccion", bool(getattr(tx, "tx_hash", ""))),
+        ("URL o fuente preservada", bool(getattr(tx, "explorer_url", ""))),
+        ("wallet origen y destino", bool(getattr(tx, "source_wallet", "") and getattr(tx, "destination_wallet", ""))),
+        ("monto y token", bool((getattr(tx, "amount", 0) or 0) > 0 and getattr(tx, "token", ""))),
+        ("fecha/hora observada", bool(getattr(tx, "tx_datetime", ""))),
+        ("evidencia vinculada", bool(getattr(tx, "evidence_id", None))),
+        ("hipotesis de ruta", bool(getattr(tx, "route_hypothesis", ""))),
+        ("hallazgo creado", bool(getattr(tx, "finding_id", None))),
+        ("normas aplicadas", bool(getattr(tx, "legal_mapping_ids", ""))),
+    ]
+    ok_count = sum(1 for _, ok in checks if ok)
+    score = round((ok_count / len(checks)) * 100)
+    missing = [label for label, ok in checks if not ok]
+    if score >= 78:
+        return "listo para informe", score, missing
+    if score >= 45:
+        return "requiere refuerzo", score, missing
+    return "insuficiente", score, missing
+
+
+def _blockchain_pdf_multihop_rows(transactions) -> list[list[str]]:
+    ordered = sorted(transactions, key=lambda item: (getattr(item, "route_order", 0) or 999999, item.created_at))
+    rows = []
+    for index, item in enumerate(ordered, start=1):
+        rows.append(
+            [
+                str(index),
+                item.source_wallet or "Pendiente",
+                item.destination_wallet or "Pendiente",
+                f"{item.amount} {item.token}",
+                item.tx_hash or "Pendiente",
+            ]
+        )
+    return rows or [["-", "Sin registros", "-", "-", "-"]]
+
+
+def _blockchain_pdf_annex_rows(transactions) -> list[list[str]]:
+    rows = []
+    for item in sorted(transactions, key=lambda tx: (getattr(tx, "route_order", 0) or 999999, tx.created_at)):
+        readiness_label, readiness_score, readiness_missing = _blockchain_pdf_readiness(item)
+        source = item.explorer_url or "Fuente no informada"
+        evidence = f"Evidencia #{item.evidence_id}" if getattr(item, "evidence_id", None) else "Sin evidencia vinculada"
+        evidence_hash = item.evidence_hash or "Hash pendiente"
+        act = f"{item.tx_datetime or 'Fecha/hora pendiente'}\n{item.tool_used or 'Herramienta pendiente'}\n{source}"
+        preservation = (
+            f"{evidence}\nHash: {evidence_hash}\n"
+            f"Origen: {item.source_wallet or 'Pendiente'}\nDestino: {item.destination_wallet or 'Pendiente'}"
+        )
+        checklist = (
+            f"{readiness_label} ({readiness_score}/100)\n"
+            f"Faltantes: {', '.join(readiness_missing[:4]) if readiness_missing else 'sin faltantes criticos'}"
+        )
+        use = (
+            "Trazabilidad economica y medidas investigativas. "
+            "No acredita identidad personal sin corroboracion externa."
+        )
+        rows.append([f"#{item.id}", act, preservation, checklist, use])
+    return rows or [["-", "Sin registros", "-", "-", "-"]]
+
+
+def _blockchain_pdf_critical_rows(transactions) -> list[list[str]]:
+    rows = []
+    for item in sorted(transactions, key=lambda tx: (getattr(tx, "route_order", 0) or 999999, tx.created_at)):
+        missing = []
+        if not getattr(item, "evidence_id", None):
+            missing.append("evidencia")
+        if not getattr(item, "explorer_url", ""):
+            missing.append("fuente/URL")
+        if not getattr(item, "tx_datetime", ""):
+            missing.append("fecha/hora")
+        if not getattr(item, "finding_id", None):
+            missing.append("hallazgo")
+        if not getattr(item, "legal_mapping_ids", ""):
+            missing.append("normas")
+        classification = (getattr(item, "wallet_classification", "") or "").lower()
+        critical = ", ".join(missing) if missing else "Sin faltantes críticos de documentación inicial"
+        if classification in {"exchange", "mixer", "bridge", "contrato inteligente"}:
+            critical = f"{critical}. Punto de servicio/riesgo: {classification}"
+        measure = "Vincular evidencia, preservar captura/URL/fecha y correlacionar con comunicaciones, plataforma, IPs, KYC o registros externos antes de atribuir."
+        if classification == "exchange":
+            measure = "Requerir KYC, titularidad, logs, IPs, dispositivo y movimientos a la plataforma por vía legal."
+        elif classification == "mixer":
+            measure = "Documentar límite de trazabilidad por mixer y evitar continuidad de fondos sin análisis complementario."
+        elif classification == "bridge":
+            measure = "Preservar transacciones en red origen y destino, hash, wallet, monto y fecha/hora."
+        elif classification == "contrato inteligente":
+            measure = "Revisar eventos del contrato, función invocada, dirección y wallets firmantes."
+        rows.append([f"#{item.id}", critical, measure])
+    return rows or [["-", "Sin registros", "-"]]
+
+
+def _iot_pdf_checklist_summary(raw_checklist: str) -> str:
+    labels = {
+        "physical_identification": "identificación física",
+        "photo_capture": "fotografía/captura",
+        "hash_evidence": "hash de evidencia",
+        "firmware": "firmware",
+        "configuration": "configuración",
+        "logs": "logs",
+        "ports": "puertos",
+        "default_credentials": "credenciales por defecto",
+        "network_connection": "conexión a red",
+        "timeline": "línea temporal",
+        "state_preservation": "preservación de estado",
+        "alteration_risk": "riesgo de alteración",
+    }
+    try:
+        parsed = json.loads(raw_checklist or "{}")
+    except json.JSONDecodeError:
+        return "checklist no estructurado"
+    done = [labels.get(key, key) for key, value in parsed.items() if isinstance(value, dict) and value.get("ok")]
+    return ", ".join(done) if done else "sin controles marcados"
 
 
 def _warning_box(text: str):
@@ -1232,7 +1419,7 @@ def _visible_author(report: Report) -> str:
 
 
 def _responsible_text(report: Report) -> str:
-    case = report.case
+    case = isolated_case_snapshot(report.case)
     assessment = attribution_assessment(case)
     if assessment["sufficient"] and assessment["subject"]:
         return _display_name(assessment["subject"])
@@ -1252,7 +1439,7 @@ def _professional_status(report: Report, case) -> str:
 
 
 def _export_metadata_text(report: Report) -> str:
-    case = report.case
+    case = isolated_case_snapshot(report.case)
     rows = [
         f"Identificador del caso: {case.case_code}.",
         f"Versión del informe: {report.version}.",

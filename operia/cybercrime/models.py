@@ -198,6 +198,9 @@ class BlockchainTransaction(Base, TimestampMixin):
     recommended_measures: Mapped[str] = mapped_column(Text, default="")
     legal_mapping_ids: Mapped[str] = mapped_column(String(255), default="")
     analyst_name: Mapped[str] = mapped_column(String(160), default="")
+    route_order: Mapped[int] = mapped_column(Integer, default=0)
+    include_in_report: Mapped[bool] = mapped_column(Boolean, default=True)
+    preservation_checklist: Mapped[str] = mapped_column(Text, default="")
     warning: Mapped[str] = mapped_column(Text, default="Una wallet no identifica por si sola a una persona sin evidencia externa corroborante.")
 
     case: Mapped["Case"] = relationship(back_populates="blockchain_transactions")

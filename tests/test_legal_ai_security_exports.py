@@ -1,5 +1,5 @@
-def test_legal_knowledge_search_and_recommend(client):
-    seed = client.post("/api/legal-knowledge/articles/seed")
+def test_legal_knowledge_search_and_recommend(client, admin_headers):
+    seed = client.post("/api/legal-knowledge/articles/seed", headers=admin_headers)
     assert seed.status_code == 200
 
     search = client.get("/api/legal-knowledge/articles?q=ransomware extorsion datos")
@@ -15,8 +15,8 @@ def test_legal_knowledge_search_and_recommend(client):
     assert recommend.json()["disclaimer"]
 
 
-def test_legal_knowledge_attack_profile_for_phishing(client):
-    seed = client.post("/api/legal-knowledge/articles/seed")
+def test_legal_knowledge_attack_profile_for_phishing(client, admin_headers):
+    seed = client.post("/api/legal-knowledge/articles/seed", headers=admin_headers)
     assert seed.status_code == 200
 
     attack_types = client.get("/api/legal-knowledge/attack-types")
@@ -50,7 +50,7 @@ def test_legal_knowledge_attack_profile_for_phishing(client):
 
 
 def test_analyst_can_approve_and_reject_legal_mapping(client, admin_headers):
-    seed = client.post("/api/legal-knowledge/articles/seed")
+    seed = client.post("/api/legal-knowledge/articles/seed", headers=admin_headers)
     assert seed.status_code == 200
     case = client.post(
         "/api/cases",
@@ -121,7 +121,7 @@ def test_analyst_can_approve_and_reject_legal_mapping(client, admin_headers):
 
 
 def test_analyst_can_link_legal_mapping_to_evidence(client, admin_headers):
-    seed = client.post("/api/legal-knowledge/articles/seed")
+    seed = client.post("/api/legal-knowledge/articles/seed", headers=admin_headers)
     assert seed.status_code == 200
     case = client.post(
         "/api/cases",
@@ -237,8 +237,14 @@ def test_analyst_can_link_legal_mapping_to_evidence(client, admin_headers):
     assert "update_legal_mapping_evidence" in actions
 
 
-def test_ai_assistant_gracefully_handles_unavailable_ollama(client):
-    response = client.post("/api/ai/assist", json={"prompt": "Analiza phishing con acceso ilegitimo"})
+def test_ai_assistant_gracefully_handles_unavailable_ollama(client, admin_headers):
+    anonymous = client.post("/api/ai/assist", json={"prompt": "Analiza phishing con acceso ilegitimo"})
+    assert anonymous.status_code == 401
+    response = client.post(
+        "/api/ai/assist",
+        json={"prompt": "Analiza phishing con acceso ilegitimo"},
+        headers=admin_headers,
+    )
     assert response.status_code == 200
     assert response.json()["status"] in {"completed", "ollama_unavailable"}
     assert response.json()["requires_human_review"] is True
@@ -272,16 +278,22 @@ def test_ai_legal_typification_uses_registered_argentine_law(client, admin_heade
     assert body["suggested_mapping_ids"]
 
 
-def test_ai_security_evaluation_and_report(client):
+def test_ai_security_evaluation_and_report(client, admin_headers):
+    anonymous = client.post(
+        "/api/ai-security/evaluations",
+        json={"model_name": "mistral", "overall_score": 72, "run_tests": False},
+    )
+    assert anonymous.status_code == 401
     response = client.post(
         "/api/ai-security/evaluations",
         json={"model_name": "mistral", "overall_score": 72, "run_tests": False},
+        headers=admin_headers,
     )
     assert response.status_code == 200
     evaluation_id = response.json()["id"]
     assert response.json()["risk_level"] == "medio"
 
-    report = client.get(f"/api/ai-security/evaluations/{evaluation_id}/report")
+    report = client.get(f"/api/ai-security/evaluations/{evaluation_id}/report", headers=admin_headers)
     assert report.status_code == 200
     assert "Bajo estas condiciones" in report.json()["markdown"]
 

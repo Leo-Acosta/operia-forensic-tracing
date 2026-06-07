@@ -2,13 +2,19 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
+from operia.ai_assistant.models import AIInteraction
+from operia.audit.models import AuditLog
 from operia.audit.service import write_audit
 from operia.cases.models import Case, CaseParticipant, DamageCalculation, DamageItem, Finding, Hypothesis, TechnicalData
 from operia.core.database import get_db
+from operia.cybercrime.models import ForensicLabSession, ProofMatrixRow, ToolLaunchLog
 from operia.evidence.models import ChainOfCustodyAction, Evidence
 from operia.exports.models import ExportManifest
+from operia.geo_proximity.models import GeoProximityQuery
+from operia.geo_trace.models import GeoTarget, GeoTraceAnalysis
 from operia.identity.dependencies import CurrentUser, get_optional_user, require_permission
-from operia.reports.models import Report
+from operia.legal_knowledge.models import LegalCitation, LegalEvaluation, LegalMappingEvidence
+from operia.reports.models import Report, ReportReview
 from operia.cases.schemas import (
     CaseCreate,
     CaseRead,
@@ -84,7 +90,7 @@ def status() -> dict[str, object]:
 def create_case(
     payload: CaseCreate,
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("cases:write")),
 ):
     item = Case(**payload.model_dump())
     if current_user and current_user.organization_id:
@@ -123,7 +129,7 @@ def close_case(
     case_id: int,
     payload: dict | None = None,
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("cases:write")),
 ):
     payload = payload or {}
     case = get_or_404(db, Case, case_id)
@@ -170,7 +176,7 @@ def create_participant(
     case_id: int,
     payload: CaseParticipantCreate,
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("cases:write")),
 ):
     case = get_or_404(db, Case, case_id)
     item = CaseParticipant(**payload.model_dump(), case_id=case.id)
@@ -203,7 +209,7 @@ def update_participant(
     participant_id: int,
     payload: CaseParticipantCreate,
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("cases:write")),
 ):
     item = update_from_payload(get_or_404(db, CaseParticipant, participant_id), payload)
     write_audit(
@@ -225,7 +231,7 @@ def update_participant(
 def delete_participant(
     participant_id: int,
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("cases:write")),
 ):
     item = get_or_404(db, CaseParticipant, participant_id)
     case_id = item.case_id
@@ -256,14 +262,49 @@ def delete_case(
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(require_permission("cases:write")),
 ):
-    write_audit(db, "delete_case", "cases", current_user, case_id=case_id, entity_type="case", entity_id=str(case_id), severity="warning")
-    db.delete(get_or_404(db, Case, case_id))
+    case = get_or_404(db, Case, case_id)
+    report_ids = [row.id for row in db.query(Report.id).filter_by(case_id=case_id).all()]
+    deleted_reports = len(report_ids)
+    db.query(ExportManifest).filter(ExportManifest.case_id == case_id).delete(synchronize_session=False)
+    if report_ids:
+        db.query(ExportManifest).filter(ExportManifest.report_id.in_(report_ids)).delete(synchronize_session=False)
+        db.query(ReportReview).filter(ReportReview.report_id.in_(report_ids)).delete(synchronize_session=False)
+        db.query(LegalCitation).filter(LegalCitation.report_id.in_(report_ids)).delete(synchronize_session=False)
+        db.query(LegalEvaluation).filter(LegalEvaluation.report_id.in_(report_ids)).delete(synchronize_session=False)
+    db.query(LegalMappingEvidence).filter_by(case_id=case_id).delete(synchronize_session=False)
+    db.query(ProofMatrixRow).filter_by(case_id=case_id).delete(synchronize_session=False)
+    db.query(ForensicLabSession).filter_by(case_id=case_id).delete(synchronize_session=False)
+    db.query(ToolLaunchLog).filter_by(case_id=case_id).delete(synchronize_session=False)
+    db.query(AIInteraction).filter_by(case_id=case_id).delete(synchronize_session=False)
+    db.query(GeoTarget).filter_by(case_id=case_id).delete(synchronize_session=False)
+    db.query(GeoTraceAnalysis).filter_by(case_id=case_id).delete(synchronize_session=False)
+    db.query(GeoProximityQuery).filter_by(case_id=case_id).delete(synchronize_session=False)
+    db.query(LegalCitation).filter_by(case_id=case_id).delete(synchronize_session=False)
+    db.query(LegalEvaluation).filter_by(case_id=case_id).delete(synchronize_session=False)
+    write_audit(
+        db,
+        "delete_case",
+        "cases",
+        current_user,
+        case_id=case_id,
+        entity_type="case",
+        entity_id=str(case_id),
+        severity="warning",
+        details=f"Caso eliminado: {case.case_code}. Informes asociados eliminados: {deleted_reports}.",
+    )
+    db.query(AuditLog).filter_by(case_id=case_id).update({"case_id": None}, synchronize_session=False)
+    db.delete(case)
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "deleted_case_id": case_id, "deleted_reports": deleted_reports}
 
 
 @router.post("/{case_id}/technical-data", response_model=TechnicalDataRead)
-def create_technical_data(case_id: int, payload: TechnicalDataCreate, db: Session = Depends(get_db)):
+def create_technical_data(
+    case_id: int,
+    payload: TechnicalDataCreate,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     get_or_404(db, Case, case_id)
     data = payload.model_dump()
     data["case_id"] = case_id
@@ -288,7 +329,11 @@ def list_technical_data(case_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/technical-data/{item_id}/convert-to-evidence")
-def convert_technical_data_to_evidence(item_id: int, db: Session = Depends(get_db)):
+def convert_technical_data_to_evidence(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     data = get_or_404(db, TechnicalData, item_id)
     evidence = Evidence(
         case_id=data.case_id,
@@ -321,7 +366,12 @@ def convert_technical_data_to_evidence(item_id: int, db: Session = Depends(get_d
 
 
 @router.post("/{case_id}/findings", response_model=FindingRead)
-def create_finding(case_id: int, payload: FindingCreate, db: Session = Depends(get_db)):
+def create_finding(
+    case_id: int,
+    payload: FindingCreate,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("cases:write")),
+):
     get_or_404(db, Case, case_id)
     data = payload.model_dump()
     data["case_id"] = case_id
@@ -339,7 +389,12 @@ def list_findings(case_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{case_id}/hypotheses", response_model=HypothesisRead)
-def create_hypothesis(case_id: int, payload: HypothesisCreate, db: Session = Depends(get_db)):
+def create_hypothesis(
+    case_id: int,
+    payload: HypothesisCreate,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("cases:write")),
+):
     get_or_404(db, Case, case_id)
     data = payload.model_dump()
     data["case_id"] = case_id
@@ -357,13 +412,18 @@ def list_hypotheses(case_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{case_id}/damage-items", response_model=DamageItemRead)
-def create_damage_item(case_id: int, payload: DamageItemCreate, db: Session = Depends(get_db)):
+def create_damage_item(
+    case_id: int,
+    payload: DamageItemCreate,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("cases:write")),
+):
     get_or_404(db, Case, case_id)
     data = payload.model_dump()
     data["case_id"] = case_id
     item = DamageItem(**data)
     db.add(item)
-    db.add(ChainOfCustodyAction(case_id=case_id, action_type="cuantificacion economica", detailed_description=f"Dano cargado: {payload.concept}"))
+    db.add(ChainOfCustodyAction(case_id=case_id, action_type="cuantificación económica", detailed_description=f"Daño cargado: {payload.concept}"))
     db.commit()
     db.refresh(item)
     return item
@@ -375,7 +435,12 @@ def list_damage_items(case_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{case_id}/damage-total")
-def calculate_damage(case_id: int, methodology: str = "Dano total estimado", db: Session = Depends(get_db)):
+def calculate_damage(
+    case_id: int,
+    methodology: str = "Daño total estimado",
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("cases:write")),
+):
     get_or_404(db, Case, case_id)
     items = db.query(DamageItem).filter_by(case_id=case_id).all()
     total = sum(item.amount for item in items)

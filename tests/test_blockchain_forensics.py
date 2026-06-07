@@ -50,6 +50,9 @@ def test_blockchain_forensics_registers_finding_legal_mapping_and_report(client,
             "route_hypothesis": "Estafa con pago a wallet receptora; posible exchange indicado por comunicación posterior.",
             "wallet_classification": "wallet receptora",
             "tool_used": "OPERIA Blockchain Forensics",
+            "route_order": 1,
+            "include_in_report": True,
+            "preservation_checklist": "OK: captura del explorador\nOK: hash de evidencia\nOK: hora de consulta",
             "limitations": "No hay titularidad de wallet ni KYC de plataforma; requiere oficio y correlación externa.",
         },
         headers=admin_headers,
@@ -60,12 +63,73 @@ def test_blockchain_forensics_registers_finding_legal_mapping_and_report(client,
     assert body["evidence_id"] == evidence_id
     assert body["evidence_hash"] == "e" * 64
     assert body["wallet_classification"] == "wallet receptora"
+    assert body["route_order"] == 1
+    assert body["include_in_report"] is True
+    assert "hash de evidencia" in body["preservation_checklist"]
     assert "no identifica por sí sola" in body["warning"]
 
     listing = client.get(f"/api/cybercrime/blockchain/case/{case_id}", headers=admin_headers)
     assert listing.status_code == 200
     assert listing.json()[0]["tx_hash"] == "f" * 64
     assert any("Evitar atribución personal solo por wallet" in item for item in listing.json()[0]["recommended_measures"])
+
+    patched = client.patch(
+        f"/api/cybercrime/blockchain/{body['id']}",
+        json={
+            "evidence_id": evidence_id,
+            "source_wallet": "bc1qsourcewallet",
+            "destination_wallet": "bc1qexchangecluster",
+            "tx_hash": "a" * 64,
+            "blockchain": "Bitcoin",
+            "token": "BTC",
+            "amount": 0.25,
+            "approximate_value": 32000,
+            "tx_datetime": "2026-05-20T15:10:00Z",
+            "explorer_url": "https://example.invalid/tx/" + "a" * 64,
+            "route_hypothesis": "Primer salto hacia cluster compatible con exchange; requiere oficio para KYC, logs e IPs.",
+            "wallet_classification": "exchange",
+            "tool_used": "OPERIA Blockchain Investigation Lab",
+            "limitations": "La trazabilidad economica orienta la investigacion, pero no atribuye identidad personal sin KYC o corroboracion externa.",
+        },
+        headers=admin_headers,
+    )
+    assert patched.status_code == 200
+    patched_body = patched.json()
+    assert patched_body["wallet_classification"] == "exchange"
+    assert patched_body["approximate_value"] == 32000
+    assert patched_body["destination_wallet"] == "bc1qexchangecluster"
+
+    excluded = client.post(
+        "/api/cybercrime/blockchain",
+        json={
+            "case_id": case_id,
+            "evidence_id": evidence_id,
+            "source_wallet": "bc1qlabonlysource",
+            "destination_wallet": "bc1qexcludednotreport",
+            "tx_hash": "b" * 64,
+            "blockchain": "Bitcoin",
+            "token": "BTC",
+            "amount": 0.01,
+            "approximate_value": 1200,
+            "tx_datetime": "2026-05-20T16:00:00Z",
+            "explorer_url": "https://example.invalid/tx/" + "b" * 64,
+            "route_hypothesis": "Salto conservado solo como material de laboratorio.",
+            "wallet_classification": "wallet intermediaria",
+            "tool_used": "OPERIA Blockchain Investigation Lab",
+            "limitations": "No incorporado al informe por falta de corroboracion.",
+            "route_order": 2,
+            "include_in_report": False,
+            "preservation_checklist": "PENDIENTE: corroboracion externa",
+        },
+        headers=admin_headers,
+    )
+    assert excluded.status_code == 200
+    excluded_body = excluded.json()
+    assert excluded_body["include_in_report"] is False
+
+    relisted = client.get(f"/api/cybercrime/blockchain/case/{case_id}", headers=admin_headers)
+    assert relisted.status_code == 200
+    assert [item["route_order"] for item in relisted.json()[:2]] == [1, 2]
 
     finding = client.post(f"/api/cybercrime/blockchain/{body['id']}/finding", headers=admin_headers)
     assert finding.status_code == 200
@@ -88,6 +152,12 @@ def test_blockchain_forensics_registers_finding_legal_mapping_and_report(client,
     assert report.status_code == 200
     markdown = report.json()["markdown_content"]
     assert "Análisis forense de blockchain" in markdown
+    assert "Ruta multi-salto" in markdown
+    assert "Anexo blockchain profesional" in markdown
+    assert "Checklist" in markdown
+    assert "Puntos criticos de trazabilidad" in markdown
+    assert "Requerimientos sugeridos" in markdown
+    assert "bc1qexcludednotreport" not in markdown
     assert "no identifica por sí sola a una persona" in markdown
     assert "identifica al autor" not in markdown.lower()
 
@@ -95,4 +165,7 @@ def test_blockchain_forensics_registers_finding_legal_mapping_and_report(client,
     assert pdf.status_code == 200
     pdf_text = "\n".join(page.extract_text() or "" for page in PdfReader(BytesIO(pdf.content)).pages)
     assert "Análisis forense de blockchain" in pdf_text
+    assert "Anexo blockchain profesional" in pdf_text
+    assert "Checklist" in pdf_text
+    assert "Puntos críticos" in pdf_text or "Puntos criticos" in pdf_text
     assert "no identifica por sí sola" in pdf_text

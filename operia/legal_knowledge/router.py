@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from operia.audit.service import write_audit
 from operia.core.database import get_db
-from operia.identity.dependencies import CurrentUser, get_optional_user
+from operia.identity.dependencies import CurrentUser, require_permission
 from operia.evidence.models import Evidence
 from operia.legal_knowledge.models import LegalArticle, LegalDoctrine, LegalMapping, LegalMappingEvidence, LegalPrecedent, LegalSource
 from operia.legal_knowledge.service import (
@@ -49,7 +49,11 @@ def status() -> dict[str, object]:
 
 
 @router.post("/sources", response_model=LegalSourceRead)
-def create_legal_source(payload: LegalSourceCreate, db: Session = Depends(get_db)):
+def create_legal_source(
+    payload: LegalSourceCreate,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("legal:write")),
+):
     item = LegalSource(**payload.model_dump())
     db.add(item)
     db.commit()
@@ -63,14 +67,21 @@ def list_legal_sources(db: Session = Depends(get_db)):
 
 
 @router.post("/sources/sync-official")
-def sync_legal_sources(db: Session = Depends(get_db)):
+def sync_legal_sources(
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("legal:write")),
+):
     updated = sync_official_sources(db)
     db.commit()
     return {"updated": updated, "message": "Fuentes oficiales sincronizadas y marcadas segun verificacion disponible."}
 
 
 @router.post("/sources/verify")
-def verify_sources(persist: bool = False, db: Session = Depends(get_db)):
+def verify_sources(
+    persist: bool = False,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("legal:write")),
+):
     results = verify_registered_sources(db, persist=persist)
     if persist:
         db.commit()
@@ -78,12 +89,20 @@ def verify_sources(persist: bool = False, db: Session = Depends(get_db)):
 
 
 @router.post("/sources/verify-url")
-def verify_url(payload: dict):
+def verify_url(
+    payload: dict,
+    current_user: CurrentUser = Depends(require_permission("legal:write")),
+):
     return verify_source_url(str(payload.get("url") or ""))
 
 
 @router.put("/sources/{source_id}", response_model=LegalSourceRead)
-def update_legal_source(source_id: int, payload: LegalSourceCreate, db: Session = Depends(get_db)):
+def update_legal_source(
+    source_id: int,
+    payload: LegalSourceCreate,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("legal:write")),
+):
     item = update_from_payload(get_or_404(db, LegalSource, source_id), payload)
     db.commit()
     db.refresh(item)
@@ -113,7 +132,10 @@ def get_article_checklist(article_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/articles/seed")
-def seed_articles(db: Session = Depends(get_db)):
+def seed_articles(
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("legal:write")),
+):
     created = ensure_legal_articles(db)
     db.commit()
     return {"created": created, "message": "Biblioteca legal inicial verificada."}
@@ -158,7 +180,11 @@ def attack_type_profile(attack_type: str):
 
 
 @router.post("/mappings", response_model=LegalMappingRead)
-def create_legal_mapping(payload: LegalMappingCreate, db: Session = Depends(get_db)):
+def create_legal_mapping(
+    payload: LegalMappingCreate,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("legal:write")),
+):
     item = LegalMapping(**payload.model_dump())
     db.add(item)
     db.commit()
@@ -170,7 +196,7 @@ def create_legal_mapping(payload: LegalMappingCreate, db: Session = Depends(get_
 def decide_legal_mapping(
     payload: LegalMappingDecisionCreate,
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("legal:write")),
 ):
     decision = payload.decision_status.lower().strip()
     if decision not in {"aprobado", "descartado"}:
@@ -240,7 +266,7 @@ def list_case_mappings(case_id: int, db: Session = Depends(get_db)):
 def link_mapping_evidence(
     payload: LegalMappingEvidenceCreate,
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("legal:write")),
 ):
     mapping = get_or_404(db, LegalMapping, payload.legal_mapping_id)
     evidence = get_or_404(db, Evidence, payload.evidence_id)
@@ -302,7 +328,7 @@ def update_mapping_evidence(
     link_id: int,
     payload: LegalMappingEvidenceCreate,
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("legal:write")),
 ):
     item = get_or_404(db, LegalMappingEvidence, link_id)
     mapping = get_or_404(db, LegalMapping, payload.legal_mapping_id)
@@ -338,7 +364,7 @@ def update_mapping_evidence(
 def unlink_mapping_evidence(
     link_id: int,
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("legal:write")),
 ):
     item = get_or_404(db, LegalMappingEvidence, link_id)
     case_id = item.case_id
@@ -357,7 +383,11 @@ def unlink_mapping_evidence(
 
 
 @router.post("/precedents", response_model=LegalPrecedentRead)
-def create_precedent(payload: LegalPrecedentCreate, db: Session = Depends(get_db)):
+def create_precedent(
+    payload: LegalPrecedentCreate,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("legal:write")),
+):
     item = LegalPrecedent(**payload.model_dump())
     db.add(item)
     db.commit()
@@ -376,7 +406,11 @@ def list_precedents(article_id: int | None = None, crime_type: str | None = None
 
 
 @router.post("/doctrine", response_model=LegalDoctrineRead)
-def create_doctrine(payload: LegalDoctrineCreate, db: Session = Depends(get_db)):
+def create_doctrine(
+    payload: LegalDoctrineCreate,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("legal:write")),
+):
     item = LegalDoctrine(**payload.model_dump())
     db.add(item)
     db.commit()

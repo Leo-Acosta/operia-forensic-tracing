@@ -11,7 +11,7 @@ from operia.cases.models import Case
 from operia.core.config import settings
 from operia.core.database import get_db
 from operia.evidence.models import ChainOfCustodyAction, Evidence
-from operia.identity.dependencies import CurrentUser, get_optional_user
+from operia.identity.dependencies import CurrentUser, get_optional_user, require_permission
 from operia.evidence.schemas import CustodyActionCreate, CustodyActionRead, EvidenceCreate, EvidenceRead
 from operia.shared.crud import get_or_404, update_from_payload
 from operia.shared.hashing import file_md5, file_sha256
@@ -32,7 +32,7 @@ def status() -> dict[str, object]:
 def create_evidence(
     payload: EvidenceCreate,
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
 ):
     case = get_or_404(db, Case, payload.case_id)
     item = Evidence(**payload.model_dump())
@@ -118,7 +118,12 @@ def download_evidence(evidence_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{evidence_id}", response_model=EvidenceRead)
-def update_evidence(evidence_id: int, payload: EvidenceCreate, db: Session = Depends(get_db)):
+def update_evidence(
+    evidence_id: int,
+    payload: EvidenceCreate,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     item = update_from_payload(get_or_404(db, Evidence, evidence_id), payload)
     db.commit()
     db.refresh(item)
@@ -126,7 +131,11 @@ def update_evidence(evidence_id: int, payload: EvidenceCreate, db: Session = Dep
 
 
 @router.delete("/{evidence_id}")
-def delete_evidence(evidence_id: int, db: Session = Depends(get_db)):
+def delete_evidence(
+    evidence_id: int,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     db.delete(get_or_404(db, Evidence, evidence_id))
     db.commit()
     return {"ok": True}
@@ -145,7 +154,7 @@ def upload_evidence(
     custodian: str = "",
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
 ):
     case = get_or_404(db, Case, case_id)
     case_dir = settings.uploads_dir / str(case_id)
@@ -193,7 +202,7 @@ def upload_evidence(
 def create_action(
     payload: CustodyActionCreate,
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
 ):
     item = ChainOfCustodyAction(**payload.model_dump())
     if current_user and current_user.organization_id:
@@ -211,7 +220,7 @@ def update_action(
     action_id: int,
     payload: CustodyActionCreate,
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
 ):
     item = update_from_payload(get_or_404(db, ChainOfCustodyAction, action_id), payload)
     write_audit(db, "update_custody_action", "evidence", current_user, case_id=item.case_id, entity_type="custody_action", entity_id=str(item.id), details=item.action_type)
@@ -224,7 +233,7 @@ def update_action(
 def delete_action(
     action_id: int,
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
 ):
     item = get_or_404(db, ChainOfCustodyAction, action_id)
     case_id = item.case_id

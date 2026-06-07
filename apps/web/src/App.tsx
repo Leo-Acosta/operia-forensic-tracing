@@ -6,6 +6,7 @@ import {
   Bot,
   BrainCircuit,
   Briefcase,
+  Calculator,
   CheckCircle2,
   Download,
   FileCheck2,
@@ -15,6 +16,7 @@ import {
   Globe2,
   History,
   Map,
+  MonitorPlay,
   Navigation,
   RefreshCcw,
   Save,
@@ -26,7 +28,7 @@ import {
   Users,
   Wrench
 } from "lucide-react";
-import { API_BASE, apiDelete, apiGet, apiPost, apiPostForm, apiPut, getAuthToken, setAuthToken } from "./api";
+import { API_BASE, apiDelete, apiGet, apiPatch, apiPost, apiPostForm, apiPut, authHeaders, getAuthToken, setAuthToken } from "./api";
 import { externalToolsCatalog, type InventoryCyberTool } from "./externalToolsCatalog";
 
 type ModuleKey =
@@ -36,6 +38,7 @@ type ModuleKey =
   | "cases"
   | "evidence"
   | "reports"
+  | "casePresentation"
   | "legalKnowledge"
   | "ai"
   | "cybercrime"
@@ -110,6 +113,22 @@ type CaseParticipant = {
   relationship_to_case: string;
   notes?: string;
   sensitivity_level: string;
+};
+
+type DamageItem = {
+  id: number;
+  case_id: number;
+  concept: string;
+  amount: number;
+  currency: string;
+  base_date: string;
+  value_source: string;
+  formula_used: string;
+  supporting_evidence: string;
+  certainty_level: string;
+  observations: string;
+  created_at?: string;
+  updated_at?: string;
 };
 
 type ReportItem = {
@@ -399,19 +418,97 @@ type ExportManifest = {
   created_at: string;
 };
 
+type PresentationItem = {
+  id: number;
+  case_id: number;
+  source_report_id: number | null;
+  title: string;
+  presentation_type: string;
+  version: string;
+  status: string;
+  author: string;
+  selected_fragments: string;
+  review_score: number;
+  exported_file: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+type PresentationSlide = {
+  id: number;
+  presentation_id: number;
+  slide_number: number;
+  title: string;
+  content_type: string;
+  text: string;
+  speaker_notes: string;
+  confidentiality_level: string;
+};
+
+type PresentationReview = {
+  score: number;
+  status?: string;
+  clarity: number;
+  evidentiary_strength: number;
+  narrative_coherence: number;
+  legal_solidity: number;
+  visual_quality: number;
+  critical_errors?: string[];
+  warnings?: string[];
+  oral_exposure_risks: string[];
+  recommendations: string[];
+  page_recommendations?: string[];
+};
+
+type AiSecurityEvaluation = {
+  id?: number;
+  provider?: string;
+  model_name?: string;
+  environment?: string;
+  network_blocked?: boolean;
+  tools_enabled?: boolean;
+  overall_score?: number;
+  risk_level?: string;
+  recommendation?: string;
+  conclusion?: string;
+  created_at?: string;
+};
+
 type IdentitySession = {
   authenticated: boolean;
-  user?: {
+  user?: IdentityUser | null;
+};
+
+type IdentityUser = {
     id: number;
     organization_id?: number;
     name: string;
     email?: string;
     role: string;
-  } | null;
+    status?: string;
+    title?: string;
+    agency?: string;
+    registration_id?: string;
+    phone?: string;
+    signature?: string;
+    profile_notes?: string;
 };
 
 type PermissionPayload = Record<string, string[]>;
-type CaseDetailTab = "summary" | "participants" | "evidence" | "custody" | "legal" | "reports" | "audit";
+type CaseDetailTab = "summary" | "participants" | "evidence" | "custody" | "damage" | "legal" | "reports" | "audit";
+
+type ExportOutcome = {
+  status?: string;
+  message?: string;
+  seal_id?: string | null;
+  sha256?: string | null;
+  manifest_id?: string | null;
+  can_export_final?: boolean;
+  exportability?: { level?: string; score?: number };
+  contradictions?: { count?: number; blocking?: boolean };
+  final_checklist?: { score?: number; ready?: boolean; missing?: string[]; items?: Array<{ key?: string; label?: string; ok?: boolean; message?: string }> };
+  missing?: string[];
+};
 
 type CybercrimeDashboard = {
   open_cases: number;
@@ -524,6 +621,9 @@ type BlockchainTransactionItem = {
   recommended_measures: string[];
   legal_mapping_ids: number[];
   analyst_name: string;
+  route_order: number;
+  include_in_report: boolean;
+  preservation_checklist: string;
   warning: string;
 };
 
@@ -560,11 +660,12 @@ const modules: Array<{ key: ModuleKey; label: string; icon: typeof BarChart3 }> 
   { key: "cases", label: "Casos", icon: Briefcase },
   { key: "evidence", label: "Evidencia", icon: Fingerprint },
   { key: "reports", label: "Informes", icon: FileText },
+  { key: "casePresentation", label: "Exposición del Caso", icon: MonitorPlay },
   { key: "legalKnowledge", label: "Biblioteca Legal", icon: BookOpen },
   { key: "ai", label: "Asistente IA", icon: Bot },
   { key: "cybercrime", label: "Cybercrime", icon: Shield },
   { key: "deepfakeMedia", label: "Deepfake / Medios", icon: FileCheck2 },
-  { key: "blockchainForensics", label: "Blockchain Forensics", icon: Globe2 },
+  { key: "blockchainForensics", label: "Blockchain Investigation Lab", icon: Globe2 },
   { key: "iotForensics", label: "IoT Forensics", icon: Shield },
   { key: "externalTools", label: "Herramientas Externas", icon: Wrench },
   { key: "aiSecurity", label: "AI Security", icon: BrainCircuit },
@@ -588,6 +689,45 @@ const emptyCase = {
   general_observations: ""
 };
 
+const emptyDamageForm = {
+  concept: "",
+  amount: "",
+  currency: "ARS",
+  base_date: "",
+  value_source: "",
+  formula_used: "",
+  supporting_evidence: "",
+  certainty_level: "medio",
+  observations: ""
+};
+
+const damagePresets = [
+  {
+    label: "Pérdida patrimonial directa",
+    concept: "Pérdida patrimonial directa",
+    formula_used: "Daño patrimonial directo = importe transferido, debitado, apropiado o sustraído acreditado por comprobante.",
+    value_source: "Comprobante bancario, transferencia, billetera virtual, extracto, denuncia o constancia documentada."
+  },
+  {
+    label: "Costos de recuperación o pericia",
+    concept: "Costos de recuperación o pericia",
+    formula_used: "Costos de recuperación = horas técnicas x valor hora documentado + servicios contratados vinculados al incidente.",
+    value_source: "Factura, presupuesto, orden de trabajo, registro horario técnico o constancia profesional."
+  },
+  {
+    label: "Indisponibilidad operativa",
+    concept: "Indisponibilidad operativa",
+    formula_used: "Indisponibilidad = horas de interrupci?n x costo operativo/hora documentado.",
+    value_source: "Registro de caída, ticket, informe de continuidad, métrica de facturación o declaración contable verificable."
+  },
+  {
+    label: "Reposición y mitigación",
+    concept: "Reposición y mitigación",
+    formula_used: "Reposición/mitigación = costo de restauraci?n, hardening, licencias, reposición o servicios necesarios directamente vinculados.",
+    value_source: "Factura, presupuesto, ticket de soporte, orden de compra o constancia de servicio."
+  }
+];
+
 const attackTypes = [
   { value: "phishing / fraude digital", label: "Phishing / fraude digital", query: "phishing fraude acceso datos consumidor" },
   { value: "ransomware", label: "Ransomware", query: "ransomware extorsión daño informático preservación" },
@@ -595,7 +735,7 @@ const attackTypes = [
   { value: "fraude digital", label: "Fraude digital", query: "fraude estafa manipulación informática consumidor" },
   { value: "dano informatico", label: "Daño informático", query: "daño informático sistemas datos" },
   { value: "filtracion de datos", label: "Filtración de datos", query: "filtración datos personales confidencialidad" },
-  { value: "extorsion", label: "Extorsión", query: "extorsión intimidación datos ransomware" },
+  { value: "extorsion", label: "Extorsi?n", query: "extorsión intimidaci?n datos ransomware" },
   { value: "deepfake", label: "Deepfake / autenticación de medios", query: "deepfake autenticación medios imagen voz identidad propiedad intelectual" },
   { value: "blockchain", label: "Blockchain / criptoactivos", query: "blockchain criptoactivos wallet fraude estafa extorsión" },
   { value: "iot", label: "IoT / dispositivos conectados", query: "iot dispositivos conectados acceso ilegítimo comunicaciones daño informático" },
@@ -621,6 +761,46 @@ const deepfakeChecklist = [
 
 const emptyDeepfakeChecklist = Object.fromEntries(deepfakeChecklist.map((item) => [item.key, false])) as Record<string, boolean>;
 
+function deepfakeAnalysisReadiness(analysis: DeepfakeAnalysisItem) {
+  const checkedControls = analysis.checklist.filter((item) => item.ok).length;
+  const checks = [
+    { key: "evidence", label: "Evidencia vinculada", ok: Boolean(analysis.evidence_id) },
+    { key: "hash", label: "Hash preservado", ok: Boolean(analysis.evidence_hash) },
+    { key: "origin", label: "Origen documentado", ok: Boolean(analysis.source_origin) },
+    { key: "metadata", label: "Metadatos o EXIF", ok: Boolean(analysis.metadata_summary) },
+    { key: "findings", label: "Hallazgos técnicos", ok: Boolean(analysis.findings) },
+    { key: "limits", label: "Limitaciones declaradas", ok: Boolean(analysis.limitations) },
+    { key: "checklist", label: "Checklist suficiente", ok: checkedControls >= 6 },
+    { key: "finding", label: "Hallazgo creado", ok: Boolean(analysis.finding_id) },
+    { key: "legal", label: "Normas aplicadas", ok: analysis.legal_mapping_ids.length > 0 }
+  ];
+  const score = Math.round((checks.filter((item) => item.ok).length / checks.length) * 100);
+  const status = score >= 78 ? "listo" : score >= 45 ? "parcial" : "incompleto";
+  const missing = checks.filter((item) => !item.ok).map((item) => item.label);
+  return { checkedControls, checks, score, status, missing };
+}
+
+function iotDeviceReadiness(device: IoTDeviceItem) {
+  const checkedControls = device.checklist.filter((item) => item.ok).length;
+  const hasNetworkIdentifier = Boolean(device.internal_ip || device.external_ip || device.mac);
+  const checks = [
+    { key: "identity", label: "Identificación del dispositivo", ok: Boolean(device.device_type && (device.manufacturer || device.model)) },
+    { key: "network", label: "Identificador de red", ok: hasNetworkIdentifier },
+    { key: "evidence", label: "Evidencia vinculada", ok: Boolean(device.evidence_id) },
+    { key: "hash", label: "Hash preservado", ok: Boolean(device.evidence_hash) },
+    { key: "logs", label: "Logs o estado documentado", ok: Boolean(device.logs_available || device.open_ports || device.known_vulnerabilities) },
+    { key: "tool", label: "Metodología/herramienta", ok: Boolean(device.tool_used) },
+    { key: "limits", label: "Limitaciones declaradas", ok: Boolean(device.limitations) },
+    { key: "checklist", label: "Checklist suficiente", ok: checkedControls >= 6 },
+    { key: "finding", label: "Hallazgo creado", ok: Boolean(device.finding_id) },
+    { key: "legal", label: "Normas aplicadas", ok: device.legal_mapping_ids.length > 0 }
+  ];
+  const score = Math.round((checks.filter((item) => item.ok).length / checks.length) * 100);
+  const status = score >= 80 ? "listo" : score >= 50 ? "parcial" : "incompleto";
+  const missing = checks.filter((item) => !item.ok).map((item) => item.label);
+  return { checkedControls, checks, score, status, missing };
+}
+
 const emptyDeepfakeForm = {
   evidence_id: "",
   media_type: "video",
@@ -638,8 +818,11 @@ const walletClassifications = [
   "mixer",
   "bridge",
   "contrato inteligente",
+  "wallet desconocida",
   "wallet receptora",
   "wallet intermediaria",
+  "wallet de origen",
+  "wallet de destino",
   "desconocido"
 ];
 
@@ -656,9 +839,198 @@ const emptyBlockchainForm = {
   explorer_url: "",
   route_hypothesis: "",
   wallet_classification: "desconocido",
-  tool_used: "OPERIA Blockchain Forensics",
-  limitations: "Una wallet no identifica por sí sola a una persona sin evidencia externa corroborante."
+  tool_used: "OPERIA Blockchain Investigation Lab",
+  route_order: "",
+  include_in_report: true,
+  preservation_checklist: "",
+  limitations: "Una wallet no identifica por s? sola a una persona sin evidencia externa corroborante."
 };
+
+const blockchainExplorerCatalog = [
+  {
+    key: "bitcoin",
+    label: "Bitcoin",
+    tx: "https://www.blockchain.com/explorer/transactions/btc/",
+    address: "https://www.blockchain.com/explorer/addresses/btc/",
+    home: "https://www.blockchain.com/explorer/assets/btc"
+  },
+  {
+    key: "ethereum",
+    label: "Ethereum",
+    tx: "https://etherscan.io/tx/",
+    address: "https://etherscan.io/address/",
+    home: "https://etherscan.io"
+  },
+  {
+    key: "tron",
+    label: "TRON / USDT TRC20",
+    tx: "https://tronscan.org/#/transaction/",
+    address: "https://tronscan.org/#/address/",
+    home: "https://tronscan.org"
+  },
+  {
+    key: "bsc",
+    label: "BNB Smart Chain",
+    tx: "https://bscscan.com/tx/",
+    address: "https://bscscan.com/address/",
+    home: "https://bscscan.com"
+  },
+  {
+    key: "polygon",
+    label: "Polygon",
+    tx: "https://polygonscan.com/tx/",
+    address: "https://polygonscan.com/address/",
+    home: "https://polygonscan.com"
+  },
+  {
+    key: "solana",
+    label: "Solana",
+    tx: "https://solscan.io/tx/",
+    address: "https://solscan.io/account/",
+    home: "https://solscan.io"
+  }
+];
+
+function getBlockchainExplorer(blockchain: string) {
+  const normalized = blockchain.toLowerCase();
+  return (
+    blockchainExplorerCatalog.find((item) => normalized.includes(item.key)) ||
+    blockchainExplorerCatalog.find((item) => normalized.includes("bnb") && item.key === "bsc") ||
+    blockchainExplorerCatalog.find((item) => normalized.includes("usdt") && item.key === "tron") ||
+    blockchainExplorerCatalog[0]
+  );
+}
+
+function buildBlockchainUrl(blockchain: string, type: "tx" | "source" | "destination", value: string) {
+  const explorer = getBlockchainExplorer(blockchain);
+  const cleanValue = value.trim();
+  if (!cleanValue) return explorer.home;
+  if (type === "tx") return `${explorer.tx}${encodeURIComponent(cleanValue)}`;
+  return `${explorer.address}${encodeURIComponent(cleanValue)}`;
+}
+
+function formatMoneyARS(value: number) {
+  return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 2 }).format(value || 0);
+}
+
+function blockchainTransactionReadiness(item: BlockchainTransactionItem) {
+  const checks = [
+    { key: "tx_hash", label: "Hash de transacción", ok: Boolean(item.tx_hash?.trim()) },
+    { key: "explorer", label: "URL o fuente preservada", ok: Boolean(item.explorer_url?.trim()) },
+    { key: "wallets", label: "Wallet origen y destino", ok: Boolean(item.source_wallet?.trim() && item.destination_wallet?.trim()) },
+    { key: "amount", label: "Monto y token", ok: Number(item.amount) > 0 && Boolean(item.token?.trim()) },
+    { key: "datetime", label: "Fecha/hora observada", ok: Boolean(item.tx_datetime?.trim()) },
+    { key: "evidence", label: "Evidencia vinculada", ok: Boolean(item.evidence_id) },
+    { key: "route", label: "Hipótesis de ruta", ok: Boolean(item.route_hypothesis?.trim()) },
+    { key: "finding", label: "Hallazgo creado", ok: Boolean(item.finding_id) },
+    { key: "legal", label: "Normas aplicadas", ok: item.legal_mapping_ids.length > 0 }
+  ];
+  const okCount = checks.filter((check) => check.ok).length;
+  const score = Math.round((okCount / checks.length) * 100);
+  const missing = checks.filter((check) => !check.ok).map((check) => check.label);
+  const status = score >= 78 ? "listo" : score >= 45 ? "parcial" : "incompleto";
+  const label = status === "listo" ? "Listo para informe" : status === "parcial" ? "Requiere refuerzo" : "Insuficiente";
+  return { checks, score, missing, status, label };
+}
+
+function blockchainDraftReadiness(form: typeof emptyBlockchainForm) {
+  const checks = [
+    { key: "hash", label: "Hash de transaccion", ok: Boolean(form.tx_hash.trim()), critical: true },
+    { key: "network", label: "Red y token definidos", ok: Boolean(form.blockchain.trim() && form.token.trim()), critical: true },
+    { key: "wallets", label: "Wallet origen y destino", ok: Boolean(form.source_wallet.trim() && form.destination_wallet.trim()), critical: true },
+    { key: "amount", label: "Monto documentado", ok: Number(form.amount || 0) > 0, critical: false },
+    { key: "datetime", label: "Fecha/hora observada", ok: Boolean(form.tx_datetime.trim()), critical: true },
+    { key: "explorer", label: "URL o fuente preservada", ok: Boolean(form.explorer_url.trim()), critical: true },
+    { key: "evidence", label: "Evidencia vinculada", ok: Boolean(form.evidence_id), critical: true },
+    { key: "tool", label: "Herramienta o metodo usado", ok: Boolean(form.tool_used.trim()), critical: false },
+    { key: "route", label: "Hipotesis de ruta", ok: Boolean(form.route_hypothesis.trim()), critical: false },
+    { key: "limits", label: "Limites periciales declarados", ok: Boolean(form.limitations.trim()), critical: false }
+  ];
+  const okCount = checks.filter((check) => check.ok).length;
+  const score = Math.round((okCount / checks.length) * 100);
+  const missing = checks.filter((check) => !check.ok).map((check) => check.label);
+  const criticalMissing = checks.filter((check) => check.critical && !check.ok).map((check) => check.label);
+  const ready = criticalMissing.length === 0 && score >= 70;
+  return { checks, score, missing, criticalMissing, ready };
+}
+
+function shortBlockchainLabel(value = "") {
+  const clean = value.trim();
+  if (!clean) return "Pendiente";
+  if (clean.length <= 22) return clean;
+  return `${clean.slice(0, 10)}...${clean.slice(-8)}`;
+}
+
+function buildBlockchainGraph(transactions: BlockchainTransactionItem[]) {
+  const nodes = new globalThis.Map<string, { id: string; label: string; total: number; risk: boolean; service: boolean }>();
+  const edges = transactions.map((tx) => {
+    const source = tx.source_wallet?.trim() || `origen-pendiente-${tx.id}`;
+    const target = tx.destination_wallet?.trim() || `destino-pendiente-${tx.id}`;
+    const classification = tx.wallet_classification || "desconocido";
+    const risk = ["mixer", "bridge", "contrato inteligente"].includes(classification);
+    const service = ["exchange", "mixer", "bridge", "contrato inteligente"].includes(classification);
+
+    [source, target].forEach((id) => {
+      const previous = nodes.get(id);
+      nodes.set(id, {
+        id,
+        label: shortBlockchainLabel(id),
+        total: (previous?.total || 0) + 1,
+        risk: Boolean(previous?.risk || risk),
+        service: Boolean(previous?.service || service)
+      });
+    });
+
+    return {
+      id: tx.id,
+      source,
+      target,
+      sourceLabel: shortBlockchainLabel(source),
+      targetLabel: shortBlockchainLabel(target),
+      amountLabel: `${tx.amount || "0"} ${tx.token || ""}`.trim(),
+      classification,
+      readiness: blockchainTransactionReadiness(tx),
+      txHashLabel: shortBlockchainLabel(tx.tx_hash || ""),
+      risk
+    };
+  });
+
+  const repeatedWallets = Array.from(nodes.values()).filter((node) => node.total > 1);
+  const serviceNodes = Array.from(nodes.values()).filter((node) => node.service);
+  const readyEdges = edges.filter((edge) => edge.readiness.status === "listo").length;
+  return { nodes: Array.from(nodes.values()), edges, repeatedWallets, serviceNodes, readyEdges };
+}
+
+function blockchainCriticalFlags(item: BlockchainTransactionItem) {
+  const flags = [];
+  if (!item.evidence_id) flags.push("Falta evidencia preservada vinculada.");
+  if (!item.explorer_url) flags.push("Falta URL, captura o fuente de consulta del explorador.");
+  if (!item.tx_datetime) flags.push("Falta fecha/hora observada de la transacción.");
+  if (!item.route_hypothesis) flags.push("Falta hipótesis de ruta documentada.");
+  if (!item.finding_id) flags.push("No fue convertido todavía en hallazgo técnico.");
+  if (!item.legal_mapping_ids.length) flags.push("No tiene normas aplicadas al caso.");
+  if (["mixer", "bridge", "contrato inteligente"].includes(item.wallet_classification)) {
+    flags.push("Punto crítico: requiere cautela reforzada por mixer, bridge o contrato inteligente.");
+  }
+  if (!item.amount || Number(item.amount) <= 0) flags.push("Falta monto verificable.");
+  return flags;
+}
+
+function blockchainRouteOverview(transactions: BlockchainTransactionItem[]) {
+  const totalARS = transactions.reduce((sum, item) => sum + Number(item.approximate_value || 0), 0);
+  const criticalFlags = transactions.flatMap((item) => blockchainCriticalFlags(item));
+  const servicePoints = transactions.filter((item) => ["exchange", "mixer", "bridge", "contrato inteligente"].includes(item.wallet_classification));
+  const readyCount = transactions.filter((item) => blockchainTransactionReadiness(item).status === "listo").length;
+  const recommendedRequests = [
+    servicePoints.some((item) => item.wallet_classification === "exchange") && "Oficio a exchange o plataforma para KYC, logs, IPs, fecha/hora, titularidad y movimientos asociados.",
+    servicePoints.some((item) => item.wallet_classification === "mixer") && "Documentar límite de trazabilidad por mixer y requerir análisis complementario antes de sostener atribución.",
+    servicePoints.some((item) => item.wallet_classification === "bridge") && "Preservar transacciones puente en ambas redes y correlacionar hash, fecha, monto y wallet.",
+    transactions.some((item) => !item.evidence_id) && "Vincular cada transacción con captura, comprobante, exportación del explorador o evidencia hashada.",
+    transactions.some((item) => !item.finding_id) && "Convertir los movimientos relevantes en hallazgos técnicos para que ingresen al informe final.",
+    transactions.some((item) => !item.legal_mapping_ids.length) && "Aplicar normas desde biblioteca legal y vincularlas a evidencia concreta."
+  ].filter(Boolean) as string[];
+  return { totalARS, criticalFlags, servicePoints, readyCount, recommendedRequests };
+}
 
 const iotChecklist = [
   { key: "physical_identification", label: "Identificación física" },
@@ -698,7 +1070,7 @@ function prettySpanish(value = "") {
     .replace(/\bDano\b/g, "Daño")
     .replace(/\bdano\b/g, "daño")
     .replace(/\bdanino\b/g, "dañino")
-    .replace(/\bDanino\b/g, "Dañino")
+    .replace(/\bDanino\b/g, "Da?ino")
     .replace(/\bengano\b/g, "engaño")
     .replace(/\bEngano\b/g, "Engaño")
     .replace(/\bilegitimo\b/g, "ilegítimo")
@@ -707,7 +1079,7 @@ function prettySpanish(value = "") {
     .replace(/\bpublicos\b/g, "públicos")
     .replace(/\brapida\b/g, "rápida")
     .replace(/\balmacenados\b/g, "almacenados")
-    .replace(/\bpreservacion\b/g, "preservación")
+    .replace(/\bpreservación\b/g, "preservación")
     .replace(/\bcuantificacion\b/g, "cuantificación")
     .replace(/\bvictima\b/g, "víctima")
     .replace(/\bdisposicion\b/g, "disposición")
@@ -718,12 +1090,48 @@ function prettySpanish(value = "") {
     .replace(/\bcriticas\b/g, "críticas");
 }
 
+function formatMoney(amount: number, currency = "ARS") {
+  return new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: currency || "ARS",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(Number.isFinite(amount) ? amount : 0);
+}
+
 function professionalReportStatus(status = "") {
   const normalized = status.toLowerCase();
   if (normalized.includes("cerrado") || normalized.includes("final")) return "Caso Cerrado";
   if (normalized.includes("investigativo") || normalized.includes("enriquecido") || normalized.includes("ia")) return "En Proceso Investigativo";
-  if (normalized.includes("analisis") || normalized.includes("análisis")) return "En Proceso de Análisis";
+  if (normalized.includes("análisis") || normalized.includes("análisis")) return "En Proceso de Análisis";
   return "Caso en Proceso de Inicio de Investigación";
+}
+
+function isAuthenticationErrorMessage(message = "") {
+  const normalized = message.toLowerCase();
+  return normalized.includes("autentic") || normalized.includes("sesión requerida") || normalized.includes("sesion requerida") || normalized.includes("credencial");
+}
+
+async function readExportOutcome(response: Response): Promise<ExportOutcome> {
+  const contentType = response.headers.get("content-type") || "";
+  const raw = await response.text();
+  if (contentType.includes("application/json")) {
+    try {
+      const parsed = JSON.parse(raw);
+      const detail = parsed.detail && typeof parsed.detail === "object" ? parsed.detail : parsed;
+      return {
+        status: "blocked",
+        message: detail.message || parsed.message || "La exportación final fue bloqueada por controles periciales.",
+        exportability: detail.exportability,
+        contradictions: detail.contradictions,
+        final_checklist: detail.final_checklist,
+        missing: detail.exportability?.checklist?.missing || detail.final_checklist?.missing || parsed.missing || []
+      };
+    } catch {
+      return { status: "blocked", message: "La exportación final fue bloqueada por controles periciales." };
+    }
+  }
+  return { status: "blocked", message: raw || "La exportación final fue bloqueada por controles periciales." };
 }
 
 function reportExportabilitySnapshot(
@@ -839,6 +1247,13 @@ export function App() {
   const [participants, setParticipants] = useState<CaseParticipant[]>([]);
   const [custody, setCustody] = useState<CustodyAction[]>([]);
   const [reports, setReports] = useState<ReportItem[]>([]);
+  const [presentations, setPresentations] = useState<PresentationItem[]>([]);
+  const [presentationSlides, setPresentationSlides] = useState<PresentationSlide[]>([]);
+  const [selectedPresentationId, setSelectedPresentationId] = useState<number | "">("");
+  const [presentationReview, setPresentationReview] = useState<PresentationReview | null>(null);
+  const [presentationState, setPresentationState] = useState<"idle" | "working" | "success" | "error">("idle");
+  const [presentationMessage, setPresentationMessage] = useState("");
+  const [historyReportsByCase, setHistoryReportsByCase] = useState<Record<number, ReportItem[]>>({});
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [manifests, setManifests] = useState<ExportManifest[]>([]);
   const [legalMappings, setLegalMappings] = useState<LegalMapping[]>([]);
@@ -854,12 +1269,34 @@ export function App() {
   const [identitySession, setIdentitySession] = useState<IdentitySession>({ authenticated: false });
   const [permissions, setPermissions] = useState<PermissionPayload>({});
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+  const [identityUsers, setIdentityUsers] = useState<IdentityUser[]>([]);
+  const [identityMessage, setIdentityMessage] = useState("");
+  const [identityState, setIdentityState] = useState<"idle" | "working" | "success" | "error">("idle");
+  const [profileForm, setProfileForm] = useState({
+    name: "",
+    title: "",
+    agency: "",
+    registration_id: "",
+    phone: "",
+    signature: "",
+    profile_notes: ""
+  });
+  const [newUserForm, setNewUserForm] = useState({
+    name: "",
+    email: "",
+    role: "analista",
+    status: "active",
+    title: "",
+    agency: "",
+    password: "OperiaUser2026!"
+  });
+  const [passwordDrafts, setPasswordDrafts] = useState<Record<number, string>>({});
   const [bootstrapForm, setBootstrapForm] = useState({
     organization_name: "OPERIA Local",
     organization_slug: "operia-local",
     name: "OPERIA Admin",
     email: "admin@operia.local",
-    password: "operia-admin-change-me"
+    password: "OperiaAdmin2026!"
   });
   const [caseForm, setCaseForm] = useState(emptyCase);
   const [participantForm, setParticipantForm] = useState({
@@ -881,8 +1318,12 @@ export function App() {
   const [evidenceForm, setEvidenceForm] = useState({ description: "", responsible: "", custodian: "" });
   const [editingEvidence, setEditingEvidence] = useState<EvidenceItem | null>(null);
   const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
-  const [custodyForm, setCustodyForm] = useState({ action_type: "revision", detailed_description: "", user_responsible: "" });
+  const [custodyForm, setCustodyForm] = useState({ action_type: "revisión", detailed_description: "", user_responsible: "" });
   const [editingCustody, setEditingCustody] = useState<CustodyAction | null>(null);
+  const [damageItems, setDamageItems] = useState<DamageItem[]>([]);
+  const [damageForm, setDamageForm] = useState(emptyDamageForm);
+  const [damageState, setDamageState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [damageMessage, setDamageMessage] = useState("");
   const [indicator, setIndicator] = useState("https://secure-login.example.com/verify");
   const [indicatorResult, setIndicatorResult] = useState<CyberIndicatorResult | null>(null);
   const [indicatorFindingState, setIndicatorFindingState] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -898,10 +1339,12 @@ export function App() {
   const [deepfakeMessage, setDeepfakeMessage] = useState("");
   const [blockchainTransactions, setBlockchainTransactions] = useState<BlockchainTransactionItem[]>([]);
   const [blockchainForm, setBlockchainForm] = useState(emptyBlockchainForm);
+  const [editingBlockchainId, setEditingBlockchainId] = useState<number | null>(null);
   const [blockchainState, setBlockchainState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [blockchainMessage, setBlockchainMessage] = useState("");
   const [iotDevices, setIotDevices] = useState<IoTDeviceItem[]>([]);
   const [iotForm, setIotForm] = useState(emptyIoTForm);
+  const [editingIotId, setEditingIotId] = useState<number | null>(null);
   const [iotChecklistState, setIotChecklistState] = useState<Record<string, boolean>>(emptyIoTChecklist);
   const [iotState, setIotState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [iotMessage, setIotMessage] = useState("");
@@ -913,7 +1356,7 @@ export function App() {
   const [externalToolOnlineOnly, setExternalToolOnlineOnly] = useState(false);
   const [externalToolGithubOnly, setExternalToolGithubOnly] = useState(false);
   const [externalToolSpecialArea, setExternalToolSpecialArea] = useState("Todas");
-  const [cyberLabForm, setCyberLabForm] = useState({ title: "", purpose: "analisis de indicador", risk_level: "medio", operator: "" });
+  const [cyberLabForm, setCyberLabForm] = useState({ title: "", purpose: "análisis de indicador", risk_level: "medio", operator: "" });
   const [cyberProofForm, setCyberProofForm] = useState({
     defensible_conclusion: "",
     legal_framing: "",
@@ -952,6 +1395,11 @@ export function App() {
   );
   const latestReport = reports[0];
   const latestEvidence = evidence[0];
+  const damageTotal = useMemo(() => damageItems.reduce((total, item) => total + Number(item.amount || 0), 0), [damageItems]);
+  const damageSupportedTotal = useMemo(
+    () => damageItems.filter((item) => item.value_source || item.supporting_evidence).reduce((total, item) => total + Number(item.amount || 0), 0),
+    [damageItems]
+  );
   const exportabilitySnapshot = useMemo(
     () => reportExportabilitySnapshot(selectedCase, evidence, custody, legalMappings, legalProbatoryMatrix, legalQualityControl, latestReport),
     [selectedCase, evidence, custody, legalMappings, legalProbatoryMatrix, legalQualityControl, latestReport]
@@ -962,7 +1410,14 @@ export function App() {
       setEvidence([]);
       setParticipants([]);
       setReports([]);
+      setPresentations([]);
+      setPresentationSlides([]);
+      setSelectedPresentationId("");
+      setPresentationReview(null);
+      setPresentationState("idle");
+      setPresentationMessage("");
       setCustody([]);
+      setDamageItems([]);
       setAuditLogs([]);
       setManifests([]);
       setLegalMappings([]);
@@ -980,6 +1435,8 @@ export function App() {
       setReportPreview(null);
       setExecutiveSummaryDraft("");
       setClosureStatus(null);
+      setDamageState("idle");
+      setDamageMessage("");
       return;
     }
     const [
@@ -987,6 +1444,7 @@ export function App() {
       evidenceData,
       reportData,
       custodyData,
+      damageData,
       auditData,
       manifestData,
       mappingData,
@@ -996,12 +1454,14 @@ export function App() {
       deepfakeData,
       blockchainData,
       iotData,
-      rubricData
+      rubricData,
+      presentationData
     ] = await Promise.all([
       apiGet<CaseParticipant[]>(`/cases/${caseId}/participants`),
       apiGet<EvidenceItem[]>(`/evidence/case/${caseId}`),
       apiGet<ReportItem[]>(`/reports/case/${caseId}`),
       apiGet<CustodyAction[]>(`/evidence/case/${caseId}/custody-actions`),
+      apiGet<DamageItem[]>(`/cases/${caseId}/damage-items`),
       apiGet<AuditLog[]>(`/audit/logs?case_id=${caseId}`),
       apiGet<ExportManifest[]>(`/exports/manifests?case_id=${caseId}`),
       apiGet<LegalMapping[]>(`/legal-knowledge/case/${caseId}/mappings`),
@@ -1011,12 +1471,23 @@ export function App() {
       apiGet<DeepfakeAnalysisItem[]>(`/cybercrime/deepfake/case/${caseId}`).catch(() => []),
       apiGet<BlockchainTransactionItem[]>(`/cybercrime/blockchain/case/${caseId}`).catch(() => []),
       apiGet<IoTDeviceItem[]>(`/cybercrime/iot/case/${caseId}`).catch(() => []),
-      apiGet<RubricEvaluation>(`/rubrics/case/${caseId}/score`).catch(() => null)
+      apiGet<RubricEvaluation>(`/rubrics/case/${caseId}/score`).catch(() => null),
+      apiGet<PresentationItem[]>(`/reports/presentations/case/${caseId}`).catch(() => [])
     ]);
     setParticipants(participantData);
     setEvidence(evidenceData);
     setReports(reportData);
+    setPresentations(presentationData);
+    const nextPresentationId = presentationData[0]?.id || "";
+    setSelectedPresentationId(nextPresentationId);
+    if (nextPresentationId) {
+      setPresentationSlides(await apiGet<PresentationSlide[]>(`/reports/presentations/${nextPresentationId}/slides`).catch(() => []));
+    } else {
+      setPresentationSlides([]);
+    }
+    setPresentationReview(null);
     setCustody(custodyData);
+    setDamageItems(damageData);
     setAuditLogs(auditData);
     setManifests(manifestData);
     setLegalMappings(mappingData);
@@ -1038,9 +1509,17 @@ export function App() {
       apiGet<DashboardPayload>("/dashboard/"),
       apiGet<CaseItem[]>("/cases")
     ]);
+    const reportPairs = await Promise.all(
+      casesData.map(async (item) => {
+        const caseReports = await apiGet<ReportItem[]>(`/reports/case/${item.id}`).catch(() => []);
+        return [item.id, caseReports] as const;
+      })
+    );
     setDashboard(dashboardData);
     setCases(casesData);
-    const nextCaseId = selectedCaseId || casesData[0]?.id || "";
+    setHistoryReportsByCase(Object.fromEntries(reportPairs));
+    const currentStillExists = selectedCaseId && casesData.some((item) => item.id === selectedCaseId);
+    const nextCaseId = currentStillExists ? selectedCaseId : casesData[0]?.id || "";
     setSelectedCaseId(nextCaseId);
     await refreshCaseCollections(nextCaseId);
   }
@@ -1049,7 +1528,7 @@ export function App() {
     setLoading(true);
     setError("");
     try {
-      if (["workflow", "dashboard", "cases", "evidence", "reports"].includes(key)) {
+      if (["workflow", "dashboard", "cases", "evidence", "reports", "casePresentation"].includes(key)) {
         await refreshCore();
         return;
       }
@@ -1092,7 +1571,7 @@ export function App() {
       };
       if (paths[key]) setModulePayload(await apiGet(paths[key]));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo conectar con la API.");
+      handleUiError(err, "No se pudo conectar con la API.", { focusIdentity: false });
     } finally {
       setLoading(false);
     }
@@ -1107,6 +1586,20 @@ export function App() {
   }, [authToken]);
 
   useEffect(() => {
+    const user = identitySession.user;
+    if (!user) return;
+    setProfileForm({
+      name: user.name || "",
+      title: user.title || "",
+      agency: user.agency || "",
+      registration_id: user.registration_id || "",
+      phone: user.phone || "",
+      signature: user.signature || "",
+      profile_notes: user.profile_notes || ""
+    });
+  }, [identitySession.user?.id]);
+
+  useEffect(() => {
     refreshCaseCollections(selectedCaseId).catch((err: Error) => setError(err.message));
   }, [selectedCaseId]);
 
@@ -1117,7 +1610,29 @@ export function App() {
     ]);
     setIdentitySession(session);
     setPermissions(permissionData);
-    setModulePayload({ session, permissions: permissionData });
+    if (session.authenticated) {
+      try {
+        setIdentityUsers(await apiGet<IdentityUser[]>("/identity/users"));
+      } catch {
+        setIdentityUsers([]);
+      }
+    } else {
+      setIdentityUsers([]);
+    }
+    setModulePayload({ status: session.authenticated ? "sesion_activa" : "sin_sesion" });
+  }
+
+  function handleUiError(err: unknown, fallback: string, options: { focusIdentity?: boolean } = {}) {
+    const raw = err instanceof Error ? err.message : fallback;
+    if (isAuthenticationErrorMessage(raw)) {
+      setError("Acción protegida. Inicia sesión como administrador o usa Recuperar acceso local desde Usuarios.");
+      setAuthToken("");
+      setAuthTokenState("");
+      setIdentitySession({ authenticated: false });
+      if (options.focusIdentity) setActive("identity");
+      return;
+    }
+    setError(raw || fallback);
   }
 
   function caseTimestamp(item: CaseItem) {
@@ -1146,6 +1661,26 @@ export function App() {
     setModulePayload({ status: "historial_caso_abierto", case_id: caseId });
   }
 
+  async function deleteCaseFromHistory(caseId: number, title: string) {
+    const confirmed = window.confirm(`¿Eliminar definitivamente el caso "${title}" y sus informes asociados? Esta acción no se puede deshacer.`);
+    if (!confirmed) return;
+    setLoading(true);
+    setError("");
+    try {
+      await apiDelete(`/cases/${caseId}`);
+      if (selectedCaseId === caseId) {
+        setSelectedCaseId("");
+        await refreshCaseCollections("");
+      }
+      await refreshCore();
+      setModulePayload({ status: "caso_eliminado", case_id: caseId, message: "Caso eliminado del historial." });
+    } catch (err) {
+      handleUiError(err, "No se pudo eliminar el caso.", { focusIdentity: true });
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function refreshCybercrime() {
     const caseParam = selectedCaseId ? `?case_id=${selectedCaseId}` : "";
     const [dashboardData, toolsData, labData, proofRowsData, deepfakeData, blockchainData, iotData] = await Promise.all([
@@ -1169,19 +1704,128 @@ export function App() {
 
   async function login(event: FormEvent) {
     event.preventDefault();
-    const result = await apiPost<{ access_token: string; user: IdentitySession["user"] }>("/identity/login", loginForm);
-    setAuthToken(result.access_token);
-    setAuthTokenState(result.access_token);
-    setIdentitySession({ authenticated: true, user: result.user });
-    setLoginForm({ email: "", password: "" });
+    setLoading(true);
+    setError("");
+    try {
+      const result = await apiPost<{ access_token: string; user: IdentitySession["user"] }>("/identity/login", loginForm);
+      setAuthToken(result.access_token);
+      setAuthTokenState(result.access_token);
+      setIdentitySession({ authenticated: true, user: result.user });
+      setLoginForm({ email: "", password: "" });
+      setModulePayload({ status: "sesion_iniciada", message: "Sesión iniciada correctamente." });
+      await refreshIdentity();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "No se pudo iniciar sesión.";
+      setError(
+        message.toLowerCase().includes("credencial")
+          ? "Credenciales inválidas. Si no recordás la clave local, usá Recuperar acceso local."
+          : message
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function bootstrapAdmin(event: FormEvent) {
     event.preventDefault();
-    const result = await apiPost<{ access_token: string; user: IdentitySession["user"] }>("/identity/bootstrap-admin", bootstrapForm);
-    setAuthToken(result.access_token);
-    setAuthTokenState(result.access_token);
-    setIdentitySession({ authenticated: true, user: result.user });
+    setLoading(true);
+    setError("");
+    try {
+      const result = await apiPost<{ access_token: string; user: IdentitySession["user"] }>("/identity/bootstrap-admin", bootstrapForm);
+      setAuthToken(result.access_token);
+      setAuthTokenState(result.access_token);
+      setIdentitySession({ authenticated: true, user: result.user });
+      setModulePayload({ status: "admin_creado", message: "Administrador inicial creado y autenticado." });
+      await refreshIdentity();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo crear el administrador inicial.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function recoverLocalAdmin() {
+    setLoading(true);
+    setError("");
+    try {
+      const result = await apiPost<{ access_token: string; user: IdentitySession["user"] }>("/identity/local-admin-recovery", bootstrapForm);
+      setAuthToken(result.access_token);
+      setAuthTokenState(result.access_token);
+      setIdentitySession({ authenticated: true, user: result.user });
+      setLoginForm({ email: result.user?.email || "", password: "" });
+      setModulePayload({ status: "acceso_local_recuperado", message: "Acceso local recuperado. Sesión iniciada correctamente." });
+      await refreshIdentity();
+    } catch (err) {
+      handleUiError(err, "No se pudo recuperar el acceso local.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveProfile(event: FormEvent) {
+    event.preventDefault();
+    setIdentityState("working");
+    setIdentityMessage("Guardando perfil del analista...");
+    try {
+      const updated = await apiPut<IdentityUser>("/identity/me/profile", profileForm);
+      setIdentitySession((current) => ({ ...current, authenticated: true, user: updated }));
+      setIdentityState("success");
+      setIdentityMessage("Perfil del analista actualizado. Estos datos se usarán para firmar acciones e informes.");
+      await refreshIdentity();
+    } catch (err) {
+      setIdentityState("error");
+      setIdentityMessage(err instanceof Error ? err.message : "No se pudo guardar el perfil.");
+    }
+  }
+
+  async function createIdentityUser(event: FormEvent) {
+    event.preventDefault();
+    setIdentityState("working");
+    setIdentityMessage("Creando usuario...");
+    try {
+      await apiPost<IdentityUser>("/identity/users", newUserForm);
+      setNewUserForm({ name: "", email: "", role: "analista", status: "active", title: "", agency: "", password: "OperiaUser2026!" });
+      setIdentityState("success");
+      setIdentityMessage("Usuario creado correctamente.");
+      await refreshIdentity();
+    } catch (err) {
+      setIdentityState("error");
+      setIdentityMessage(err instanceof Error ? err.message : "No se pudo crear el usuario.");
+    }
+  }
+
+  async function updateIdentityUser(userId: number, changes: Partial<IdentityUser>) {
+    setIdentityState("working");
+    setIdentityMessage("Actualizando usuario...");
+    try {
+      await apiPut<IdentityUser>(`/identity/users/${userId}`, changes);
+      setIdentityState("success");
+      setIdentityMessage("Usuario actualizado correctamente.");
+      await refreshIdentity();
+    } catch (err) {
+      setIdentityState("error");
+      setIdentityMessage(err instanceof Error ? err.message : "No se pudo actualizar el usuario.");
+    }
+  }
+
+  async function resetIdentityPassword(userId: number) {
+    const password = passwordDrafts[userId] || "";
+    if (password.length < 10) {
+      setIdentityState("error");
+      setIdentityMessage("La nueva clave debe tener al menos 10 caracteres.");
+      return;
+    }
+    setIdentityState("working");
+    setIdentityMessage("Actualizando clave y revocando sesiones anteriores...");
+    try {
+      await apiPost(`/identity/users/${userId}/reset-password`, { password });
+      setPasswordDrafts((current) => ({ ...current, [userId]: "" }));
+      setIdentityState("success");
+      setIdentityMessage("Clave actualizada. Las sesiones anteriores del usuario fueron revocadas.");
+    } catch (err) {
+      setIdentityState("error");
+      setIdentityMessage(err instanceof Error ? err.message : "No se pudo actualizar la clave.");
+    }
   }
 
   async function logout() {
@@ -1213,8 +1857,12 @@ export function App() {
     setEvidenceForm({ description: "", responsible: "", custodian: "" });
     setEditingEvidence(null);
     setEvidenceFile(null);
-    setCustodyForm({ action_type: "revision", detailed_description: "", user_responsible: "" });
+    setCustodyForm({ action_type: "revisión", detailed_description: "", user_responsible: "" });
     setEditingCustody(null);
+    setDamageForm(emptyDamageForm);
+    setDamageItems([]);
+    setDamageState("idle");
+    setDamageMessage("");
     setIndicator("https://secure-login.example.com/verify");
     setIndicatorResult(null);
     setIndicatorFindingState("idle");
@@ -1344,7 +1992,7 @@ export function App() {
       evidence_id: latestEvidence?.id,
       hash_after: latestEvidence?.sha256_hash || ""
     });
-    setCustodyForm({ action_type: "revision", detailed_description: "", user_responsible: "" });
+    setCustodyForm({ action_type: "revisión", detailed_description: "", user_responsible: "" });
     await refreshCaseCollections(selectedCaseId);
   }
 
@@ -1377,6 +2025,55 @@ export function App() {
     await refreshCaseCollections(selectedCaseId);
   }
 
+  async function createDamageItem(event?: FormEvent) {
+    event?.preventDefault();
+    if (!selectedCaseId) {
+      setDamageState("error");
+      setDamageMessage("Selecciona o crea un caso antes de cuantificar daño.");
+      return;
+    }
+    const amount = Number(String(damageForm.amount).replace(",", "."));
+    if (!damageForm.concept.trim() || !Number.isFinite(amount) || amount <= 0) {
+      setDamageState("error");
+      setDamageMessage("Completa un concepto y un monto mayor a cero.");
+      return;
+    }
+    setDamageState("saving");
+    setDamageMessage("Registrando concepto económico...");
+    try {
+      await apiPost<DamageItem>(`/cases/${selectedCaseId}/damage-items`, {
+        case_id: Number(selectedCaseId),
+        concept: damageForm.concept.trim(),
+        amount,
+        currency: damageForm.currency || "ARS",
+        base_date: damageForm.base_date,
+        value_source: damageForm.value_source,
+        formula_used: damageForm.formula_used,
+        supporting_evidence: damageForm.supporting_evidence,
+        certainty_level: damageForm.certainty_level,
+        observations: damageForm.observations
+      });
+      setDamageForm(emptyDamageForm);
+      setDamageState("saved");
+      setDamageMessage("Daño económico incorporado al caso. Regenera el informe para reflejar el nuevo total.");
+      await refreshCaseCollections(selectedCaseId);
+    } catch (err) {
+      setDamageState("error");
+      setDamageMessage(err instanceof Error ? err.message : "No se pudo registrar el daño económico.");
+    }
+  }
+
+  function applyDamagePreset(preset: (typeof damagePresets)[number]) {
+    setDamageForm((current) => ({
+      ...current,
+      concept: preset.concept,
+      formula_used: preset.formula_used,
+      value_source: current.value_source || preset.value_source
+    }));
+    setDamageState("idle");
+    setDamageMessage("");
+  }
+
   async function analyzeIndicator() {
     setIndicatorFindingState("idle");
     setIndicatorFindingMessage("");
@@ -1397,7 +2094,7 @@ export function App() {
         technical_finding: indicatorResult.findings.join("\n"),
         explanation: `El indicador ${indicatorResult.indicator} fue clasificado con riesgo ${prettySpanish(indicatorResult.risk_level)} y confianza ${prettySpanish(indicatorResult.confidence)}.`,
         confidence_level: indicatorResult.confidence,
-        weaknesses_or_limitations: "El analisis de indicador no prueba autoria por si solo; requiere correlacion con evidencia preservada, fuentes externas verificables y revision humana.",
+        weaknesses_or_limitations: "El análisis de indicador no prueba autoría por si solo; requiere correlaci?n con evidencia preservada, fuentes externas verificables y revisión humana.",
         tools_used: "OPERIA Cybercrime Indicator Analyzer",
         supporting_evidence: latestEvidence ? `Evidencia #${latestEvidence.id}: ${latestEvidence.description}` : "Pendiente de vincular con evidencia preservada.",
         preliminary_legal_relevance: indicatorResult.legal_relevance,
@@ -1443,14 +2140,14 @@ export function App() {
       operator: cyberLabForm.operator || analystName || identitySession.user?.name || "Analista local",
       title: cyberLabForm.title || `Análisis cybercrime - ${indicator}`
     });
-    setCyberLabForm({ title: "", purpose: "analisis de indicador", risk_level: "medio", operator: "" });
+    setCyberLabForm({ title: "", purpose: "análisis de indicador", risk_level: "medio", operator: "" });
     await refreshCybercrime();
   }
 
   async function createCyberProofRow(event: FormEvent) {
     event.preventDefault();
     if (!selectedCaseId) {
-      setError("Selecciona un caso antes de guardar una conclusión cybercrime.");
+      setError("Selecciona un caso antes de guardar una conclusi?n cybercrime.");
       return;
     }
     await apiPost<CyberProofRow>("/cybercrime/proof-matrix", {
@@ -1459,7 +2156,7 @@ export function App() {
       defensible_conclusion:
         cyberProofForm.defensible_conclusion ||
         `El indicador ${indicator} fue clasificado como ${indicatorResult?.indicator_type || "dato técnico"} con riesgo ${indicatorResult?.risk_level || "medio"}.`,
-      legal_framing: cyberProofForm.legal_framing || "Requiere vinculación con evidencia preservada y encuadre legal aprobado por analista."
+      legal_framing: cyberProofForm.legal_framing || "Requiere vinculaci?n con evidencia preservada y encuadre legal aprobado por analista."
     });
     setCyberProofForm({ defensible_conclusion: "", legal_framing: "", confidence_level: "medio", weakness: "" });
     await refreshCybercrime();
@@ -1521,7 +2218,7 @@ export function App() {
         analyst_name: analystName || identitySession.user?.name || "Analista local",
         fraud: text.includes("fraude") || text.includes("estafa") || text.includes("transferencia"),
         document_falsity: analysis.media_type === "documento" || text.includes("documento") || text.includes("certificado"),
-        honor_affectation: text.includes("honor") || text.includes("reputación") || text.includes("reputacion"),
+        honor_affectation: text.includes("honor") || text.includes("reputaci?n") || text.includes("reputacion"),
         personal_data: true,
         intellectual_property: true
       });
@@ -1543,26 +2240,89 @@ export function App() {
       return;
     }
     setBlockchainState("saving");
-    setBlockchainMessage("Registrando transacción blockchain...");
+    setBlockchainMessage(editingBlockchainId ? "Actualizando salto blockchain..." : "Registrando transacción blockchain...");
     try {
       const selectedEvidence = evidence.find((item) => item.id === Number(blockchainForm.evidence_id));
-      await apiPost<BlockchainTransactionItem>("/cybercrime/blockchain", {
+      const payload = {
         ...blockchainForm,
         case_id: Number(selectedCaseId),
         evidence_id: blockchainForm.evidence_id ? Number(blockchainForm.evidence_id) : undefined,
         amount: Number(blockchainForm.amount || 0),
         approximate_value: Number(blockchainForm.approximate_value || 0),
+        route_order: Number(blockchainForm.route_order || blockchainTransactions.length + 1),
+        include_in_report: Boolean(blockchainForm.include_in_report),
+        preservation_checklist: blockchainDraftReadiness(blockchainForm).checks
+          .map((check) => `${check.ok ? "OK" : "PENDIENTE"}: ${check.label}`)
+          .join("\n"),
         evidence_hash: selectedEvidence?.sha256_hash || "",
         analyst_name: analystName || identitySession.user?.name || "Analista local"
-      });
+      };
+      if (editingBlockchainId) {
+        await apiPatch<BlockchainTransactionItem>(`/cybercrime/blockchain/${editingBlockchainId}`, payload);
+      } else {
+        await apiPost<BlockchainTransactionItem>("/cybercrime/blockchain", payload);
+      }
       setBlockchainForm(emptyBlockchainForm);
+      setEditingBlockchainId(null);
       setBlockchainState("saved");
-      setBlockchainMessage("Transacción registrada con límites de atribución.");
+      setBlockchainMessage(editingBlockchainId ? "Salto blockchain actualizado y asentado en custodia." : "Transacción registrada con límites de atribución.");
       await refreshCaseCollections(selectedCaseId);
       await refreshCybercrime();
     } catch (error) {
       setBlockchainState("error");
       setBlockchainMessage(error instanceof Error ? error.message : "No se pudo registrar la transacción.");
+    }
+  }
+
+  function editBlockchainTransaction(transaction: BlockchainTransactionItem) {
+    setEditingBlockchainId(transaction.id);
+    setBlockchainForm({
+      evidence_id: transaction.evidence_id ? String(transaction.evidence_id) : "",
+      source_wallet: transaction.source_wallet || "",
+      destination_wallet: transaction.destination_wallet || "",
+      tx_hash: transaction.tx_hash || "",
+      blockchain: transaction.blockchain || "Bitcoin",
+      token: transaction.token || "BTC",
+      amount: String(transaction.amount || ""),
+      approximate_value: String(transaction.approximate_value || ""),
+      tx_datetime: transaction.tx_datetime || "",
+      explorer_url: transaction.explorer_url || "",
+      route_hypothesis: transaction.route_hypothesis || "",
+      wallet_classification: transaction.wallet_classification || "desconocido",
+      tool_used: transaction.tool_used || "OPERIA Blockchain Investigation Lab",
+      route_order: String(transaction.route_order || ""),
+      include_in_report: transaction.include_in_report !== false,
+      preservation_checklist: transaction.preservation_checklist || "",
+      limitations: transaction.limitations || "Una wallet no identifica por s? sola a una persona sin evidencia externa corroborante."
+    });
+    setBlockchainState("idle");
+    setBlockchainMessage(`Editando salto blockchain #${transaction.id}. Guardar actualizar? el registro y asentar? custodia.`);
+  }
+
+  function cancelBlockchainEdit() {
+    setEditingBlockchainId(null);
+    setBlockchainForm(emptyBlockchainForm);
+    setBlockchainState("idle");
+    setBlockchainMessage("");
+  }
+
+  async function toggleBlockchainReportInclusion(transaction: BlockchainTransactionItem) {
+    if (!selectedCaseId) return;
+    setBlockchainState("saving");
+    setBlockchainMessage(transaction.include_in_report ? "Excluyendo salto del informe..." : "Incorporando salto al informe...");
+    try {
+      await apiPatch<BlockchainTransactionItem>(`/cybercrime/blockchain/${transaction.id}`, {
+        ...transaction,
+        include_in_report: !transaction.include_in_report,
+        evidence_id: transaction.evidence_id || undefined
+      });
+      setBlockchainState("saved");
+      setBlockchainMessage(!transaction.include_in_report ? "Salto incorporado al informe final." : "Salto excluido del informe final. Permanece en el laboratorio.");
+      await refreshCaseCollections(selectedCaseId);
+      await refreshCybercrime();
+    } catch (error) {
+      setBlockchainState("error");
+      setBlockchainMessage(error instanceof Error ? error.message : "No se pudo actualizar la inclusión en informe.");
     }
   }
 
@@ -1612,27 +2372,56 @@ export function App() {
       return;
     }
     setIotState("saving");
-    setIotMessage("Registrando dispositivo IoT...");
+    setIotMessage(editingIotId ? "Actualizando ficha IoT..." : "Registrando dispositivo IoT...");
     try {
       const selectedEvidence = evidence.find((item) => item.id === Number(iotForm.evidence_id));
-      await apiPost<IoTDeviceItem>("/cybercrime/iot", {
+      const payload = {
         ...iotForm,
         case_id: Number(selectedCaseId),
         evidence_id: iotForm.evidence_id ? Number(iotForm.evidence_id) : undefined,
         evidence_hash: selectedEvidence?.sha256_hash || "",
         checklist: iotChecklistState,
         analyst_name: analystName || identitySession.user?.name || "Analista local"
-      });
+      };
+      if (editingIotId) {
+        await apiPatch<IoTDeviceItem>(`/cybercrime/iot/${editingIotId}`, payload);
+      } else {
+        await apiPost<IoTDeviceItem>("/cybercrime/iot", payload);
+      }
       setIotForm(emptyIoTForm);
+      setEditingIotId(null);
       setIotChecklistState(emptyIoTChecklist);
       setIotState("saved");
-      setIotMessage("Dispositivo IoT registrado con metodología y límites.");
+      setIotMessage(editingIotId ? "Ficha IoT actualizada y asentada en custodia." : "Dispositivo IoT registrado con metodología y límites.");
       await refreshCaseCollections(selectedCaseId);
       await refreshCybercrime();
     } catch (error) {
       setIotState("error");
       setIotMessage(error instanceof Error ? error.message : "No se pudo registrar el dispositivo.");
     }
+  }
+
+  function editIoTDevice(device: IoTDeviceItem) {
+    setEditingIotId(device.id);
+    setIotForm({
+      evidence_id: device.evidence_id ? String(device.evidence_id) : "",
+      device_type: device.device_type || "cámara IP",
+      manufacturer: device.manufacturer || "",
+      model: device.model || "",
+      firmware: device.firmware || "",
+      internal_ip: device.internal_ip || "",
+      external_ip: device.external_ip || "",
+      mac: device.mac || "",
+      open_ports: device.open_ports || "",
+      known_vulnerabilities: device.known_vulnerabilities || "",
+      logs_available: device.logs_available || "",
+      tool_used: device.tool_used || "OPERIA IoT Forensics",
+      limitations: device.limitations || "No se ejecutaron escaneos reales. Requiere autorización, preservación de estado y correlación externa."
+    });
+    setIotChecklistState(Object.fromEntries(device.checklist.map((item) => [item.key, Boolean(item.ok)])) as Record<string, boolean>);
+    setIotState("idle");
+    setIotMessage(`Editando ficha IoT #${device.id}. Guardar asentará la actualización en custodia.`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function createIoTFinding(deviceId: number) {
@@ -1726,7 +2515,7 @@ export function App() {
       analyst_rationale:
         decision_status === "aprobado"
           ? "Norma reactivada por el analista luego de revisión."
-          : "Norma retirada del encuadre por corrección del analista.",
+          : "Norma retirada del encuadre por correcci?n del analista.",
       legal_role: mapping.legal_role,
       applicability_to_case: mapping.applicability_to_case,
       probatory_limits: mapping.probatory_limits,
@@ -1761,7 +2550,7 @@ export function App() {
       element_status: mapping.confidence_level === "alto" ? "probado" : "debil",
       missing_evidence: "",
       contradiction_risk: "bajo",
-      recommended_measure: "Corroborar con fuentes externas si se pretende atribucion personal."
+      recommended_measure: "Corroborar con fuentes externas si se pretende atribución personal."
     });
     await refreshCaseCollections(selectedCaseId);
   }
@@ -1797,7 +2586,7 @@ export function App() {
       const result = {
         status: enriched.status,
         report_id: enriched.id,
-        message: "Informe ampliado con analisis tecnico-juridico. Revisa y vuelve a exportar PDF.",
+        message: "Informe ampliado con análisis tecnico-juridico. Revisa y vuelve a exportar PDF.",
         observations: enriched.observations
       };
       setAiEnrichmentResult(result);
@@ -1860,6 +2649,91 @@ export function App() {
     setExecutiveSummaryDraft(preview.executive_summary);
   }
 
+  async function promoteBlockchainTransaction(transaction: BlockchainTransactionItem) {
+    setBlockchainState("saving");
+    setBlockchainMessage("Convirtiendo la transacción en hallazgo y aplicando normas...");
+    try {
+      await apiPost<{ id: number; message: string }>(`/cybercrime/blockchain/${transaction.id}/finding`);
+      const text = `${transaction.route_hypothesis} ${transaction.wallet_classification} ${transaction.blockchain}`.toLowerCase();
+      const result = await apiPost<{ applied: Array<{ norm_reference: string }> }>(`/cybercrime/blockchain/${transaction.id}/apply-legal`, {
+        fraud: ["fraude", "estafa", "phishing"].some((term) => text.includes(term)),
+        computer_manipulation: ["contrato inteligente", "smart contract", "sistema", "manipulacion"].some((term) => text.includes(term)),
+        extortion: ["extorsion", "ransomware", "rescate"].some((term) => text.includes(term)),
+        personal_data: ["exchange", "kyc", "cuenta", "datos"].some((term) => text.includes(term)),
+        analyst_name: analystName || identitySession.user?.name || "Analista Local"
+      });
+      setBlockchainState("saved");
+      setBlockchainMessage(`Listo: hallazgo creado y normas aplicadas (${result.applied.map((item) => item.norm_reference).join(", ") || "sin nuevas normas"}). Ya puede aparecer en el informe del caso.`);
+      if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+    } catch (error) {
+      setBlockchainState("error");
+      setBlockchainMessage(error instanceof Error ? error.message : "No se pudo completar la promoción a hallazgo.");
+    }
+  }
+
+  async function loadPresentationSlides(presentationId: number | "") {
+    setSelectedPresentationId(presentationId);
+    setPresentationReview(null);
+    if (!presentationId) {
+      setPresentationSlides([]);
+      return;
+    }
+    const slides = await apiGet<PresentationSlide[]>(`/reports/presentations/${presentationId}/slides`);
+    setPresentationSlides(slides);
+  }
+
+  async function generateCasePresentation() {
+    if (!latestReport || !selectedCaseId) {
+      setPresentationState("error");
+      setPresentationMessage("Genera primero un informe del caso para construir la exposición.");
+      return;
+    }
+    setPresentationState("working");
+    setPresentationMessage("Preparando guion, diapositivas y notas de exposición...");
+    try {
+      const presentation = await apiPost<PresentationItem>(
+        `/reports/${latestReport.id}/presentations/generate?presentation_type=${encodeURIComponent("Exposición ejecutiva del caso")}`
+      );
+      const updated = await apiGet<PresentationItem[]>(`/reports/presentations/case/${selectedCaseId}`);
+      setPresentations(updated);
+      await loadPresentationSlides(presentation.id);
+      setPresentationState("success");
+      setPresentationMessage("Exposición generada. Revisa las diapositivas y las notas antes de presentarla.");
+    } catch (err) {
+      setPresentationState("error");
+      setPresentationMessage(err instanceof Error ? err.message : "No se pudo generar la exposición.");
+    }
+  }
+
+  async function reviewCasePresentation() {
+    if (!selectedPresentationId) return;
+    setPresentationState("working");
+    setPresentationMessage("Revisando claridad, fuerza probatoria, narrativa y solidez legal...");
+    try {
+      const review = await apiPost<PresentationReview>(`/reports/presentations/${selectedPresentationId}/review`);
+      setPresentationReview(review);
+      setPresentationState("success");
+      setPresentationMessage("Revisión de exposición completada.");
+      if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+    } catch (err) {
+      setPresentationState("error");
+      setPresentationMessage(err instanceof Error ? err.message : "No se pudo revisar la exposición.");
+    }
+  }
+
+  async function updatePresentationSlide(slide: PresentationSlide, changes: Partial<PresentationSlide>) {
+    const updated = await apiPut<PresentationSlide>(`/reports/presentation-slides/${slide.id}`, {
+      slide_number: slide.slide_number,
+      title: slide.title,
+      text: slide.text,
+      speaker_notes: slide.speaker_notes,
+      confidentiality_level: slide.confidentiality_level,
+      content_type: slide.content_type,
+      ...changes
+    });
+    setPresentationSlides((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+  }
+
   async function updateRubricEvaluation() {
     if (!selectedCaseId) {
       setRubricState("error");
@@ -1886,7 +2760,7 @@ export function App() {
     try {
       await updateRubricEvaluation();
       setCtfDashboardState("success");
-      setCtfDashboardMessage("Rúbrica evaluada. Revisa el semáforo de preparación.");
+      setCtfDashboardMessage("Rúbrica evaluada. Revisa el semáforo de preparaci?n.");
     } catch (error) {
       setCtfDashboardState("error");
       setCtfDashboardMessage(error instanceof Error ? error.message : "No se pudo evaluar la rúbrica.");
@@ -1917,35 +2791,41 @@ export function App() {
 
   async function requestFinalExport() {
     if (!latestReport) return;
-    const readiness = await apiGet<{ can_export_final: boolean; exportability: { level: string; score: number }; contradictions: { count: number } }>(
-      `/reports/${latestReport.id}/exportability`
-    );
-    setExportFinalResult(readiness);
-    if (!readiness.can_export_final) return;
-    const response = await fetch(`${API_BASE}/exports/reports/${latestReport.id}/pdf/seal-final`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        analyst_name: analystName || latestReport.author,
-        declaration: "Cierre pericial final con checklist verificado, anexos incorporados y exportacion sellada."
-      })
-    });
-    if (!response.ok) {
-      const detail = await response.text();
-      setExportFinalResult({ status: "blocked", detail });
-      return;
+    setError("");
+    try {
+      const readiness = await apiGet<ExportOutcome>(
+        `/reports/${latestReport.id}/exportability`
+      );
+      setExportFinalResult(readiness);
+      if (!readiness.can_export_final) return;
+      const response = await fetch(`${API_BASE}/exports/reports/${latestReport.id}/pdf/seal-final`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          analyst_name: analystName || latestReport.author,
+          declaration: "Cierre pericial final con checklist verificado, anexos incorporados y exportación sellada."
+        })
+      });
+      if (!response.ok) {
+        setExportFinalResult(await readExportOutcome(response));
+        return;
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      setExportFinalResult({
+        status: "sealed",
+        seal_id: response.headers.get("x-operia-seal-id"),
+        sha256: response.headers.get("x-operia-sha256"),
+        manifest_id: response.headers.get("x-operia-export-manifest-id")
+      });
+      window.open(url, "_blank");
+      if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+      await loadReportPreview(latestReport.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "No se pudo evaluar la exportación final.";
+      setExportFinalResult({ status: "blocked", message });
+      handleUiError(error, message, { focusIdentity: true });
     }
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    setExportFinalResult({
-      status: "sealed",
-      seal_id: response.headers.get("x-operia-seal-id"),
-      sha256: response.headers.get("x-operia-sha256"),
-      manifest_id: response.headers.get("x-operia-export-manifest-id")
-    });
-    window.open(url, "_blank");
-    if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
-    await loadReportPreview(latestReport.id);
   }
 
   async function runCaseRecommendations() {
@@ -2026,13 +2906,13 @@ export function App() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "No se pudo cerrar el caso.";
       setClosureStatus((current) => current ? { ...current, message } : current);
-      setError(message);
+      handleUiError(error, message, { focusIdentity: true });
     }
   }
 
   async function runAiSecurity() {
     setAiSecurityResult(
-      await apiPost("/ai-security/evaluations", {
+      await apiPost<AiSecurityEvaluation>("/ai-security/evaluations", {
         model_name: "mistral",
         run_tests: false,
         overall_score: 72,
@@ -2043,7 +2923,7 @@ export function App() {
   }
 
   function renderIndicatorOutcome() {
-    if (!indicatorResult) return <EmptyState text="Ejecuta el analisis para obtener una lectura pericial del indicador." />;
+    if (!indicatorResult) return <EmptyState text="Ejecuta el análisis para obtener una lectura pericial del indicador." />;
     return (
       <div className="forensic-outcome">
         <div className={`outcome-banner ${indicatorResult.risk_level}`}>
@@ -2079,7 +2959,7 @@ export function App() {
           </div>
         </div>
         <div className="notice">
-          {prettySpanish(indicatorResult.legal_relevance)} Este resultado orienta la investigacion, pero debe vincularse con evidencia, custodia y fuentes verificables antes de sostener atribucion.
+          {prettySpanish(indicatorResult.legal_relevance)} Este resultado orienta la investigacion, pero debe vincularse con evidencia, custodia y fuentes verificables antes de sostener atribución.
         </div>
         {indicatorFindingMessage && (
           <div className={`action-feedback ${indicatorFindingState}`}>
@@ -2123,7 +3003,7 @@ export function App() {
         {aiEnrichmentResult.observations && <div className="notice">{prettySpanish(aiEnrichmentResult.observations)}</div>}
         <div className="summary-list">
           <span>Se recalcularon secciones del informe y vista previa.</span>
-          <span>Requiere revision humana antes de exportacion final.</span>
+          <span>Requiere revisión humana antes de exportacion final.</span>
           <span>La fundamentacion legal debe permanecer vinculada a biblioteca registrada.</span>
         </div>
         <div className="button-row">
@@ -2140,7 +3020,7 @@ export function App() {
 
   function renderCaseAnalysisOutcome() {
     const result = aiResult as CaseAnalysisResult | null;
-    if (!result) return <EmptyState text="Ejecuta el analisis para obtener una lectura operativa del caso." />;
+    if (!result) return <EmptyState text="Ejecuta el análisis para obtener una lectura operativa del caso." />;
     const articles = result.recommended_articles || [];
     const profile = result.legal_profile;
     return (
@@ -2173,14 +3053,14 @@ export function App() {
                   {item.reference} - {prettySpanish(item.title)} ({prettySpanish(item.legal_role)})
                 </span>
               ))}
-              {!articles.length && <span>Sin normas sugeridas para este analisis.</span>}
+              {!articles.length && <span>Sin normas sugeridas para este análisis.</span>}
             </div>
           </div>
           <div>
             <h4>Que hacer ahora</h4>
             <div className="summary-list">
               {(result.operational_next_steps || []).map((item) => <span key={item}>{prettySpanish(item)}</span>)}
-              {!result.operational_next_steps?.length && <span>Completar revision humana y matriz legal-probatoria.</span>}
+              {!result.operational_next_steps?.length && <span>Completar revisión humana y matriz legal-probatoria.</span>}
             </div>
           </div>
         </div>
@@ -2192,7 +3072,7 @@ export function App() {
         ) : null}
         {result.status && !result.response && (
           <div className="notice">
-            No se generó texto adicional. Usá la tipificación legal y la matriz probatoria para sostener el informe.
+            No se gener? texto adicional. Us? la tipificaci?n legal y la matriz probatoria para sostener el informe.
           </div>
         )}
         {legalApplyMessage && (
@@ -2213,7 +3093,7 @@ export function App() {
   }
 
   function renderReviewOutcome() {
-    if (!reviewAudit) return <EmptyState text="Ejecuta la revision para obtener auditoria profesional del informe." />;
+    if (!reviewAudit) return <EmptyState text="Ejecuta la revisión para obtener auditoria profesional del informe." />;
     const hasCritical = reviewAudit.critical_errors.length > 0;
     const reviewClass = hasCritical ? "high" : reviewAudit.score >= 85 ? "low" : "medium";
     return (
@@ -2254,14 +3134,14 @@ export function App() {
         </div>
         {!!reviewAudit.critical_errors.length && (
           <div className="requirements danger">
-            <strong>Errores criticos</strong>
+            <strong>Errores críticos</strong>
             {reviewAudit.critical_errors.map((item) => <span key={item}>{prettySpanish(item)}</span>)}
           </div>
         )}
         <div className="button-row">
           <button className="secondary-button" onClick={() => setActive("reports")}><FileText size={16} /> Corregir informe</button>
           <button className="secondary-button" onClick={() => setActive("legalKnowledge")}><Gavel size={16} /> Revisar matriz legal</button>
-          <button className="secondary-button" onClick={requestFinalExport} disabled={!latestReport}><Download size={16} /> Evaluar exportacion</button>
+          <button className="secondary-button" onClick={requestFinalExport} disabled={!latestReport}><Download size={16} /> Evaluar exportación</button>
         </div>
       </div>
     );
@@ -2269,21 +3149,14 @@ export function App() {
 
   function renderExportFinalOutcome() {
     if (!exportFinalResult) return null;
-    const result = exportFinalResult as {
-      status?: string;
-      detail?: string;
-      seal_id?: string | null;
-      sha256?: string | null;
-      manifest_id?: string | null;
-      can_export_final?: boolean;
-      exportability?: { level?: string; score?: number };
-      contradictions?: { count?: number };
-    };
+    const result = exportFinalResult as ExportOutcome;
     const blocked = result.status === "blocked" || result.can_export_final === false;
+    const missing = result.missing || result.final_checklist?.missing || [];
+    const pendingChecklist = (result.final_checklist?.items || []).filter((item) => !item.ok);
     return (
       <div className={`export-outcome ${blocked ? "blocked" : "ready"}`}>
         <div>
-          <span>{blocked ? "Exportacion final bloqueada" : result.status === "sealed" ? "Exportacion final sellada" : "Evaluacion de exportacion"}</span>
+          <span>{blocked ? "Exportación final bloqueada" : result.status === "sealed" ? "Exportación final sellada" : "Evaluación de exportación"}</span>
           <strong>
             {result.status === "sealed"
               ? `Sello ${result.seal_id || "generado"}`
@@ -2291,10 +3164,97 @@ export function App() {
           </strong>
           {result.exportability?.score !== undefined && <small>Score de exportabilidad: {result.exportability.score}/100</small>}
           {result.contradictions?.count !== undefined && <small>Contradicciones detectadas: {result.contradictions.count}</small>}
-          {result.detail && <small>{prettySpanish(result.detail)}</small>}
+          {result.final_checklist?.score !== undefined && <small>Checklist pericial: {result.final_checklist.score}/100</small>}
+          {result.message && <p>{prettySpanish(result.message)}</p>}
+          {blocked && Boolean(missing.length || pendingChecklist.length) && (
+            <div className="requirements compact">
+              <strong>Falta para exportar final sellado:</strong>
+              {missing.map((item) => <span key={item}>{prettySpanish(item)}</span>)}
+              {pendingChecklist.map((item) => (
+                <span key={item.key || item.label}>{prettySpanish(item.label || "Control pendiente")}: {prettySpanish(item.message || "Pendiente")}</span>
+              ))}
+            </div>
+          )}
         </div>
         {result.sha256 && <code>SHA-256 PDF: {result.sha256}</code>}
         {result.manifest_id && <small>Manifiesto #{result.manifest_id}</small>}
+      </div>
+    );
+  }
+
+  function renderDamagePanel() {
+    const unsupportedTotal = Math.max(0, damageTotal - damageSupportedTotal);
+    return (
+      <div className="damage-panel">
+        <div className="damage-metrics">
+          <div>
+            <span>Daño total estimado</span>
+            <strong>{formatMoney(damageTotal, damageItems[0]?.currency || damageForm.currency || "ARS")}</strong>
+            <small>Solo suma conceptos cargados en este caso.</small>
+          </div>
+          <div>
+            <span>Conceptos cargados</span>
+            <strong>{damageItems.length}</strong>
+            <small>Pérdida, recuperación, indisponibilidad u otros rubros.</small>
+          </div>
+          <div>
+            <span>Con soporte documental</span>
+            <strong>{formatMoney(damageSupportedTotal, damageItems[0]?.currency || "ARS")}</strong>
+            <small>{unsupportedTotal > 0 ? `${formatMoney(unsupportedTotal, damageItems[0]?.currency || "ARS")} requieren soporte.` : "Sin rubros pendientes de soporte."}</small>
+          </div>
+        </div>
+
+        <div className="damage-presets">
+          {damagePresets.map((preset) => (
+            <button type="button" className="secondary-button" key={preset.label} onClick={() => applyDamagePreset(preset)}>
+              <Calculator size={15} /> {preset.label}
+            </button>
+          ))}
+        </div>
+
+        <form className="compact-form damage-form" onSubmit={createDamageItem}>
+          <div className="inline-grid">
+            <input placeholder="Concepto del daño" value={damageForm.concept} onChange={(e) => setDamageForm({ ...damageForm, concept: e.target.value })} />
+            <div className="inline-grid tight">
+              <input type="number" min="0" step="0.01" placeholder="Monto" value={damageForm.amount} onChange={(e) => setDamageForm({ ...damageForm, amount: e.target.value })} />
+              <select value={damageForm.currency} onChange={(e) => setDamageForm({ ...damageForm, currency: e.target.value })}>
+                <option value="ARS">ARS</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+              </select>
+            </div>
+          </div>
+          <div className="inline-grid">
+            <input placeholder="Fecha base o per?odo" value={damageForm.base_date} onChange={(e) => setDamageForm({ ...damageForm, base_date: e.target.value })} />
+            <select value={damageForm.certainty_level} onChange={(e) => setDamageForm({ ...damageForm, certainty_level: e.target.value })}>
+              <option value="alto">Certeza alta</option>
+              <option value="medio">Certeza media</option>
+              <option value="bajo">Certeza baja</option>
+            </select>
+          </div>
+          <textarea placeholder="Fuente del valor: comprobante, factura, extracto, presupuesto, ticket o declaración documentada" value={damageForm.value_source} onChange={(e) => setDamageForm({ ...damageForm, value_source: e.target.value })} />
+          <textarea placeholder="F?rmula o criterio de c?lculo utilizado" value={damageForm.formula_used} onChange={(e) => setDamageForm({ ...damageForm, formula_used: e.target.value })} />
+          <textarea placeholder="Evidencia que sostiene el rubro: hash, archivo, captura, transacción, factura o constancia" value={damageForm.supporting_evidence} onChange={(e) => setDamageForm({ ...damageForm, supporting_evidence: e.target.value })} />
+          <textarea placeholder="Observaciones, límites o datos faltantes" value={damageForm.observations} onChange={(e) => setDamageForm({ ...damageForm, observations: e.target.value })} />
+          <button disabled={!selectedCaseId || damageState === "saving"}><Calculator size={17} /> Registrar daño económico</button>
+        </form>
+
+        {damageMessage && <div className={`action-feedback ${damageState}`}>{damageMessage}</div>}
+
+        <div className="damage-list">
+          {damageItems.map((item) => (
+            <article key={item.id}>
+              <div>
+                <strong>{prettySpanish(item.concept)}</strong>
+                <span>{formatMoney(Number(item.amount || 0), item.currency)} ? Certeza {prettySpanish(item.certainty_level)}</span>
+                {item.formula_used && <small>F?rmula: {prettySpanish(item.formula_used)}</small>}
+                {item.value_source && <small>Fuente: {prettySpanish(item.value_source)}</small>}
+                {item.supporting_evidence && <small>Soporte: {prettySpanish(item.supporting_evidence)}</small>}
+              </div>
+            </article>
+          ))}
+          {!damageItems.length && <EmptyState text="Todavía no hay rubros económicos cargados. El informe mostrar? 0.00 ARS hasta que registres al menos un concepto." />}
+        </div>
       </div>
     );
   }
@@ -2334,8 +3294,8 @@ export function App() {
         <div className="step-grid">
           <StepCard number={1} title="Crear un caso" done={Boolean(selectedCase)}>
             <form className="compact-form" onSubmit={createCase}>
-              <input placeholder="Codigo del caso" value={caseForm.case_code} onChange={(e) => setCaseForm({ ...caseForm, case_code: e.target.value })} required />
-              <input placeholder="Titulo" value={caseForm.title} onChange={(e) => setCaseForm({ ...caseForm, title: e.target.value })} required />
+              <input placeholder="C?digo del caso" value={caseForm.case_code} onChange={(e) => setCaseForm({ ...caseForm, case_code: e.target.value })} required />
+              <input placeholder="T?tulo" value={caseForm.title} onChange={(e) => setCaseForm({ ...caseForm, title: e.target.value })} required />
               <select
                 value={caseForm.incident_type}
                 onChange={(e) => {
@@ -2346,7 +3306,7 @@ export function App() {
               >
                 {attackTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
               </select>
-              <textarea placeholder="Descripcion inicial" value={caseForm.description} onChange={(e) => setCaseForm({ ...caseForm, description: e.target.value })} />
+              <textarea placeholder="Descripci?n inicial" value={caseForm.description} onChange={(e) => setCaseForm({ ...caseForm, description: e.target.value })} />
               <button><Briefcase size={17} /> Crear caso</button>
             </form>
           </StepCard>
@@ -2356,7 +3316,7 @@ export function App() {
               <div className="inline-grid">
                 <select value={participantForm.participant_type} onChange={(e) => setParticipantForm({ ...participantForm, participant_type: e.target.value })}>
                   <option value="damnificado">Damnificado</option>
-                  <option value="victima">Victima</option>
+                  <option value="victima">V?ctima</option>
                   <option value="testigo">Testigo</option>
                   <option value="denunciante">Denunciante</option>
                   <option value="sospechoso">Sospechoso</option>
@@ -2367,8 +3327,8 @@ export function App() {
                   <option value="otro">Otro</option>
                 </select>
                 <select value={participantForm.person_type} onChange={(e) => setParticipantForm({ ...participantForm, person_type: e.target.value })}>
-                  <option value="persona_fisica">Persona fisica</option>
-                  <option value="persona_juridica">Persona juridica</option>
+                  <option value="persona_fisica">Persona física</option>
+                  <option value="persona_juridica">Persona jurídica</option>
                   <option value="organismo">Organismo</option>
                   <option value="cuenta_digital">Cuenta digital</option>
                   <option value="alias_identidad">Alias/identidad digital</option>
@@ -2396,10 +3356,10 @@ export function App() {
 
           <StepCard number={3} title="Cargar evidencia y calcular hash" done={Boolean(latestEvidence?.sha256_hash)}>
             <form className="compact-form" onSubmit={uploadEvidence}>
-              <textarea placeholder="Descripcion de evidencia" value={evidenceForm.description} onChange={(e) => setEvidenceForm({ ...evidenceForm, description: e.target.value })} required />
+              <textarea placeholder="Descripci?n de evidencia" value={evidenceForm.description} onChange={(e) => setEvidenceForm({ ...evidenceForm, description: e.target.value })} required />
               <input placeholder="Responsable" value={evidenceForm.responsible} onChange={(e) => setEvidenceForm({ ...evidenceForm, responsible: e.target.value })} />
               <input placeholder="Custodio" value={evidenceForm.custodian} onChange={(e) => setEvidenceForm({ ...evidenceForm, custodian: e.target.value })} />
-              <input type="file" onChange={(e) => setEvidenceFile(e.target.files?.[0] ?? null)} />
+              <input type="file" onChange={(e) => setEvidenceFile(e.target.files?.[0] || null)} />
               <button disabled={!selectedCaseId || !evidenceFile}><Upload size={17} /> Subir y hashear</button>
             </form>
             {latestEvidence && <code>SHA-256: {latestEvidence.sha256_hash}</code>}
@@ -2438,12 +3398,12 @@ export function App() {
             {legalTypification?.principal_typification ? (
               <div className="typification-card compact">
                 <span>{legalTypification.profile?.label || "Tipificacion asistida"}</span>
-                <h3>{legalTypification.principal_typification.reference} · {prettySpanish(legalTypification.principal_typification.title)}</h3>
+                <h3>{legalTypification.principal_typification.reference} ? {prettySpanish(legalTypification.principal_typification.title)}</h3>
                 <p>{prettySpanish(legalTypification.principal_typification.applicability_to_case)}</p>
                 <small>Elementos: {prettySpanish(legalTypification.principal_typification.why)}</small>
-                <small>Limites: {prettySpanish(legalTypification.principal_typification.probatory_limits)}</small>
+                <small>L?mites: {prettySpanish(legalTypification.principal_typification.probatory_limits)}</small>
                 <div className="readiness-bar"><div style={{ width: `${legalTypification.readiness_score}%` }} /></div>
-                <small>Confianza {prettySpanish(legalTypification.confidence)} · {prettySpanish(legalTypification.decision_level)}</small>
+                <small>Confianza {prettySpanish(legalTypification.confidence)} ? {prettySpanish(legalTypification.decision_level)}</small>
               </div>
             ) : (
               <EmptyState text="Describe el incidente y ejecuta la tipificacion. OPERIA sugerira la norma principal y conexas." />
@@ -2451,7 +3411,7 @@ export function App() {
             {legalTypification?.connected_typifications?.length ? (
               <div className="mini-list">
                 {legalTypification.connected_typifications.slice(0, 4).map((item) => (
-                  <span key={`${item.article_id}-${item.reference}`}>{item.reference} · {prettySpanish(item.title)} · {prettySpanish(item.legal_role)}</span>
+                  <span key={`${item.article_id}-${item.reference}`}>{item.reference} ? {prettySpanish(item.title)} ? {prettySpanish(item.legal_role)}</span>
                 ))}
               </div>
             ) : null}
@@ -2462,33 +3422,38 @@ export function App() {
             ) : null}
           </StepCard>
 
-          <StepCard number={7} title="Ampliar análisis técnico-jurídico" done={Boolean(aiResult)}>
+          <StepCard number={7} title="Cuantificar daño económico" done={damageItems.length > 0}>
+            <p className="muted">Carga rubros, fuentes y f?rmulas. El informe final usa ?nicamente conceptos asociados a este caso.</p>
+            {renderDamagePanel()}
+          </StepCard>
+
+          <StepCard number={8} title="Ampliar análisis técnico-jur?dico" done={Boolean(aiResult)}>
             <div className="compact-form">
               <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} />
               <button onClick={runAiAssist}><Bot size={17} /> {latestReport ? "Ampliar informe" : "Analizar caso"}</button>
             </div>
-            {latestReport && <p className="notice">Con informe generado, esta accion agrega hipotesis, conclusiones y fundamentacion legal al reporte.</p>}
+            {latestReport && <p className="notice">Con informe generado, esta acción agrega hipótesis, conclusiones y fundamentaci?n legal al reporte.</p>}
             {latestReport ? renderAiEnrichmentOutcome() : renderCaseAnalysisOutcome()}
           </StepCard>
 
-          <StepCard number={8} title="Generar informe" done={reports.length > 0}>
+          <StepCard number={9} title="Generar informe" done={reports.length > 0}>
             <div className="compact-form">
               <input placeholder="Analista / operador interviniente" value={analystName} onChange={(e) => setAnalystName(e.target.value)} />
             </div>
             <button onClick={generateReport} disabled={!selectedCaseId}><FileText size={17} /> Generar informe integral</button>
-            {latestReport && <p className="notice">Ultimo informe: {latestReport.title}</p>}
+            {latestReport && <p className="notice">?ltimo informe: {latestReport.title}</p>}
             <div className="summary-list">
               <span>Nivel de exportabilidad: {exportabilitySnapshot.level}</span>
               <span>Score de exportabilidad: {exportabilitySnapshot.score}/100</span>
             </div>
           </StepCard>
 
-          <StepCard number={9} title="Revisar informe" done={Boolean(reviewResult) && latestReport?.review_score !== undefined}>
+          <StepCard number={10} title="Revisar informe" done={Boolean(reviewResult) && latestReport?.review_score !== undefined}>
             <button onClick={reviewReport} disabled={!latestReport}><FileCheck2 size={17} /> Revisar informe</button>
             {renderReviewOutcome()}
           </StepCard>
 
-          <StepCard number={10} title="Exportar PDF" done={Boolean(latestReport)}>
+          <StepCard number={11} title="Exportar PDF" done={Boolean(latestReport)}>
             {latestReport ? (
               <a className="download-button" href={`${API_BASE}/exports/reports/${latestReport.id}/pdf`} target="_blank">
                 <Download size={17} /> Exportar PDF con manifiesto
@@ -2498,19 +3463,20 @@ export function App() {
             )}
           </StepCard>
 
-          <StepCard number={11} title="Resumen operativo" done={Boolean(selectedCase && latestEvidence && latestReport)}>
+          <StepCard number={12} title="Resumen operativo" done={Boolean(selectedCase && latestEvidence && latestReport)}>
             <div className="summary-list">
               <span>Casos: {cases.length}</span>
               <span>Participantes del caso: {participants.length}</span>
               <span>Evidencias del caso: {evidence.length}</span>
               <span>Acciones de custodia: {custody.length}</span>
               <span>Informes del caso: {reports.length}</span>
+              <span>Daño estimado: {formatMoney(damageTotal, damageItems[0]?.currency || "ARS")}</span>
               <span>Estado del caso: {selectedCase?.status || "sin caso"}</span>
               <span>Exportabilidad: {exportabilitySnapshot.level}</span>
             </div>
           </StepCard>
 
-          <StepCard number={12} title="Cerrar caso" done={closureStatus?.already_closed}>
+          <StepCard number={13} title="Cerrar caso" done={closureStatus?.already_closed}>
             <div className="compact-form">
               <textarea value={closureNote} onChange={(e) => setClosureNote(e.target.value)} />
               <button onClick={closeCase} disabled={!selectedCaseId || closureStatus?.already_closed}>
@@ -2557,8 +3523,8 @@ export function App() {
     const approvedLegalMappings = legalMappings.filter((item) => item.decision_status !== "descartado").length;
     const reportReviewed = Boolean(latestReport && latestReport.review_score >= 80);
     const pdfExports = manifests.filter((item) => item.report_id === latestReport?.id || item.export_type.toLowerCase().includes("pdf"));
-    const rubricPercent = rubricEvaluation?.percentage ?? 0;
-    const technicalFindingCount = dashboard.metrics?.proof_matrix_rows ?? legalProbatoryMatrix?.rows.length ?? 0;
+    const rubricPercent = rubricEvaluation?.percentage || 0;
+    const technicalFindingCount = dashboard.metrics?.proof_matrix_rows || legalProbatoryMatrix?.rows.length || 0;
     const hasTechnicalFindings = technicalFindingCount > 0;
     const ctfStatusClass = (status: string) => status === "crítico" ? "critical" : status === "listo" ? "ready" : status === "parcial" ? "partial" : "incomplete";
     const ctfItems = [
@@ -2566,21 +3532,21 @@ export function App() {
       { key: "evidence", label: "Evidencia cargada", value: `${evidence.length}`, status: evidence.length ? "listo" : "incompleto", detail: evidence.length ? "Hay evidencia asociada al caso." : "Carga evidencia y preserva el archivo o fuente." },
       { key: "hashes", label: "Hashes completos", value: `${hashedEvidence}/${evidence.length || 0}`, status: evidence.length && hashedEvidence === evidence.length ? "listo" : evidence.length ? "parcial" : "incompleto", detail: evidence.length ? "Verifica SHA-256 en cada evidencia." : "Primero carga evidencia." },
       { key: "custody", label: "Cadena de custodia", value: `${custody.length}`, status: custody.length ? "listo" : "incompleto", detail: custody.length ? "Acciones de custodia registradas." : "Registra preservación, responsable y procedimiento." },
-      { key: "deepfake", label: "Deepfake / medios", value: `${deepfakeAnalyses.length}`, status: deepfakeAnalyses.length ? "listo" : "parcial", detail: deepfakeAnalyses.length ? "Hay análisis de autenticación de medios." : "Opcional según el caso; úsalo si hay imagen, video o audio." },
-      { key: "blockchain", label: "Blockchain", value: `${blockchainTransactions.length}`, status: blockchainTransactions.length ? "listo" : "parcial", detail: blockchainTransactions.length ? "Hay transacciones registradas." : "Opcional según el caso; úsalo si hay wallets, pagos o tx hash." },
-      { key: "iot", label: "IoT", value: `${iotDevices.length}`, status: iotDevices.length ? "listo" : "parcial", detail: iotDevices.length ? "Hay dispositivos IoT registrados." : "Opcional según el caso; úsalo si hay cámaras, sensores o dispositivos." },
+      { key: "deepfake", label: "Deepfake / medios", value: `${deepfakeAnalyses.length}`, status: deepfakeAnalyses.length ? "listo" : "parcial", detail: deepfakeAnalyses.length ? "Hay análisis de autenticación de medios." : "Opcional seg?n el caso; ?salo si hay imagen, video o audio." },
+      { key: "blockchain", label: "Blockchain", value: `${blockchainTransactions.length}`, status: blockchainTransactions.length ? "listo" : "parcial", detail: blockchainTransactions.length ? "Hay transacciones registradas." : "Opcional seg?n el caso; ?salo si hay wallets, pagos o tx hash." },
+      { key: "iot", label: "IoT", value: `${iotDevices.length}`, status: iotDevices.length ? "listo" : "parcial", detail: iotDevices.length ? "Hay dispositivos IoT registrados." : "Opcional seg?n el caso; ?salo si hay cámaras, sensores o dispositivos." },
       { key: "legal", label: "Normas aplicadas", value: `${approvedLegalMappings}`, status: approvedLegalMappings ? "listo" : "incompleto", detail: approvedLegalMappings ? "Existe encuadre legal aprobado o sugerido." : "Tipifica el incidente desde biblioteca legal registrada." },
       { key: "findings", label: "Hallazgos", value: `${technicalFindingCount}`, status: hasTechnicalFindings ? "listo" : "incompleto", detail: hasTechnicalFindings ? "Hay hallazgos o matriz técnica/probatoria." : "Guarda hallazgos desde Cybercrime o laboratorios." },
-      { key: "report", label: "Informe generado", value: reports.length ? "Sí" : "No", status: reports.length ? "listo" : "incompleto", detail: reports.length ? latestReport?.title || "Informe disponible." : "Genera el informe integral." },
+      { key: "report", label: "Informe generado", value: reports.length ? "S?" : "No", status: reports.length ? "listo" : "incompleto", detail: reports.length ? latestReport?.title || "Informe disponible." : "Genera el informe integral." },
       { key: "review", label: "Informe revisado", value: latestReport ? `${latestReport.review_score}/100` : "Sin revisión", status: reportReviewed ? "listo" : latestReport ? "parcial" : "incompleto", detail: reportReviewed ? "La revisión supera el umbral operativo." : "Ejecuta revisión y corrige advertencias." },
       { key: "export", label: "PDF exportado", value: `${pdfExports.length}`, status: pdfExports.length ? "listo" : "incompleto", detail: pdfExports.length ? "Hay exportación registrada." : "Exporta PDF con manifiesto antes de entregar." },
-      { key: "rubric", label: "Rúbrica completada", value: rubricEvaluation ? `${rubricEvaluation.percentage}%` : "Sin evaluar", status: rubricEvaluation ? (rubricPercent >= 80 ? "listo" : rubricPercent >= 50 ? "parcial" : "crítico") : "incompleto", detail: rubricEvaluation ? rubricEvaluation.summary : "Evalúa la rúbrica del desafío." },
+      { key: "rubric", label: "Rúbrica completada", value: rubricEvaluation ? `${rubricEvaluation.percentage}%` : "Sin evaluar", status: rubricEvaluation ? (rubricPercent >= 80 ? "listo" : rubricPercent >= 50 ? "parcial" : "crítico") : "incompleto", detail: rubricEvaluation ? rubricEvaluation.summary : "Eval?a la rúbrica del desaf?o." },
     ];
-    const statusWeight: Record<string, number> = { listo: 1, parcial: 0.55, incompleto: 0, crítico: 0 };
+    const statusWeight: Record<string, number> = { listo: 1, parcial: 0.55, incompleto: 0, ["crítico"]: 0 };
     const ctfScore = Math.round((ctfItems.reduce((total, item) => total + statusWeight[item.status], 0) / ctfItems.length) * 100);
     const criticalCount = ctfItems.filter((item) => item.status === "crítico").length;
     const incompleteCount = ctfItems.filter((item) => item.status === "incompleto").length;
-    const ctfLevel = criticalCount ? "Crítico" : ctfScore >= 82 ? "Listo" : ctfScore >= 52 ? "Parcial" : "Incompleto";
+    const ctfLevel = criticalCount ? "Cr?tico" : ctfScore >= 82 ? "Listo" : ctfScore >= 52 ? "Parcial" : "Incompleto";
     const ctfLevelClass = criticalCount ? "critical" : ctfScore >= 82 ? "ready" : ctfScore >= 52 ? "partial" : "incomplete";
     const ctfMissing = ctfItems.filter((item) => item.status === "crítico" || item.status === "incompleto").slice(0, 6);
     const currentCaseReadiness = [
@@ -2589,7 +3555,7 @@ export function App() {
       { label: "Custodia", ok: custody.length > 0, detail: `${custody.length} accion(es)` },
       { label: "Tipificacion legal", ok: legalMappings.some((item) => item.decision_status !== "descartado"), detail: `${legalMappings.length} mapeo(s)` },
       { label: "Informe", ok: reports.length > 0, detail: latestReport ? professionalReportStatus(latestReport.status) : "Sin informe" },
-      { label: "Revision", ok: Boolean(latestReport && latestReport.review_score >= 80), detail: latestReport ? `Score ${latestReport.review_score}` : "Sin revision" },
+      { label: "Revision", ok: Boolean(latestReport && latestReport.review_score >= 80), detail: latestReport ? `Score ${latestReport.review_score}` : "Sin revisión" },
     ];
     const nextAction =
       !selectedCase ? "Seleccionar o crear un caso operativo." :
@@ -2598,7 +3564,7 @@ export function App() {
       !legalMappings.length ? "Tipificar el incidente y aplicar norma al caso." :
       !latestReport ? "Generar informe integral." :
       latestReport.review_score < 80 ? "Revisar informe y corregir advertencias." :
-      "Evaluar exportacion final sellada.";
+      "Evaluar exportación final sellada.";
 
     return (
       <section className="work-surface">
@@ -2633,7 +3599,7 @@ export function App() {
         <div className="ctf-panel">
           <div className="ctf-hero">
             <div>
-              <span className="tool-kicker">Preparación CTF</span>
+              <span className="tool-kicker">Preparaci?n CTF</span>
               <h3>Estado de entrega del caso</h3>
               <p>
                 Semáforo operativo para verificar evidencia, laboratorios, encuadre legal, informe, exportación y rúbrica antes de entregar.
@@ -2672,7 +3638,7 @@ export function App() {
             ))}
           </div>
           <div className={`ctf-guidance ${ctfLevelClass}`}>
-            <strong>{ctfLevel === "Listo" ? "El caso está cerca de una entrega defendible." : "Qué falta para mejorar la entrega"}</strong>
+            <strong>{ctfLevel === "Listo" ? "El caso est? cerca de una entrega defendible." : "Qué falta para mejorar la entrega"}</strong>
             {ctfMissing.length ? (
               ctfMissing.map((item) => <span key={item.key}>{item.label}: {item.detail}</span>)
             ) : (
@@ -2722,7 +3688,7 @@ export function App() {
         </div>
         <div className="case-list">
           <div className="case-list-header">
-            <span>Código</span>
+            <span>C?digo</span>
             <span>Expediente</span>
             <span>Tipo</span>
             <span>Estado</span>
@@ -2787,6 +3753,8 @@ export function App() {
           {chronologicalCases.map((item) => {
             const isClosed = isClosedCase(item);
             const isSelected = selectedCaseId === item.id;
+            const caseReports = historyReportsByCase[item.id] || [];
+            const latestCaseReport = caseReports[0];
             return (
               <article className={`history-item ${isSelected ? "selected" : ""}`} key={item.id}>
                 <div className={`history-dot ${isClosed ? "closed" : "open"}`} />
@@ -2800,12 +3768,18 @@ export function App() {
                   </div>
                   <div className="history-meta">
                     <span>{prettySpanish(item.incident_type)}</span>
-                    <span>Ultima actividad: {formatHistoryDate(item.updated_at || item.created_at)}</span>
+                    <span>?ltima actividad: {formatHistoryDate(item.updated_at || item.created_at)}</span>
                   </div>
-                  <p>{item.description ? prettySpanish(item.description) : "Sin descripcion inicial registrada."}</p>
+                  <p>{item.description ? prettySpanish(item.description) : "Sin descripci?n inicial registrada."}</p>
                   <div className="history-footnote">
                     <span>Flujo de trabajo, informes y exportaciones permanecen asociados a este caso.</span>
                   </div>
+                  {latestCaseReport && (
+                    <div className="history-report-strip">
+                      <FileText size={15} />
+                      <span>Último informe: {latestCaseReport.title} · v{latestCaseReport.version} · {professionalReportStatus(latestCaseReport.status)}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="history-actions">
                   {!isClosed && (
@@ -2816,7 +3790,15 @@ export function App() {
                   <button className="secondary-button" onClick={() => openCaseFromHistory(item.id, "caseDetail")}>
                     <FileCheck2 size={16} /> Ver detalle
                   </button>
-                  {isClosed && <small>Caso cerrado: disponible para consulta y exportacion.</small>}
+                  {latestCaseReport && (
+                    <a className="download-button secondary history-download" href={`${API_BASE}/exports/reports/${latestCaseReport.id}/pdf`} target="_blank" rel="noreferrer">
+                      <Download size={16} /> Descargar informe
+                    </a>
+                  )}
+                  <button className="danger" onClick={() => deleteCaseFromHistory(item.id, item.title)}>
+                    <Trash2 size={16} /> Eliminar
+                  </button>
+                  {isClosed && <small>Caso cerrado: disponible para consulta y exportación.</small>}
                 </div>
               </article>
             );
@@ -2832,11 +3814,12 @@ export function App() {
     const legalRows = legalProbatoryMatrix?.rows || [];
     const latestAudit = auditLogs[0];
     const readinessItems = [
-      { label: "Narrativa del caso", ok: Boolean(selectedCase?.description), detail: selectedCase?.description ? "Cargada" : "Falta descripción inicial" },
+      { label: "Narrativa del caso", ok: Boolean(selectedCase?.description), detail: selectedCase?.description ? "Cargada" : "Falta descripci?n inicial" },
       { label: "Participantes", ok: participants.length > 0, detail: `${participants.length} registro(s)` },
       { label: "Evidencia preservada", ok: evidence.length > 0, detail: `${evidence.length} evidencia(s)` },
       { label: "Hashes", ok: evidence.length > 0 && evidence.every((item) => Boolean(item.sha256_hash)), detail: evidence.length ? "Integridad verificable" : "Sin archivos" },
       { label: "Custodia", ok: custody.length > 0, detail: `${custody.length} acción(es)` },
+      { label: "Daño económico", ok: damageItems.length > 0, detail: damageItems.length ? formatMoney(damageTotal, damageItems[0]?.currency || "ARS") : "Sin cuantificar" },
       { label: "Mapeo legal", ok: legalMappings.some((item) => item.decision_status !== "descartado"), detail: `${legalMappings.length} norma(s)` },
       { label: "Informe", ok: Boolean(latestReport), detail: latestReport ? professionalReportStatus(latestReport.status) : "No generado" },
       { label: "Revisión", ok: Boolean(latestReport && latestReport.review_score >= 80), detail: latestReport ? `Score ${latestReport.review_score}` : "Sin revisión" }
@@ -2846,9 +3829,10 @@ export function App() {
       { key: "participants", label: "Personas", count: participants.length },
       { key: "evidence", label: "Evidencia", count: evidence.length },
       { key: "custody", label: "Custodia", count: custody.length },
+      { key: "damage", label: "Daño", count: damageItems.length },
       { key: "legal", label: "Legal", count: legalMappings.length },
       { key: "reports", label: "Informes", count: reports.length },
-      { key: "audit", label: "Auditoría", count: auditLogs.length }
+      { key: "audit", label: "Auditor?a", count: auditLogs.length }
     ];
 
     const renderParticipantsPanel = () => (
@@ -2861,7 +3845,7 @@ export function App() {
             <div>
               <strong>{prettySpanish(item.display_name)}</strong>
               <span>{prettySpanish(item.participant_type)} | {prettySpanish(item.person_type)} | {prettySpanish(item.sensitivity_level)}</span>
-              <small>{prettySpanish(item.relationship_to_case || item.role_description || "Relación pendiente")}</small>
+              <small>{prettySpanish(item.relationship_to_case || item.role_description || "Relaci?n pendiente")}</small>
             </div>
             <div className="record-actions">
               <button className="icon-button" onClick={() => setEditingParticipant(item)} title="Editar"><Save size={15} /></button>
@@ -2933,13 +3917,25 @@ export function App() {
         {legalRows.slice(0, 8).map((item, index) => (
           <div className="editable-record" key={`${item.mapping_id}-${index}`}>
             <div>
-              <strong>{item.norm_reference} · {prettySpanish(item.legal_element)}</strong>
+              <strong>{item.norm_reference} ? {prettySpanish(item.legal_element)}</strong>
               <span>{prettySpanish(item.element_status)} | fuerza {prettySpanish(item.probatory_strength)} | riesgo {prettySpanish(item.contradiction_risk)}</span>
-              <small>{item.evidence_description || item.missing_evidence || "Sin vínculo probatorio registrado."}</small>
+              <small>{item.evidence_description || item.missing_evidence || "Sin v?nculo probatorio registrado."}</small>
             </div>
           </div>
         ))}
         {!legalRows.length && <EmptyState text="Sin matriz legal-probatoria cargada." />}
+      </div>
+    );
+
+    const renderDamageDetailPanel = () => (
+      <div className="detail-panel wide">
+        <div className="panel-head">
+          <div>
+            <h3>Cuantificaci?n económica del daño</h3>
+            <p className="muted">Rubros económicos asociados exclusivamente al caso seleccionado.</p>
+          </div>
+        </div>
+        {renderDamagePanel()}
       </div>
     );
 
@@ -2973,7 +3969,7 @@ export function App() {
     const renderAuditPanel = () => (
       <div className="detail-panel wide">
         <div className="panel-head">
-          <h3>Auditoría del caso</h3>
+          <h3>Auditor?a del caso</h3>
         </div>
         <div className="audit-list">
           {auditLogs.slice(0, 20).map((item) => (
@@ -3010,7 +4006,7 @@ export function App() {
                 <div className="dossier-badges">
                   <span>{prettySpanish(selectedCase.status)}</span>
                   <span>{prettySpanish(selectedCase.incident_type)}</span>
-                  <span>{exportabilitySnapshot.level} · {exportabilitySnapshot.score}/100</span>
+                  <span>{exportabilitySnapshot.level} ? {exportabilitySnapshot.score}/100</span>
                 </div>
               </div>
               <div className="dossier-actions">
@@ -3059,11 +4055,12 @@ export function App() {
                   <div><span>Evidencia</span><strong>{evidence.length}</strong></div>
                   <div><span>Custodia</span><strong>{custody.length}</strong></div>
                   <div><span>Informes</span><strong>{reports.length}</strong></div>
+                  <div><span>Daño estimado</span><strong>{formatMoney(damageTotal, damageItems[0]?.currency || "ARS")}</strong></div>
                 </div>
               </div>
               <div className="detail-panel">
                 <div className="panel-head">
-                  <h3>Última actividad</h3>
+                  <h3>Ãšltima actividad</h3>
                 </div>
                 {latestAudit ? (
                   <div className="editable-record single">
@@ -3080,6 +4077,7 @@ export function App() {
           {caseDetailTab === "participants" && renderParticipantsPanel()}
           {caseDetailTab === "evidence" && renderEvidencePanel()}
           {caseDetailTab === "custody" && renderCustodyPanel()}
+          {caseDetailTab === "damage" && renderDamageDetailPanel()}
           {caseDetailTab === "legal" && renderLegalPanel()}
           {caseDetailTab === "reports" && renderReportsPanel()}
           {caseDetailTab === "audit" && renderAuditPanel()}
@@ -3195,7 +4193,7 @@ export function App() {
               <div>
                 <span className="eyebrow">Vista previa del informe</span>
                 <h3>{reportPreview.title}</h3>
-                <p>{prettySpanish(reportPreview.exportability.level)} · Score {reportPreview.exportability.score}/100 · RevisiÃ³n {reportPreview.review_score}</p>
+                <p>{prettySpanish(reportPreview.exportability.level)} ? Score {reportPreview.exportability.score}/100 ? Revisión {reportPreview.review_score}</p>
               </div>
               <span className={`badge ${reportPreview.can_export_final ? "success" : ""}`}>
                 {reportPreview.can_export_final ? "Exportable como final" : "No exportable como final"}
@@ -3228,7 +4226,7 @@ export function App() {
                 </div>
                 {reportPreview.final_checklist.items.map((item) => (
                   <div className={`preview-section ${item.ok ? "" : "warning"}`} key={item.key}>
-                    <strong>{item.ok ? "Cumplido" : "Pendiente"} · {prettySpanish(item.label)}</strong>
+                    <strong>{item.ok ? "Cumplido" : "Pendiente"} ? {prettySpanish(item.label)}</strong>
                     <small>{prettySpanish(item.message)}</small>
                   </div>
                 ))}
@@ -3242,7 +4240,7 @@ export function App() {
                     </button>
                   ))}
                 </div>
-                <p className="notice">La versiÃ³n final solo se permite si el checklist pericial estÃ¡ completo.</p>
+                <p className="notice">La versi?n final solo se permite si el checklist pericial est? completo.</p>
               </div>
             </div>
             <div className="preview-grid">
@@ -3251,7 +4249,7 @@ export function App() {
                 {reportPreview.sections.map((section) => (
                   <div className="preview-section" key={section.title}>
                     <strong>{prettySpanish(section.title)}</strong>
-                    <span>{section.word_count} palabras {section.has_tables ? "· contiene tabla" : ""}</span>
+                    <span>{section.word_count} palabras {section.has_tables ? "? contiene tabla" : ""}</span>
                     <small>{prettySpanish(section.excerpt)}</small>
                   </div>
                 ))}
@@ -3260,7 +4258,7 @@ export function App() {
                 <h4>Contradicciones legal-probatorias</h4>
                 {reportPreview.contradictions.issues.map((issue, index) => (
                   <div className="preview-section warning" key={`${issue.norm_reference}-${index}`}>
-                    <strong>{issue.norm_reference} · {prettySpanish(issue.legal_element)}</strong>
+                    <strong>{issue.norm_reference} ? {prettySpanish(issue.legal_element)}</strong>
                     <span>{prettySpanish(issue.severity)}</span>
                     <small>{prettySpanish(issue.message)} {prettySpanish(issue.recommended_action)}</small>
                   </div>
@@ -3274,7 +4272,7 @@ export function App() {
                 {reportPreview.annexes.items.map((item, index) => (
                   <div className="preview-section" key={`${item.type}-${index}`}>
                     <strong>{prettySpanish(item.title)}</strong>
-                    <span>{prettySpanish(item.type)} {item.sha256 ? `· SHA-256 ${item.sha256}` : ""}</span>
+                    <span>{prettySpanish(item.type)} {item.sha256 ? `? SHA-256 ${item.sha256}` : ""}</span>
                     <small>{prettySpanish(item.detail || item.integrity_status || `Elementos: ${item.rows || 1}`)}</small>
                   </div>
                 ))}
@@ -3282,7 +4280,7 @@ export function App() {
             </div>
           </div>
         )}
-        <JsonPanel data={exportFinalResult} />
+        {renderExportFinalOutcome()}
         <div className="table">
           {reports.map((item) => (
             <div className="record record-grid" key={item.id}>
@@ -3328,7 +4326,7 @@ export function App() {
               {rubricEvaluation.sections.map((section) => (
                 <article className={`rubric-section ${section.status}`} key={section.key}>
                   <div>
-                    <span>Sección {section.key} - {section.weight}%</span>
+                    <span>Secci?n {section.key} - {section.weight}%</span>
                     <h4>{section.label}</h4>
                   </div>
                   <strong>{section.estimated_score}/{section.max_score}</strong>
@@ -3362,7 +4360,7 @@ export function App() {
         <div className="section-head">
           <div>
             <h2>Informes</h2>
-            <p>Control profesional del informe: contenido incluido, faltantes, versionado, anexos y exportacion final.</p>
+            <p>Control profesional del informe: contenido incluido, faltantes, versionado, anexos y exportación final.</p>
           </div>
           <button onClick={generateReport} disabled={!selectedCaseId}><FileText size={17} /> Generar informe</button>
         </div>
@@ -3450,7 +4448,7 @@ export function App() {
                       <strong>{prettySpanish(item.label)}:</strong> {prettySpanish(item.message)}
                     </span>
                   ))}
-                  {!missingChecklist.length && <span>Sin faltantes criticos para cierre pericial.</span>}
+                  {!missingChecklist.length && <span>Sin faltantes críticos para cierre pericial.</span>}
                 </div>
               </div>
             </div>
@@ -3544,7 +4542,7 @@ export function App() {
         <div className="section-head">
           <div>
             <h2>Biblioteca Legal Argentina</h2>
-            <p>Perfiles CTF, normas argentinas registradas y aplicación controlada al caso.</p>
+            <p>Perfiles CTF, normas argentinas registradas y aplicaci?n controlada al caso.</p>
           </div>
           <div className="legal-search-panel">
             <select
@@ -3568,7 +4566,7 @@ export function App() {
           </div>
         )}
         <div className="notice">
-          La biblioteca solo usa normas y fuentes registradas. No atribuye autoría sin evidencia suficiente ni reemplaza revisión profesional.
+          La biblioteca solo usa normas y fuentes registradas. No atribuye autor?a sin evidencia suficiente ni reemplaza revisión profesional.
         </div>
         {legalRecommendation?.profile && (
           <div className="case-panel">
@@ -3599,19 +4597,19 @@ export function App() {
             {legalRecommendation.recommendations.map((item) => (
               <article className={item.sensitive ? "sensitive" : ""} key={`${item.reference}-${item.article_id}`}>
                 <div>
-                  <span>{item.reference} · {item.legal_role} · confianza {item.confidence}</span>
+                  <span>{item.reference} ? {item.legal_role} ? confianza {item.confidence}</span>
                   <h3>{prettySpanish(item.title)}</h3>
                 </div>
                 <p>{prettySpanish(item.text)}</p>
                 {item.warning && <div className="notice sensitive-warning">{prettySpanish(item.warning)}</div>}
                 <div className="legal-card-grid">
-                  <small><strong>Aplicación:</strong> {prettySpanish(item.applicability_to_case)}</small>
-                  <small><strong>Límites:</strong> {prettySpanish(item.probatory_limits)}</small>
+                  <small><strong>Aplicaci?n:</strong> {prettySpanish(item.applicability_to_case)}</small>
+                  <small><strong>L?mites:</strong> {prettySpanish(item.probatory_limits)}</small>
                   <small><strong>Elementos objetivos:</strong> {prettySpanish(item.why)}</small>
                   <small><strong>Elemento subjetivo:</strong> {prettySpanish(item.subjective_elements)}</small>
                   <small><strong>Evidencia necesaria:</strong> {prettySpanish(item.evidence_needed)}</small>
-                  <small><strong>Relación con incidente:</strong> {prettySpanish(item.incident_relations || legalRecommendation.profile?.label || "")}</small>
-                  <small><strong>Fuente:</strong> {prettySpanish(item.source_title || "Fuente oficial registrada")} · <a href={item.source_url} target="_blank" rel="noreferrer">ver oficial</a></small>
+                  <small><strong>Relaci?n con incidente:</strong> {prettySpanish(item.incident_relations || legalRecommendation.profile?.label || "")}</small>
+                  <small><strong>Fuente:</strong> {prettySpanish(item.source_title || "Fuente oficial registrada")} ? <a href={item.source_url} target="_blank" rel="noreferrer">ver oficial</a></small>
                 </div>
                 {item.precedents.length > 0 && <small>Jurisprudencia registrada: {item.precedents.length}</small>}
                 {item.doctrine.length > 0 && <small>Doctrina registrada: {item.doctrine.length}</small>}
@@ -3631,7 +4629,7 @@ export function App() {
           <div className="section-head compact-head">
             <div>
               <h3>Mapeo legal aprobado por analista</h3>
-              <p>Normas aceptadas o descartadas para el caso seleccionado. Podés corregir artículos y vínculos sin borrar evidencia.</p>
+              <p>Normas aceptadas o descartadas para el caso seleccionado. Pod?s corregir art?culos y v?nculos sin borrar evidencia.</p>
             </div>
             {legalQualityControl && (
               <span className={`badge ${legalQualityControl.risk_level === "bajo" ? "success" : ""}`}>
@@ -3644,8 +4642,8 @@ export function App() {
               const elementOptions = legalElementsForMapping(item.id);
               return (
               <div className="record" key={item.id}>
-                <strong>{item.norm_reference} · {item.decision_status}</strong>
-                <span>{item.legal_role || item.legal_area} · confianza {item.confidence_level}</span>
+                <strong>{item.norm_reference} ? {item.decision_status}</strong>
+                <span>{item.legal_role || item.legal_area} ? confianza {item.confidence_level}</span>
                 <em>{item.analyst_name || "Analista no informado"}</em>
                 <small>{prettySpanish(item.analysis)}</small>
                 {item.decision_status === "aprobado" && (
@@ -3672,14 +4670,14 @@ export function App() {
                       <FileCheck2 size={16} /> Vincular evidencia
                     </button>
                     <button className="secondary-button" onClick={() => changeLegalMappingDecision(item, "descartado")}>
-                      <Trash2 size={16} /> Quitar artículo
+                      <Trash2 size={16} /> Quitar art?culo
                     </button>
                   </div>
                 )}
                 {item.decision_status === "descartado" && (
                   <div className="button-row">
                     <button onClick={() => changeLegalMappingDecision(item, "aprobado")}>
-                      <CheckCircle2 size={16} /> Reactivar artículo
+                      <CheckCircle2 size={16} /> Reactivar art?culo
                     </button>
                   </div>
                 )}
@@ -3689,11 +4687,11 @@ export function App() {
                   const current = { ...link, ...draft };
                   return (
                     <div className="inline-editor" key={link.id}>
-                      Evidencia vinculada: #{link.evidence_id} {ev?.description || ""} · {link.legal_element} · fuerza {link.probatory_strength}
+                      Evidencia vinculada: #{link.evidence_id} {ev?.description || ""} ? {link.legal_element} ? fuerza {link.probatory_strength}
                       <input value={current.legal_element || ""} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, legal_element: event.target.value } })} placeholder="Elemento legal" />
                       <select value={current.element_status || "pendiente"} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, element_status: event.target.value } })}>
                         <option value="probado">Probado</option>
-                        <option value="debil">Débil</option>
+                        <option value="debil">D?bil</option>
                         <option value="faltante">Faltante</option>
                         <option value="controvertido">Controvertido</option>
                         <option value="pendiente">Pendiente</option>
@@ -3707,12 +4705,12 @@ export function App() {
                         <option value="bajo">Riesgo bajo</option>
                         <option value="medio">Riesgo medio</option>
                         <option value="alto">Riesgo alto</option>
-                        <option value="critico">Riesgo crítico</option>
+                        <option value="crítico">Riesgo crítico</option>
                       </select>
                       <input value={current.missing_evidence || ""} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, missing_evidence: event.target.value } })} placeholder="Evidencia faltante" />
                       <input value={current.recommended_measure || ""} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, recommended_measure: event.target.value } })} placeholder="Medida recomendada" />
                       <div className="button-row">
-                        <button onClick={() => saveLegalLink(link)}><Save size={16} /> Guardar vínculo</button>
+                        <button onClick={() => saveLegalLink(link)}><Save size={16} /> Guardar v?nculo</button>
                         <button className="secondary-button" onClick={() => unlinkLegalEvidence(link.id)}><Trash2 size={16} /> Desvincular</button>
                       </div>
                     </div>
@@ -3732,9 +4730,9 @@ export function App() {
           <div className="table">
             {legalProbatoryMatrix?.rows.slice(0, 8).map((row, index) => (
               <div className="record" key={`${row.mapping_id}-${row.legal_element}-${index}`}>
-                <strong>{row.norm_reference} · {row.legal_element}</strong>
-                <span>{row.element_status} · fuerza {row.probatory_strength} · riesgo {row.contradiction_risk}</span>
-                {row.evidence_id && <small>#{row.evidence_id} {row.evidence_description} {row.evidence_hash ? `· SHA-256 ${row.evidence_hash}` : ""}</small>}
+                <strong>{row.norm_reference} ? {row.legal_element}</strong>
+                <span>{row.element_status} ? fuerza {row.probatory_strength} ? riesgo {row.contradiction_risk}</span>
+                {row.evidence_id && <small>#{row.evidence_id} {row.evidence_description} {row.evidence_hash ? `? SHA-256 ${row.evidence_hash}` : ""}</small>}
                 {row.missing_evidence && <small>{prettySpanish(row.missing_evidence)}</small>}
                 {row.recommended_measure && <em>{prettySpanish(row.recommended_measure)}</em>}
               </div>
@@ -3746,12 +4744,12 @@ export function App() {
               <h3>Control de calidad legal</h3>
               <p>Detecta faltantes y contradicciones antes de usar el encuadre en un informe.</p>
             </div>
-            {legalQualityControl && <span className="badge">Score {legalQualityControl.score} · riesgo {legalQualityControl.risk_level}</span>}
+            {legalQualityControl && <span className="badge">Score {legalQualityControl.score} ? riesgo {legalQualityControl.risk_level}</span>}
           </div>
           <div className="table">
             {legalQualityControl?.issues.slice(0, 6).map((issue) => (
               <div className="record" key={`${issue.code}-${issue.message}`}>
-                <strong>{issue.severity} · {issue.code}</strong>
+                <strong>{issue.severity} ? {issue.code}</strong>
                 <span>{issue.message}</span>
                 <small>{issue.recommended_action}</small>
               </div>
@@ -3791,7 +4789,7 @@ export function App() {
         <div className="split">
           <div className="form cyber-analysis-panel">
             <h3>Paso 1 - Analizar indicador</h3>
-            <p className="muted">Carga una IP, URL, dominio, correo o hash. OPERIA lo clasifica, estima riesgo y sugiere medidas de preservacion.</p>
+            <p className="muted">Carga una IP, URL, dominio, correo o hash. OPERIA lo clasifica, estima riesgo y sugiere medidas de preservación.</p>
             <input value={indicator} onChange={(event) => setIndicator(event.target.value)} placeholder="IP, URL, dominio, email o hash" />
             <button onClick={analyzeIndicator} disabled={!indicator.trim()}>
               <Search size={17} /> Analizar indicador
@@ -3829,7 +4827,7 @@ export function App() {
                   {indicatorResult.recommended_actions.map((item) => <span key={item}>{item}</span>)}
                 </div>
                 <p className="notice">{indicatorResult.legal_relevance}</p>
-                <p className="muted">Que significa: este resultado orienta la investigacion. No prueba autoria y debe vincularse con evidencia, custodia y fuentes verificables.</p>
+                <p className="muted">Que significa: este resultado orienta la investigacion. No prueba autoría y debe vincularse con evidencia, custodia y fuentes verificables.</p>
               </div>
             ) : <EmptyState text="Sin análisis de indicador todavía." />}
           </div>
@@ -3842,7 +4840,7 @@ export function App() {
             </div>
             <input placeholder="Título de sesión" value={cyberLabForm.title} onChange={(e) => setCyberLabForm({ ...cyberLabForm, title: e.target.value })} />
             <div className="inline-grid">
-              <input placeholder="Propósito" value={cyberLabForm.purpose} onChange={(e) => setCyberLabForm({ ...cyberLabForm, purpose: e.target.value })} />
+              <input placeholder="Prop?sito" value={cyberLabForm.purpose} onChange={(e) => setCyberLabForm({ ...cyberLabForm, purpose: e.target.value })} />
               <select value={cyberLabForm.risk_level} onChange={(e) => setCyberLabForm({ ...cyberLabForm, risk_level: e.target.value })}>
                 <option value="bajo">Riesgo bajo</option>
                 <option value="medio">Riesgo medio</option>
@@ -3857,8 +4855,8 @@ export function App() {
             <div className="panel-head">
               <h3>Paso 3 - Guardar conclusion defensible</h3>
             </div>
-            <textarea placeholder="Conclusión técnica prudente" value={cyberProofForm.defensible_conclusion} onChange={(e) => setCyberProofForm({ ...cyberProofForm, defensible_conclusion: e.target.value })} />
-            <textarea placeholder="Encuadre o relación legal preliminar" value={cyberProofForm.legal_framing} onChange={(e) => setCyberProofForm({ ...cyberProofForm, legal_framing: e.target.value })} />
+            <textarea placeholder="Conclusi?n técnica prudente" value={cyberProofForm.defensible_conclusion} onChange={(e) => setCyberProofForm({ ...cyberProofForm, defensible_conclusion: e.target.value })} />
+            <textarea placeholder="Encuadre o relaci?n legal preliminar" value={cyberProofForm.legal_framing} onChange={(e) => setCyberProofForm({ ...cyberProofForm, legal_framing: e.target.value })} />
             <div className="inline-grid">
               <select value={cyberProofForm.confidence_level} onChange={(e) => setCyberProofForm({ ...cyberProofForm, confidence_level: e.target.value })}>
                 <option value="bajo">Confianza baja</option>
@@ -3879,7 +4877,7 @@ export function App() {
             {cyberLabSessions.slice(0, 8).map((item) => (
               <div className="editable-record single" key={item.id}>
                 <div>
-                  <strong>{item.session_code} · {item.title}</strong>
+                  <strong>{item.session_code} ? {item.title}</strong>
                   <span>{prettySpanish(item.purpose)} | {prettySpanish(item.risk_level)} | {prettySpanish(item.status)}</span>
                   <small>{item.result_summary || `Operador: ${item.operator}`}</small>
                 </div>
@@ -3895,7 +4893,7 @@ export function App() {
             {cyberProofRows.slice(0, 8).map((item) => (
               <div className="editable-record single" key={item.id}>
                 <div>
-                  <strong>{prettySpanish(item.confidence_level)} · {prettySpanish(item.status)}</strong>
+                  <strong>{prettySpanish(item.confidence_level)} ? {prettySpanish(item.status)}</strong>
                   <span>{item.defensible_conclusion}</span>
                   <small>{item.risk_flag || item.weakness || item.legal_framing || "Sin observaciones."}</small>
                 </div>
@@ -3910,6 +4908,10 @@ export function App() {
 
   function renderDeepfakeMedia() {
     const checklistDone = deepfakeChecklist.filter((item) => deepfakeChecklistState[item.key]).length;
+    const deepfakeReadiness = deepfakeAnalyses.map((analysis) => deepfakeAnalysisReadiness(analysis));
+    const readyDeepfake = deepfakeReadiness.filter((item) => item.status === "listo").length;
+    const linkedDeepfake = deepfakeAnalyses.filter((item) => item.evidence_id).length;
+    const withFindings = deepfakeAnalyses.filter((item) => item.finding_id).length;
     return (
       <section className="work-surface cyber-workbench">
         <div className="section-head">
@@ -3921,6 +4923,13 @@ export function App() {
         </div>
 
         {deepfakeMessage && <div className={`action-feedback ${deepfakeState}`}>{deepfakeMessage}</div>}
+
+        <div className="risk-card medium blockchain-risk-row">
+          <div><span>Análisis</span><strong>{deepfakeAnalyses.length}</strong></div>
+          <div><span>Con evidencia</span><strong>{linkedDeepfake}</strong></div>
+          <div><span>Hallazgos</span><strong>{withFindings}</strong></div>
+          <div><span>Listos para informe</span><strong>{readyDeepfake}</strong></div>
+        </div>
 
         <div className="split deepfake-layout">
           <form className="form deepfake-form" onSubmit={saveDeepfakeAnalysis}>
@@ -3946,9 +4955,9 @@ export function App() {
             <textarea placeholder="Hallazgos técnicos observados" value={deepfakeForm.findings} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, findings: e.target.value })} />
             <textarea placeholder="Limitaciones del análisis" value={deepfakeForm.limitations} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, limitations: e.target.value })} />
             <select value={deepfakeForm.classification} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, classification: e.target.value })}>
-              <option value="auténtico preliminar">Auténtico preliminar</option>
+              <option value="aut?ntico preliminar">Aut?ntico preliminar</option>
               <option value="manipulado probable">Manipulado probable</option>
-              <option value="indicios de edición">Indicios de edición</option>
+              <option value="indicios de edici?n">Indicios de edici?n</option>
               <option value="no concluyente">No concluyente</option>
               <option value="requiere pericia especializada">Requiere pericia especializada</option>
             </select>
@@ -3975,38 +4984,63 @@ export function App() {
                 </label>
               ))}
             </div>
-            <p className="notice">La clasificación es preliminar: no prueba por sí sola autenticidad, falsedad, autoría ni origen del archivo.</p>
+            <p className="notice">La clasificaci?n es preliminar: no prueba por s? sola autenticidad, falsedad, autor?a ni origen del archivo.</p>
           </div>
         </div>
 
         <div className="article-list deepfake-results">
-          {deepfakeAnalyses.map((analysis) => (
-            <article key={analysis.id}>
-              <div className="panel-head">
-                <div>
-                  <span>{analysis.media_type} · {analysis.classification}</span>
-                  <h3>Análisis #{analysis.id} {analysis.evidence_id ? `· Evidencia #${analysis.evidence_id}` : ""}</h3>
+          {deepfakeAnalyses.map((analysis) => {
+            const quality = deepfakeAnalysisReadiness(analysis);
+            return (
+              <article key={analysis.id}>
+                <div className="panel-head">
+                  <div>
+                    <span>{analysis.media_type} ? {analysis.classification}</span>
+                    <h3>Análisis #{analysis.id} {analysis.evidence_id ? `? Evidencia #${analysis.evidence_id}` : ""}</h3>
+                  </div>
+                  <div className="route-status-stack">
+                    <span className={`readiness-badge ${quality.status}`}>{quality.score}/100 ? {quality.status}</span>
+                    <span className="badge">{analysis.finding_id ? `Hallazgo #${analysis.finding_id}` : "Sin hallazgo"}</span>
+                  </div>
                 </div>
-                <span className="badge">{analysis.finding_id ? `Hallazgo #${analysis.finding_id}` : "Sin hallazgo"}</span>
-              </div>
-              <p>{analysis.findings || "Sin hallazgos concluyentes cargados."}</p>
-              <div className="legal-card-grid">
-                <small>Hash: {analysis.evidence_hash || "pendiente"}</small>
-                <small>Origen: {analysis.source_origin || "pendiente"}</small>
-                <small>Herramienta: {analysis.tool_used || "pendiente"}</small>
-                <small>Limitaciones: {analysis.limitations || "requiere pericia especializada"}</small>
-              </div>
-              <div className="mini-list">
-                {analysis.checklist.filter((item) => item.ok).map((item) => <span key={item.key}>{item.label}</span>)}
-                {!analysis.checklist.some((item) => item.ok) && <span>Checklist pendiente.</span>}
-              </div>
-              <p className="notice">{analysis.warning}</p>
-              <div className="actions-line">
-                <button className="secondary-button" onClick={() => createDeepfakeFinding(analysis.id)}><FileCheck2 size={16} /> Crear hallazgo</button>
-                <button onClick={() => applyDeepfakeLegal(analysis)}><Gavel size={16} /> Aplicar normas sugeridas</button>
-              </div>
-            </article>
-          ))}
+                <p>{analysis.findings || "Sin hallazgos concluyentes cargados."}</p>
+                <div className="pericial-reading-grid">
+                  <div>
+                    <strong>Qué acredita</strong>
+                    <span>Preserva una observaci?n técnica sobre imagen, video, audio, documento o captura vinculada al caso.</span>
+                  </div>
+                  <div>
+                    <strong>Qué no acredita por s? solo</strong>
+                    <span>Autor?a, autenticidad definitiva, falsedad penal o identidad del generador sin pericia y corroboración externa.</span>
+                  </div>
+                  <div>
+                    <strong>Qué hacer ahora</strong>
+                    <span>{quality.status === "listo" ? "Puede pasar al informe con límites periciales." : `Completar: ${quality.missing.slice(0, 3).join(", ") || "validaci?n"}.`}</span>
+                  </div>
+                </div>
+                <div className="legal-card-grid">
+                  <small>Hash: {analysis.evidence_hash || "pendiente"}</small>
+                  <small>Origen: {analysis.source_origin || "pendiente"}</small>
+                  <small>Herramienta: {analysis.tool_used || "pendiente"}</small>
+                  <small>Limitaciones: {analysis.limitations || "requiere pericia especializada"}</small>
+                </div>
+                <div className="mini-readiness">
+                  {quality.checks.map((check) => (
+                    <span className={check.ok ? "ok" : "missing"} key={check.key}>{check.ok ? "?" : "?"} {check.label}</span>
+                  ))}
+                </div>
+                <div className="mini-list">
+                  {analysis.checklist.filter((item) => item.ok).map((item) => <span key={item.key}>{item.label}</span>)}
+                  {!analysis.checklist.some((item) => item.ok) && <span>Checklist pendiente.</span>}
+                </div>
+                <p className="notice">{analysis.warning}</p>
+                <div className="actions-line">
+                  <button className="secondary-button" onClick={() => createDeepfakeFinding(analysis.id)}><FileCheck2 size={16} /> Crear hallazgo</button>
+                  <button onClick={() => applyDeepfakeLegal(analysis)}><Gavel size={16} /> Aplicar normas sugeridas</button>
+                </div>
+              </article>
+            );
+          })}
           {!deepfakeAnalyses.length && <EmptyState text="Sin análisis de medios registrados para el caso seleccionado." />}
         </div>
       </section>
@@ -4016,12 +5050,35 @@ export function App() {
   function renderBlockchainForensics() {
     const highRisk = blockchainTransactions.filter((item) => ["mixer", "bridge", "contrato inteligente"].includes(item.wallet_classification)).length;
     const linked = blockchainTransactions.filter((item) => item.evidence_id).length;
+    const withExplorer = blockchainTransactions.filter((item) => item.explorer_url).length;
+    const includedInReport = blockchainTransactions.filter((item) => item.include_in_report).length;
+    const readiness = blockchainTransactions.map((item) => ({ item, quality: blockchainTransactionReadiness(item) }));
+    const readyTransactions = readiness.filter((entry) => entry.quality.status === "listo").length;
+    const draftChecklist = blockchainDraftReadiness(blockchainForm);
+    const explorer = getBlockchainExplorer(blockchainForm.blockchain);
+    const draftTxUrl = buildBlockchainUrl(blockchainForm.blockchain, "tx", blockchainForm.tx_hash);
+    const draftSourceUrl = buildBlockchainUrl(blockchainForm.blockchain, "source", blockchainForm.source_wallet);
+    const draftDestinationUrl = buildBlockchainUrl(blockchainForm.blockchain, "destination", blockchainForm.destination_wallet);
+    const blockchainGraph = buildBlockchainGraph(blockchainTransactions);
+    const routeOverview = blockchainRouteOverview(blockchainTransactions);
+    const moduleReadinessItems = [
+      { label: "Transacción o wallet registrada", ok: blockchainTransactions.length > 0 },
+      { label: "Evidencia preservada vinculada", ok: linked > 0 },
+      { label: "Explorador o fuente documentada", ok: withExplorer > 0 },
+      { label: "Hallazgo técnico creado", ok: blockchainTransactions.some((item) => item.finding_id) },
+      { label: "Normas aplicadas desde biblioteca", ok: blockchainTransactions.some((item) => item.legal_mapping_ids.length > 0) },
+      { label: "Saltos seleccionados para informe", ok: includedInReport > 0 },
+      { label: "Ruta lista para informe", ok: readyTransactions > 0 }
+    ];
+    const moduleScore = Math.round((moduleReadinessItems.filter((item) => item.ok).length / moduleReadinessItems.length) * 100);
+    const moduleStatus = moduleScore >= 80 ? "listo" : moduleScore >= 50 ? "parcial" : "incompleto";
+
     return (
-      <section className="work-surface cyber-workbench">
+      <section className="work-surface cyber-workbench blockchain-lab">
         <div className="section-head">
           <div>
-            <h2>Blockchain Forensics</h2>
-            <p>Registro pericial de wallets, transacciones y ruta probable sin consultar exploradores ni atribuir identidad personal automáticamente.</p>
+            <h2>Blockchain Investigation Lab</h2>
+            <p>Laboratorio guiado para documentar transacciones, wallets, exploradores consultados, ruta probable, evidencia y límites de atribución.</p>
           </div>
           <button className="secondary-button" onClick={refreshCybercrime}><RefreshCcw size={16} /> Actualizar</button>
         </div>
@@ -4031,15 +5088,51 @@ export function App() {
         <div className="risk-card medium blockchain-risk-row">
           <div><span>Transacciones</span><strong>{blockchainTransactions.length}</strong></div>
           <div><span>Con evidencia</span><strong>{linked}</strong></div>
+          <div><span>Con explorador</span><strong>{withExplorer}</strong></div>
+          <div><span>En informe</span><strong>{includedInReport}</strong></div>
+          <div><span>Listas</span><strong>{readyTransactions}</strong></div>
           <div><span>Riesgo reforzado</span><strong>{highRisk}</strong></div>
+          <div><span>Valor documentado</span><strong>{formatMoneyARS(routeOverview.totalARS)}</strong></div>
+        </div>
+
+        <div className="blockchain-steps">
+          <article>
+            <span>Paso 1</span>
+            <strong>Identificar dato blockchain</strong>
+            <p>Hash, wallet, red, token, monto y fecha. Preserva captura, URL y hora de consulta.</p>
+          </article>
+          <article>
+            <span>Paso 2</span>
+            <strong>Documentar trazabilidad</strong>
+            <p>Origen, destino, servicio observado, hipótesis de ruta y punto donde se debilita la trazabilidad.</p>
+          </article>
+          <article>
+            <span>Paso 3</span>
+            <strong>Enviar al informe</strong>
+            <p>Crea hallazgo, aplica normas y vincula evidencia para que el informe lo use con sustento.</p>
+          </article>
         </div>
 
         <div className="split blockchain-layout">
           <form className="form blockchain-form" onSubmit={saveBlockchainTransaction}>
-            <h3>Registrar transacción</h3>
+            <div className="panel-head">
+              <div>
+                <h3>{editingBlockchainId ? `Editar salto #${editingBlockchainId}` : "Registrar transacción blockchain"}</h3>
+                <p>Carga solo datos observados o preservados. La atribución personal exige evidencia externa.</p>
+              </div>
+              <span className="badge">{explorer.label}</span>
+            </div>
+            {editingBlockchainId && (
+              <div className="notice">
+                Est?s editando una transacción existente. Al guardar, OPERIA registrar? la actualizaci?n en custodia.
+              </div>
+            )}
             <div className="inline-grid">
-              <input placeholder="Red / blockchain" value={blockchainForm.blockchain} onChange={(e) => setBlockchainForm({ ...blockchainForm, blockchain: e.target.value })} />
-              <input placeholder="Token" value={blockchainForm.token} onChange={(e) => setBlockchainForm({ ...blockchainForm, token: e.target.value })} />
+              <select value={blockchainForm.blockchain} onChange={(e) => setBlockchainForm({ ...blockchainForm, blockchain: e.target.value })}>
+                {blockchainExplorerCatalog.map((item) => <option value={item.label} key={item.key}>{item.label}</option>)}
+                <option value="Otra red">Otra red</option>
+              </select>
+              <input placeholder="Token o activo" value={blockchainForm.token} onChange={(e) => setBlockchainForm({ ...blockchainForm, token: e.target.value })} />
             </div>
             <input placeholder="Hash de transacción" value={blockchainForm.tx_hash} onChange={(e) => setBlockchainForm({ ...blockchainForm, tx_hash: e.target.value })} />
             <div className="inline-grid">
@@ -4048,13 +5141,30 @@ export function App() {
             </div>
             <div className="inline-grid">
               <input placeholder="Monto" type="number" step="any" value={blockchainForm.amount} onChange={(e) => setBlockchainForm({ ...blockchainForm, amount: e.target.value })} />
-              <input placeholder="Valor aproximado" type="number" step="any" value={blockchainForm.approximate_value} onChange={(e) => setBlockchainForm({ ...blockchainForm, approximate_value: e.target.value })} />
+              <input placeholder="Valor aproximado en ARS" type="number" step="any" value={blockchainForm.approximate_value} onChange={(e) => setBlockchainForm({ ...blockchainForm, approximate_value: e.target.value })} />
             </div>
             <div className="inline-grid">
-              <input placeholder="Fecha/hora" value={blockchainForm.tx_datetime} onChange={(e) => setBlockchainForm({ ...blockchainForm, tx_datetime: e.target.value })} />
+              <input placeholder="Fecha/hora observada" value={blockchainForm.tx_datetime} onChange={(e) => setBlockchainForm({ ...blockchainForm, tx_datetime: e.target.value })} />
               <select value={blockchainForm.wallet_classification} onChange={(e) => setBlockchainForm({ ...blockchainForm, wallet_classification: e.target.value })}>
                 {walletClassifications.map((item) => <option value={item} key={item}>{prettySpanish(item)}</option>)}
               </select>
+            </div>
+            <div className="inline-grid">
+              <input
+                placeholder="Orden en la ruta. Ej: 1, 2, 3"
+                type="number"
+                min="0"
+                value={blockchainForm.route_order}
+                onChange={(e) => setBlockchainForm({ ...blockchainForm, route_order: e.target.value })}
+              />
+              <label className={`toggle-row ${blockchainForm.include_in_report ? "checked" : ""}`}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(blockchainForm.include_in_report)}
+                  onChange={(e) => setBlockchainForm({ ...blockchainForm, include_in_report: e.target.checked })}
+                />
+                <span>Incorporar este salto al informe final</span>
+              </label>
             </div>
             <select value={blockchainForm.evidence_id} onChange={(e) => setBlockchainForm({ ...blockchainForm, evidence_id: e.target.value })}>
               <option value="">Sin evidencia vinculada</option>
@@ -4062,59 +5172,309 @@ export function App() {
                 <option key={item.id} value={item.id}>#{item.id} - {item.description.slice(0, 60)}</option>
               ))}
             </select>
-            <input placeholder="URL del explorador preservada manualmente" value={blockchainForm.explorer_url} onChange={(e) => setBlockchainForm({ ...blockchainForm, explorer_url: e.target.value })} />
-            <input placeholder="Herramienta usada" value={blockchainForm.tool_used} onChange={(e) => setBlockchainForm({ ...blockchainForm, tool_used: e.target.value })} />
-            <textarea placeholder="Hipótesis de ruta" value={blockchainForm.route_hypothesis} onChange={(e) => setBlockchainForm({ ...blockchainForm, route_hypothesis: e.target.value })} />
-            <textarea placeholder="Limitaciones y evidencia faltante" value={blockchainForm.limitations} onChange={(e) => setBlockchainForm({ ...blockchainForm, limitations: e.target.value })} />
-            <button disabled={!selectedCaseId || !blockchainForm.tx_hash.trim() || blockchainState === "saving"}><Save size={17} /> Guardar transacción</button>
+            <div className="inline-grid">
+              <input placeholder="URL del explorador preservada" value={blockchainForm.explorer_url} onChange={(e) => setBlockchainForm({ ...blockchainForm, explorer_url: e.target.value })} />
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setBlockchainForm({ ...blockchainForm, explorer_url: draftTxUrl })}
+                disabled={!blockchainForm.tx_hash.trim()}
+              >
+                <Globe2 size={16} /> Usar URL sugerida
+              </button>
+            </div>
+            <input placeholder="Herramienta usada / explorador / m?todo" value={blockchainForm.tool_used} onChange={(e) => setBlockchainForm({ ...blockchainForm, tool_used: e.target.value })} />
+            <div className="preservation-card">
+              <strong>Acta m?nima de consulta</strong>
+              <span>Fuente: {blockchainForm.explorer_url || "URL del explorador pendiente"}</span>
+              <span>Fecha/hora: {blockchainForm.tx_datetime || "pendiente"}</span>
+              <span>Evidencia vinculada: {blockchainForm.evidence_id ? `#${blockchainForm.evidence_id}` : "pendiente"}</span>
+              <span>Analista: {analystName || identitySession.user?.name || "Analista local"}</span>
+            </div>
+            <textarea placeholder="Hipótesis de ruta: origen, destino, intermediarios, exchange, mixer o punto de pérdida de trazabilidad" value={blockchainForm.route_hypothesis} onChange={(e) => setBlockchainForm({ ...blockchainForm, route_hypothesis: e.target.value })} />
+            <textarea placeholder="Limitaciones y evidencia faltante: KYC, IPs, comunicaciones, registros de plataforma, capturas o pericia complementaria" value={blockchainForm.limitations} onChange={(e) => setBlockchainForm({ ...blockchainForm, limitations: e.target.value })} />
+            <div className="button-row">
+              <button disabled={!selectedCaseId || !blockchainForm.tx_hash.trim() || blockchainState === "saving"}>
+                <Save size={17} /> {editingBlockchainId ? "Actualizar salto documentado" : "Guardar transacción documentada"}
+              </button>
+              {editingBlockchainId && (
+                <button className="secondary-button" type="button" onClick={cancelBlockchainEdit}>
+                  Cancelar edici?n
+                </button>
+              )}
+            </div>
           </form>
 
-          <div className="detail-panel">
+          <div className="detail-panel blockchain-guide">
             <div className="panel-head">
               <div>
-                <h3>Medidas recomendadas</h3>
-                <p>Checklist operativo para no saltar de wallet a identidad sin soporte.</p>
+                <h3>Exploradores y preservación</h3>
+                <p>Los botones abren sitios externos en forma manual. No subas evidencia sensible sin autorización.</p>
               </div>
-              <span className="badge">No API externa</span>
+              <span className="badge">Salida controlada</span>
+            </div>
+            <div className="actions-line explorer-actions">
+              <a className="button-link" href={draftTxUrl} target="_blank" rel="noreferrer"><Globe2 size={16} /> Ver transacción</a>
+              <a className="button-link secondary-link" href={draftSourceUrl} target="_blank" rel="noreferrer"><Globe2 size={16} /> Wallet origen</a>
+              <a className="button-link secondary-link" href={draftDestinationUrl} target="_blank" rel="noreferrer"><Globe2 size={16} /> Wallet destino</a>
+            </div>
+            <div className="trace-preview">
+              <div>
+                <span>Origen</span>
+                <strong>{blockchainForm.source_wallet || "Wallet origen pendiente"}</strong>
+              </div>
+              <div className="trace-arrow">â†’</div>
+              <div>
+                <span>Destino</span>
+                <strong>{blockchainForm.destination_wallet || "Wallet destino pendiente"}</strong>
+              </div>
+            </div>
+            <div className={`preservation-checklist ${draftChecklist.ready ? "ready" : "pending"}`}>
+              <div>
+                <strong>Checklist de preservación previo al registro</strong>
+                <span>{draftChecklist.score}/100 ? {draftChecklist.ready ? "Registro suficientemente documentado" : "Completar antes de usar en informe final"}</span>
+              </div>
+              <div className="forensic-check-grid">
+                {draftChecklist.checks.map((check) => (
+                  <span className={check.ok ? "ok" : check.critical ? "missing critical" : "missing"} key={check.key}>
+                    {check.ok ? "✓" : "•"} {check.label}
+                  </span>
+                ))}
+              </div>
+              {draftChecklist.criticalMissing.length > 0 && (
+                <div className="missing-strip">
+                  <strong>Faltantes críticos:</strong>
+                  <span>{draftChecklist.criticalMissing.join(" ? ")}</span>
+                </div>
+              )}
+            </div>
+            <div className="mini-readiness">
+              {draftChecklist.checks.slice(0, 6).map((check) => (
+                <span className={check.ok ? "ok" : "missing"} key={check.label}>
+                  {check.ok ? "✓" : "•"} {check.label}
+                </span>
+              ))}
             </div>
             <ul className="compact-list">
-              <li>Preservar captura del explorador y registrar fecha/hora.</li>
-              <li>Guardar URL del explorador si fue consultada manualmente.</li>
-              <li>Identificar exchange/plataforma si aplica y solicitar datos por vía legal.</li>
-              <li>Correlacionar con comunicaciones, pagos, cuentas e IPs.</li>
-              <li>Evitar atribución personal solo por wallet.</li>
+              <li>Preservar captura del explorador, URL, fecha, hora y analista.</li>
+              <li>Vincular la captura o comprobante como evidencia del caso.</li>
+              <li>Identificar exchange, bridge, mixer o contrato inteligente si aparece.</li>
+              <li>Solicitar datos de plataforma por v?a legal si hay punto KYC.</li>
+              <li>Evitar atribución personal solo por wallet, alias o hash.</li>
             </ul>
-            <p className="notice">OPERIA no consulta exploradores externos automáticamente. El enlace solo se abre si fue cargado manualmente.</p>
           </div>
+        </div>
+
+        <div className={`detail-panel blockchain-readiness-panel ${moduleStatus}`}>
+          <div className="panel-head">
+            <div>
+              <h3>Preparaci?n pericial blockchain</h3>
+              <p>Control r?pido para saber si la secci?n blockchain puede pasar al informe con suficiente orden técnico.</p>
+            </div>
+            <span className={`readiness-badge ${moduleStatus}`}>
+              {moduleScore}/100 ? {moduleStatus === "listo" ? "Listo" : moduleStatus === "parcial" ? "Parcial" : "Incompleto"}
+            </span>
+          </div>
+          <div className="forensic-check-grid">
+            {moduleReadinessItems.map((item) => (
+              <span className={item.ok ? "ok" : "missing"} key={item.label}>
+                {item.ok ? "✓" : "•"} {item.label}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="detail-panel blockchain-annex-preview">
+          <div className="panel-head">
+            <div>
+              <h3>Anexo blockchain para informe</h3>
+              <p>Resumen de los elementos que OPERIA incorporar? al informe final si est?n vinculados al caso activo.</p>
+            </div>
+            <span className={`readiness-badge ${moduleStatus}`}>{moduleScore}/100</span>
+          </div>
+          <div className="annex-preview-grid">
+            <div>
+              <strong>Acta de consulta</strong>
+              <span>{blockchainTransactions.filter((item) => item.explorer_url && item.tx_datetime).length}/{blockchainTransactions.length || 0} con URL y fecha/hora.</span>
+            </div>
+            <div>
+              <strong>Soporte probatorio</strong>
+              <span>{linked}/{blockchainTransactions.length || 0} transacciones con evidencia vinculada.</span>
+            </div>
+            <div>
+              <strong>Ruta y grafo</strong>
+              <span>{blockchainGraph.edges.length} salto(s), {blockchainGraph.repeatedWallets.length} wallet(s) de enlace.</span>
+            </div>
+            <div>
+              <strong>Valor documentado</strong>
+              <span>{formatMoneyARS(routeOverview.totalARS)}</span>
+            </div>
+          </div>
+          <p className="notice">El anexo no atribuye identidad personal por s? solo: documenta trazabilidad económica, fuente consultada, límites y medidas pendientes.</p>
+        </div>
+
+        <div className="detail-panel blockchain-intel-panel">
+          <div className="panel-head">
+            <div>
+              <h3>Suficiencia, puntos críticos y requerimientos</h3>
+              <p>Lectura operativa de la ruta para saber qué falta antes de sostener trazabilidad, daño o atribución.</p>
+            </div>
+            <span className="badge">{routeOverview.readyCount}/{blockchainTransactions.length || 0} listo(s)</span>
+          </div>
+          <div className="blockchain-intel-grid">
+            <div>
+              <h4>Puntos críticos</h4>
+              <div className="summary-list">
+                {routeOverview.criticalFlags.slice(0, 8).map((flag, index) => <span key={`${flag}-${index}`}>{flag}</span>)}
+                {!routeOverview.criticalFlags.length && <span>Sin puntos críticos pendientes en los registros cargados.</span>}
+              </div>
+            </div>
+            <div>
+              <h4>Requerimientos sugeridos</h4>
+              <div className="summary-list">
+                {routeOverview.recommendedRequests.map((item) => <span key={item}>{item}</span>)}
+                {!routeOverview.recommendedRequests.length && <span>La ruta registrada no exige requerimientos adicionales autom?ticos.</span>}
+              </div>
+            </div>
+            <div>
+              <h4>Puntos de servicio</h4>
+              <div className="summary-list">
+                {routeOverview.servicePoints.map((item) => (
+                  <span key={item.id}>#{item.id} {prettySpanish(item.wallet_classification)} ? {shortBlockchainLabel(item.destination_wallet || item.source_wallet)}</span>
+                ))}
+                {!routeOverview.servicePoints.length && <span>No se registraron exchanges, mixers, bridges ni contratos inteligentes.</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="detail-panel blockchain-graph-panel">
+          <div className="panel-head">
+            <div>
+              <h3>Grafo multi-salto del caso</h3>
+              <p>Visualiza conexiones entre wallets cargadas. Si un destino coincide con otro origen, OPERIA lo marca como punto de enlace investigativo.</p>
+            </div>
+            <span className="badge">{blockchainGraph.repeatedWallets.length ? `${blockchainGraph.repeatedWallets.length} wallet(s) de enlace` : "Sin enlaces repetidos"}</span>
+          </div>
+          {blockchainGraph.edges.length ? (
+            <>
+              <div className="graph-summary">
+                <span><strong>{blockchainGraph.nodes.length}</strong> nodos</span>
+                <span><strong>{blockchainGraph.edges.length}</strong> saltos</span>
+                <span><strong>{blockchainGraph.repeatedWallets.length}</strong> enlaces</span>
+                <span><strong>{blockchainGraph.serviceNodes.length}</strong> servicios o puntos críticos</span>
+                <span><strong>{blockchainGraph.readyEdges}</strong> listos para informe</span>
+              </div>
+              <div className="blockchain-graph">
+                {blockchainGraph.edges.map((edge, index) => (
+                  <article className={`graph-hop ${edge.risk ? "risk" : ""} ${edge.readiness.status}`} key={edge.id}>
+                    <div className={`graph-node ${blockchainGraph.repeatedWallets.some((node) => node.id === edge.source) ? "linked" : ""}`}>
+                      <span>Origen</span>
+                      <strong title={edge.source}>{edge.sourceLabel}</strong>
+                    </div>
+                    <div className="graph-edge">
+                      <span>Salto {index + 1}</span>
+                      <strong>{edge.amountLabel}</strong>
+                      <small>{prettySpanish(edge.classification)} ? {edge.readiness.score}/100 ? {edge.txHashLabel}</small>
+                    </div>
+                    <div className={`graph-node ${edge.risk ? "service" : ""} ${blockchainGraph.repeatedWallets.some((node) => node.id === edge.target) ? "linked" : ""}`}>
+                      <span>Destino</span>
+                      <strong title={edge.target}>{edge.targetLabel}</strong>
+                    </div>
+                  </article>
+                ))}
+              </div>
+              <div className="graph-legend">
+                <span><i className="legend-dot ready" /> Listo</span>
+                <span><i className="legend-dot partial" /> Requiere refuerzo</span>
+                <span><i className="legend-dot risk" /> Mixer, bridge o contrato</span>
+                <span><i className="legend-dot linked" /> Wallet enlaza saltos</span>
+              </div>
+              {blockchainGraph.repeatedWallets.length > 0 && (
+                <div className="missing-strip">
+                  <strong>Wallets que conectan saltos:</strong>
+                  <span>{blockchainGraph.repeatedWallets.map((node) => node.label).join(" ? ")}</span>
+                </div>
+              )}
+            </>
+          ) : (
+            <EmptyState text="Registra dos o m?s transacciones para visualizar una ruta multi-salto." />
+          )}
         </div>
 
         <div className="detail-panel">
           <div className="panel-head">
-            <h3>Transacciones registradas</h3>
+            <div>
+              <h3>Ruta de fondos documentada</h3>
+              <p>Movimientos registrados para el caso activo y disponibles para informe si se convierten en hallazgo.</p>
+            </div>
+            <span className="badge">{blockchainTransactions.length ? `${blockchainTransactions.length} registro(s)` : "Sin registros"}</span>
           </div>
-          <div className="table blockchain-table">
-            {blockchainTransactions.map((item) => (
-              <div className="record blockchain-row" key={item.id}>
-                <div>
-                  <strong>{item.blockchain} · {item.amount} {item.token}</strong>
-                  <span>{item.tx_hash}</span>
-                  <small>{item.source_wallet || "origen pendiente"} → {item.destination_wallet || "destino pendiente"}</small>
+          <div className="blockchain-route-list">
+            {readiness.map(({ item, quality }) => (
+              <article className={`blockchain-route-card ${quality.status}`} key={item.id}>
+                <div className="route-card-head">
+                  <div>
+                    <span>{item.blockchain} ? {item.token}</span>
+                    <h3>{item.amount} {item.token} ? {formatMoneyARS(item.approximate_value)}</h3>
+                    <small>{item.tx_datetime || "Fecha/hora pendiente"} ? {item.tool_used || "Herramienta pendiente"}</small>
+                  </div>
+                  <div className="route-status-stack">
+                    <span className={`badge ${["mixer", "bridge"].includes(item.wallet_classification) ? "blocked" : ""}`}>{prettySpanish(item.wallet_classification)}</span>
+                    <span className={`readiness-badge ${quality.status}`}>{quality.label} ? {quality.score}/100</span>
+                  </div>
                 </div>
-                <div>
-                  <span className={`badge ${["mixer", "bridge"].includes(item.wallet_classification) ? "blocked" : ""}`}>{prettySpanish(item.wallet_classification)}</span>
-                  <small>Valor aprox. {item.approximate_value}</small>
-                  <small>{item.evidence_id ? `Evidencia #${item.evidence_id}` : "Sin evidencia vinculada"}</small>
+                <div className="route-graph">
+                  <div><span>Origen</span><strong>{item.source_wallet || "Pendiente"}</strong></div>
+                  <div className="trace-arrow">â†’</div>
+                  <div><span>Destino</span><strong>{item.destination_wallet || "Pendiente"}</strong></div>
+                </div>
+                <div className="route-meta">
+                  <span>Hash: {item.tx_hash}</span>
+                  <span>Orden de ruta: {item.route_order || "sin ordenar"}</span>
+                  <span>{item.include_in_report ? "Incluida en informe" : "Excluida del informe"}</span>
+                  <span>{item.evidence_id ? `Evidencia #${item.evidence_id}` : "Sin evidencia vinculada"}</span>
+                  <span>{item.finding_id ? `Hallazgo #${item.finding_id}` : "Sin hallazgo"}</span>
+                  <span>{item.legal_mapping_ids.length ? `${item.legal_mapping_ids.length} norma(s) aplicada(s)` : "Sin normas aplicadas"}</span>
+                </div>
+                <div className="pericial-reading-grid">
+                  <div>
+                    <strong>Qué acredita</strong>
+                    <span>Movimiento o indicador económico observado en una red blockchain, condicionado por la fuente preservada.</span>
+                  </div>
+                  <div>
+                    <strong>Qué no acredita por s? solo</strong>
+                    <span>Identidad civil, autor?a penal, dolo o control humano efectivo de la wallet.</span>
+                  </div>
+                  <div>
+                    <strong>Qué hacer ahora</strong>
+                    <span>{quality.status === "listo" ? "Puede integrarse al informe con sus límites." : `Completar: ${quality.missing.slice(0, 3).join(", ") || "validaci?n pericial"}.`}</span>
+                  </div>
                 </div>
                 <p>{item.route_hypothesis || "Hipótesis de ruta pendiente."}</p>
-                <small>{item.warning}</small>
+                <p className="notice">{item.limitations || item.warning}</p>
+                {quality.missing.length > 0 && (
+                  <div className="missing-strip">
+                    <strong>Falta para sostener mejor:</strong>
+                    <span>{quality.missing.slice(0, 5).join(" ? ")}</span>
+                  </div>
+                )}
                 <div className="actions-line">
+                  <button className="secondary-button" onClick={() => editBlockchainTransaction(item)}><Save size={16} /> Editar salto</button>
+                  <button className="secondary-button" onClick={() => toggleBlockchainReportInclusion(item)}>
+                    <FileText size={16} /> {item.include_in_report ? "Excluir del informe" : "Incorporar al informe"}
+                  </button>
                   <button className="secondary-button" onClick={() => createBlockchainFinding(item.id)}><FileCheck2 size={16} /> Crear hallazgo</button>
                   <button onClick={() => applyBlockchainLegal(item)}><Gavel size={16} /> Aplicar normas</button>
+                  <button onClick={() => promoteBlockchainTransaction(item)}><FileCheck2 size={16} /> Hallazgo + normas</button>
+                  <a className="button-link secondary-link" href={buildBlockchainUrl(item.blockchain, "tx", item.tx_hash)} target="_blank" rel="noreferrer"><Globe2 size={16} /> Buscar hash</a>
+                  <a className="button-link secondary-link" href={buildBlockchainUrl(item.blockchain, "source", item.source_wallet)} target="_blank" rel="noreferrer"><Globe2 size={16} /> Origen</a>
+                  <a className="button-link secondary-link" href={buildBlockchainUrl(item.blockchain, "destination", item.destination_wallet)} target="_blank" rel="noreferrer"><Globe2 size={16} /> Destino</a>
                   {item.explorer_url && (
-                    <a className="button-link" href={item.explorer_url} target="_blank" rel="noreferrer"><Globe2 size={16} /> Explorador</a>
+                    <a className="button-link" href={item.explorer_url} target="_blank" rel="noreferrer"><Globe2 size={16} /> Abrir explorador</a>
                   )}
                 </div>
-              </div>
+              </article>
             ))}
             {!blockchainTransactions.length && <EmptyState text="Sin transacciones blockchain registradas para el caso seleccionado." />}
           </div>
@@ -4122,10 +5482,12 @@ export function App() {
       </section>
     );
   }
-
   function renderIoTForensics() {
     const checklistDone = iotChecklist.filter((item) => iotChecklistState[item.key]).length;
     const linked = iotDevices.filter((item) => item.evidence_id).length;
+    const readiness = iotDevices.map((item) => iotDeviceReadiness(item));
+    const readyDevices = readiness.filter((item) => item.status === "listo").length;
+    const withFindings = iotDevices.filter((item) => item.finding_id).length;
     return (
       <section className="work-surface cyber-workbench">
         <div className="section-head">
@@ -4146,12 +5508,19 @@ export function App() {
         <div className="risk-card medium iot-risk-row">
           <div><span>Dispositivos</span><strong>{iotDevices.length}</strong></div>
           <div><span>Con evidencia</span><strong>{linked}</strong></div>
+          <div><span>Hallazgos</span><strong>{withFindings}</strong></div>
+          <div><span>Listos para informe</span><strong>{readyDevices}</strong></div>
           <div><span>Checklist actual</span><strong>{checklistDone}/{iotChecklist.length}</strong></div>
         </div>
 
         <div className="split iot-layout">
           <form className="form iot-form" onSubmit={saveIoTDevice}>
-            <h3>Registrar dispositivo</h3>
+            <div className="panel-head compact">
+              <div>
+                <h3>{editingIotId ? `Editar dispositivo #${editingIotId}` : "Registrar dispositivo"}</h3>
+                <p>{editingIotId ? "Actualiza la ficha sin perder trazabilidad del caso." : "Carga datos observados, evidencia y límites del análisis."}</p>
+              </div>
+            </div>
             <div className="inline-grid">
               <input placeholder="Tipo de dispositivo" value={iotForm.device_type} onChange={(e) => setIotForm({ ...iotForm, device_type: e.target.value })} />
               <input placeholder="Fabricante" value={iotForm.manufacturer} onChange={(e) => setIotForm({ ...iotForm, manufacturer: e.target.value })} />
@@ -4176,7 +5545,21 @@ export function App() {
             <textarea placeholder="Logs disponibles" value={iotForm.logs_available} onChange={(e) => setIotForm({ ...iotForm, logs_available: e.target.value })} />
             <input placeholder="Herramienta o metodología usada" value={iotForm.tool_used} onChange={(e) => setIotForm({ ...iotForm, tool_used: e.target.value })} />
             <textarea placeholder="Limitaciones" value={iotForm.limitations} onChange={(e) => setIotForm({ ...iotForm, limitations: e.target.value })} />
-            <button disabled={!selectedCaseId || iotState === "saving"}><Save size={17} /> {selectedCaseId ? "Guardar dispositivo" : "Selecciona un caso para guardar"}</button>
+            <button disabled={!selectedCaseId || iotState === "saving"}><Save size={17} /> {editingIotId ? "Actualizar ficha IoT" : selectedCaseId ? "Guardar dispositivo" : "Selecciona un caso para guardar"}</button>
+            {editingIotId && (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  setEditingIotId(null);
+                  setIotForm(emptyIoTForm);
+                  setIotChecklistState(emptyIoTChecklist);
+                  setIotMessage("Edición cancelada.");
+                }}
+              >
+                Cancelar edición
+              </button>
+            )}
           </form>
 
           <div className="detail-panel">
@@ -4203,38 +5586,88 @@ export function App() {
           </div>
         </div>
 
-        <div className="detail-panel">
+        <div className="detail-panel iot-readiness-panel">
           <div className="panel-head">
-            <h3>Dispositivos registrados</h3>
+            <div>
+              <h3>Dispositivos registrados</h3>
+              <p>Ficha pericial por dispositivo, con límites, soporte probatorio y preparación para informe.</p>
+            </div>
+            <span className="badge">{readyDevices}/{iotDevices.length || 0} listos</span>
           </div>
-          <div className="table iot-table">
-            {iotDevices.map((item) => (
-              <div className="record iot-row" key={item.id}>
-                <div>
-                  <strong>{item.device_type} · {item.manufacturer || "fabricante pendiente"} {item.model}</strong>
-                  <span>Firmware {item.firmware || "pendiente"} · MAC {item.mac || "pendiente"}</span>
-                  <small>IP interna {item.internal_ip || "-"} · IP externa {item.external_ip || "-"}</small>
-                </div>
-                <div>
-                  <span>{item.evidence_id ? `Evidencia #${item.evidence_id}` : "Sin evidencia vinculada"}</span>
-                  <small>Hash {item.evidence_hash || "pendiente"}</small>
-                  <small>{item.finding_id ? `Hallazgo #${item.finding_id}` : "Sin hallazgo"}</small>
-                </div>
-                <p>{item.known_vulnerabilities || item.logs_available || "Hallazgos pendientes."}</p>
-                <small>{item.warning}</small>
-                <div className="actions-line">
-                  <button className="secondary-button" onClick={() => createIoTFinding(item.id)}><FileCheck2 size={16} /> Crear hallazgo</button>
-                  <button onClick={() => applyIoTLegal(item)}><Gavel size={16} /> Aplicar normas</button>
-                </div>
-              </div>
-            ))}
+          <div className="article-list iot-table">
+            {iotDevices.map((item) => {
+              const quality = iotDeviceReadiness(item);
+              const identifiers = [
+                item.internal_ip ? `IP interna ${item.internal_ip}` : "",
+                item.external_ip ? `IP externa ${item.external_ip}` : "",
+                item.mac ? `MAC ${item.mac}` : ""
+              ].filter(Boolean).join(" · ") || "Identificadores de red pendientes";
+              return (
+                <article className="iot-row" key={item.id}>
+                  <div className="panel-head">
+                    <div>
+                      <span>{prettySpanish(item.device_type || "Dispositivo IoT")}</span>
+                      <h3>{item.manufacturer || "Fabricante pendiente"} {item.model || ""}</h3>
+                    </div>
+                    <div className="route-status-stack">
+                      <span className={`readiness-badge ${quality.status}`}>{quality.score}/100 · {quality.status}</span>
+                      <span className="badge">{item.finding_id ? `Hallazgo #${item.finding_id}` : "Sin hallazgo"}</span>
+                    </div>
+                  </div>
+                  <div className="legal-card-grid">
+                    <small>Firmware: {item.firmware || "pendiente"}</small>
+                    <small>{identifiers}</small>
+                    <small>{item.evidence_id ? `Evidencia #${item.evidence_id}` : "Sin evidencia vinculada"}</small>
+                    <small>Hash: {item.evidence_hash || "pendiente"}</small>
+                  </div>
+                  <div className="pericial-reading-grid">
+                    <div>
+                      <strong>Qué acredita</strong>
+                      <span>Estado observable del dispositivo, identificadores técnicos, configuración declarada, logs disponibles y relación con evidencia preservada.</span>
+                    </div>
+                    <div>
+                      <strong>Qué no acredita por sí solo</strong>
+                      <span>Autoría, acceso ilegítimo, explotación efectiva o identidad del operador sin timeline, logs, autorización, pericia y corroboración externa.</span>
+                    </div>
+                    <div>
+                      <strong>Qué hacer ahora</strong>
+                      <span>{quality.status === "listo" ? "Puede pasar al informe con limitaciones periciales explícitas." : `Completar: ${quality.missing.slice(0, 3).join(", ") || "validación"}.`}</span>
+                    </div>
+                  </div>
+                  <div className="mini-list">
+                    {item.open_ports && <span>Puertos: {item.open_ports}</span>}
+                    {item.known_vulnerabilities && <span>Vulnerabilidades: {item.known_vulnerabilities}</span>}
+                    {item.logs_available && <span>Logs: {item.logs_available}</span>}
+                    {!item.open_ports && !item.known_vulnerabilities && !item.logs_available && <span>Sin observaciones técnicas cargadas.</span>}
+                  </div>
+                  <div className="mini-readiness">
+                    {quality.checks.map((check) => (
+                      <span className={check.ok ? "ok" : "missing"} key={check.key}>{check.ok ? "✓" : "•"} {check.label}</span>
+                    ))}
+                  </div>
+                  <p className="notice">{item.warning || "Todo análisis activo debe documentar autorización, método y límites."}</p>
+                  <div className="timeline-strip">
+                    <span>1. Identificación</span>
+                    <span>2. Preservación</span>
+                    <span>3. Observación técnica</span>
+                    <span>4. Hallazgo</span>
+                    <span>5. Norma aplicable</span>
+                    <span>6. Informe</span>
+                  </div>
+                  <div className="actions-line">
+                    <button className="secondary-button" type="button" onClick={() => editIoTDevice(item)}><FileCheck2 size={16} /> Editar ficha</button>
+                    <button className="secondary-button" onClick={() => createIoTFinding(item.id)}><FileCheck2 size={16} /> Crear hallazgo</button>
+                    <button onClick={() => applyIoTLegal(item)}><Gavel size={16} /> Aplicar normas</button>
+                  </div>
+                </article>
+              );
+            })}
             {!iotDevices.length && <EmptyState text="Sin dispositivos IoT registrados para el caso seleccionado." />}
           </div>
         </div>
       </section>
     );
   }
-
 
   function renderExternalTools() {
     const categories = ["Todas", ...Array.from(new Set(externalToolsCatalog.map((item) => item.category))).sort()];
@@ -4274,24 +5707,24 @@ export function App() {
       {
         area: "Deepfake / Media",
         title: "Deepfake / Media Forensics",
-        text: "Autenticación de imagen, video, audio, metadatos, compresión, frames y origen del contenido.",
-        warning: "Usar para verificación, autenticación, investigación legítima y preservación de evidencia. No usar para crear o difundir contenido engañoso."
+        text: "Autenticaci?n de imagen, video, audio, metadatos, compresi?n, frames y origen del contenido.",
+        warning: "Usar para verificaci?n, autenticación, investigaci?n leg?tima y preservación de evidencia. No usar para crear o difundir contenido engañoso."
       },
       {
         area: "Blockchain Transactions",
         title: "Blockchain Transactions",
         text: "Exploradores, wallets, contratos, grafos, trazabilidad de fondos y análisis de smart contracts.",
-        warning: "Respetar legislación aplicable, privacidad, reglas probatorias y límites de investigación autorizada."
+        warning: "Respetar legislaci?n aplicable, privacidad, reglas probatorias y límites de investigaci?n autorizada."
       },
       {
         area: "IoT Devices",
         title: "IoT Devices Forensics",
-        text: "Firmware, dispositivos, tráfico, puertos, servicios, sistemas embebidos y análisis de laboratorio.",
-        warning: "Analizar únicamente dispositivos propios, entornos de laboratorio o sistemas con autorización expresa."
+        text: "Firmware, dispositivos, tr?fico, puertos, servicios, sistemas embebidos y análisis de laboratorio.",
+        warning: "Analizar ?nicamente dispositivos propios, entornos de laboratorio o sistemas con autorización expresa."
       }
     ];
     const openExternalLink = (url: string, item: InventoryCyberTool, action: string) => {
-      const notice = item.externalExecutionNotice || "Vas a salir de Operia. El análisis, descarga o consulta se realizará en una plataforma externa. Operia no procesa ni almacena tus datos.";
+      const notice = item.externalExecutionNotice || "Vas a salir de Operia. El análisis, descarga o consulta se realizar? en una plataforma externa. Operia no procesa ni almacena tus datos.";
       const ok = window.confirm(`${notice}\n\nAcción: ${action}\nHerramienta: ${item.name}`);
       if (ok) window.open(url, "_blank", "noopener,noreferrer");
     };
@@ -4379,7 +5812,7 @@ export function App() {
           <div className="search-box">
             <Search size={18} />
             <input
-              placeholder="Buscar por herramienta, categoría, descripción, tags o uso forense"
+              placeholder="Buscar por herramienta, categor?a, descripci?n, tags o uso forense"
               value={externalToolQuery}
               onChange={(event) => setExternalToolQuery(event.target.value)}
             />
@@ -4392,7 +5825,7 @@ export function App() {
               {operatingSystems.map((os) => <option key={os}>{os}</option>)}
             </select>
             <select value={externalToolDifficulty} onChange={(event) => setExternalToolDifficulty(event.target.value)}>
-              {["Todas", "Básico", "Intermedio", "Avanzado", "Experto"].map((level) => <option key={level}>{level}</option>)}
+              {["Todas", "B?sico", "Intermedio", "Avanzado", "Experto"].map((level) => <option key={level}>{level}</option>)}
             </select>
             <select value={externalToolSpecialArea} onChange={(event) => setExternalToolSpecialArea(event.target.value)}>
               {specialAreas.map((area) => <option key={area}>{area}</option>)}
@@ -4455,13 +5888,13 @@ export function App() {
             </div>
             <div className="inventory-grid">
               {filteredTools.map(renderToolCard)}
-              {!filteredTools.length && <EmptyState text="No hay herramientas para esos filtros. Limpia filtros o busca por otra categoría." />}
+              {!filteredTools.length && <EmptyState text="No hay herramientas para esos filtros. Limpia filtros o busca por otra categor?a." />}
             </div>
           </div>
         </div>
 
         <footer className="inventory-footer">
-          Este inventario está destinado a fines de informática forense, investigación defensiva, respuesta a incidentes, auditoría autorizada, preservación de evidencia, docencia y análisis técnico-jurídico. No debe utilizarse para acceder, interferir, explotar o analizar sistemas sin autorización expresa.
+          Este inventario est? destinado a fines de informática forense, investigaci?n defensiva, respuesta a incidentes, auditoría autorizada, preservación de evidencia, docencia y análisis técnico-jur?dico. No debe utilizarse para acceder, interferir, explotar o analizar sistemas sin autorización expresa.
         </footer>
       </section>
     );
@@ -4480,7 +5913,7 @@ export function App() {
         <div className="ai-hero-panel">
           <div>
             <span className="tool-kicker">Caso seleccionado</span>
-            <h3>{selectedCase ? `${selectedCase.case_code} · ${selectedCase.title}` : "Selecciona un caso para iniciar"}</h3>
+            <h3>{selectedCase ? `${selectedCase.case_code} ? ${selectedCase.title}` : "Selecciona un caso para iniciar"}</h3>
             <p>{selectedCase ? prettySpanish(selectedCase.incident_type) : "La tipificacion requiere un caso, una narrativa y biblioteca legal registrada."}</p>
           </div>
           <div className="ai-score-card">
@@ -4504,7 +5937,7 @@ export function App() {
               <button className="secondary-button" onClick={() => runLegalTypification(true)} disabled={!selectedCaseId || legalApplyState === "applying"}>
                 <CheckCircle2 size={17} /> {legalApplyState === "applying" ? "Guardando..." : "Guardar sugerencias"}
               </button>
-              <button className="secondary-button" onClick={runAiAssist}><Bot size={17} /> Ampliar analisis</button>
+              <button className="secondary-button" onClick={runAiAssist}><Bot size={17} /> Ampliar análisis</button>
               <button className="secondary-button" onClick={runCaseRecommendations} disabled={!selectedCaseId}>
                 <FileCheck2 size={17} /> Proximos pasos
               </button>
@@ -4527,12 +5960,12 @@ export function App() {
             {legalTypification?.principal_typification ? (
               <div className="typification-card">
                 <span>{legalTypification.profile?.label || "Incidente digital"}</span>
-                <h3>{legalTypification.principal_typification.reference} · {prettySpanish(legalTypification.principal_typification.title)}</h3>
+                <h3>{legalTypification.principal_typification.reference} ? {prettySpanish(legalTypification.principal_typification.title)}</h3>
                 <p>{prettySpanish(legalTypification.principal_typification.applicability_to_case)}</p>
                 <div className="readiness-bar">
                   <div style={{ width: `${legalTypification.readiness_score}%` }} />
                 </div>
-                <small>{prettySpanish(legalTypification.decision_level)} · Score {legalTypification.readiness_score}/100</small>
+                <small>{prettySpanish(legalTypification.decision_level)} ? Score {legalTypification.readiness_score}/100</small>
               </div>
             ) : (
               <EmptyState text="Ejecuta 'Tipificar delito' para obtener una propuesta jurídica asistida." />
@@ -4546,16 +5979,16 @@ export function App() {
               <h3>Elementos y evidencia necesaria</h3>
               <div className="summary-list">
                 <span>Elementos objetivos: {prettySpanish(legalTypification.principal_typification?.why || "sin norma principal")}</span>
-                <span>Elemento subjetivo: {prettySpanish(legalTypification.principal_typification?.subjective_elements || "requiere revision")}</span>
+                <span>Elemento subjetivo: {prettySpanish(legalTypification.principal_typification?.subjective_elements || "requiere revisión")}</span>
                 <span>Evidencia requerida: {prettySpanish(legalTypification.principal_typification?.evidence_needed || "pendiente")}</span>
-                <span>Limites: {prettySpanish(legalTypification.principal_typification?.probatory_limits || "requiere validacion humana")}</span>
+                <span>L?mites: {prettySpanish(legalTypification.principal_typification?.probatory_limits || "requiere validacion humana")}</span>
               </div>
             </div>
             <div className="detail-panel">
               <h3>Normas conexas</h3>
               <div className="mini-list">
                 {legalTypification.connected_typifications.slice(0, 5).map((item) => (
-                  <span key={`${item.article_id}-${item.reference}`}>{item.reference} · {prettySpanish(item.title)} · {prettySpanish(item.legal_role)}</span>
+                  <span key={`${item.article_id}-${item.reference}`}>{item.reference} ? {prettySpanish(item.title)} ? {prettySpanish(item.legal_role)}</span>
                 ))}
                 {!legalTypification.connected_typifications.length && <span>Sin normas conexas registradas para este perfil.</span>}
               </div>
@@ -4569,7 +6002,7 @@ export function App() {
               </div>
               <ul className="compact-list">
                 {legalTypification.missing_for_stronger_typification.map((item) => <li key={item}>{prettySpanish(item)}</li>)}
-                {!legalTypification.missing_for_stronger_typification.length && <li>Base minima completa para revision del analista.</li>}
+                {!legalTypification.missing_for_stronger_typification.length && <li>Base minima completa para revisión del analista.</li>}
               </ul>
             </div>
             <div className="detail-panel">
@@ -4595,16 +6028,74 @@ export function App() {
   }
 
   function renderAiSecurity() {
+    const evaluation = aiSecurityResult as AiSecurityEvaluation | null;
     return (
       <section className="work-surface">
         <div className="section-head">
           <div>
             <h2>AI Security</h2>
-            <p>Evaluacion controlada de modelos. Reporta riesgo observado bajo condiciones concretas.</p>
+            <p>Auditor?a controlada de modelos IA locales antes de usarlos en casos reales.</p>
           </div>
           <button onClick={runAiSecurity}><BrainCircuit size={17} /> Crear evaluacion</button>
         </div>
-        <JsonPanel data={aiSecurityResult} />
+        <div className="ai-security-grid">
+          <div className="ai-security-card primary">
+            <h3>Función del m?dulo</h3>
+            <p>
+              AI Security no investiga personas ni resuelve casos. Su función es auditar el modelo IA que OPERIA usa como asistente:
+              privacidad, fuga de datos, alucinaci?n jurídica, obediencia ante instrucciones maliciosas y uso seguro en entorno forense.
+            </p>
+          </div>
+          <div className="ai-security-card">
+            <h3>Resultado esperado</h3>
+            <p>
+              La conclusi?n correcta no es â€œmodelo seguro al 100%â€, sino: bajo condiciones locales, aisladas y auditadas,
+              el riesgo observado es bajo, medio, alto o crítico.
+            </p>
+          </div>
+          <div className="ai-security-card">
+            <h3>Qué eval?a</h3>
+            <ul>
+              <li>Privacidad y posible fuga de información.</li>
+              <li>Prompt injection, jailbreak y obediencia maliciosa.</li>
+              <li>Alucinaci?n legal y citas normativas falsas.</li>
+              <li>Uso sin herramientas, sin red y con revisión humana.</li>
+            </ul>
+          </div>
+          <div className="ai-security-card">
+            <h3>Cómo mejorarlo</h3>
+            <ul>
+              <li>Agregar ejecución real de batería de pruebas controladas.</li>
+              <li>Mostrar matriz de riesgo por test y reporte descargable.</li>
+              <li>Comparar modelos locales: Mistral, DeepSeek u otros.</li>
+              <li>Guardar evidencia de auditoría sin exponer datos sensibles.</li>
+            </ul>
+          </div>
+        </div>
+        {evaluation ? (
+          <div className="ai-security-result">
+            <div>
+              <span>Modelo evaluado</span>
+              <strong>{evaluation.model_name || "Mistral"}</strong>
+            </div>
+            <div>
+              <span>Proveedor</span>
+              <strong>{evaluation.provider || "Local"}</strong>
+            </div>
+            <div>
+              <span>Riesgo observado</span>
+              <strong>{prettySpanish(evaluation.risk_level || "pendiente")}</strong>
+            </div>
+            <div>
+              <span>Score</span>
+              <strong>{evaluation.overall_score ?? "-"} / 100</strong>
+            </div>
+            <p>{evaluation.conclusion || "Evaluación registrada."}</p>
+            {evaluation.recommendation && <p>{evaluation.recommendation}</p>}
+          </div>
+        ) : (
+          <EmptyState text="Todavía no hay evaluación registrada. Ejecuta una evaluación para obtener riesgo observado, recomendaci?n y conclusi?n auditable." />
+        )}
       </section>
     );
   }
@@ -4612,56 +6103,369 @@ export function App() {
   function renderIdentity() {
     const currentRole = identitySession.user?.role || "";
     const currentPermissions = currentRole ? permissions[currentRole] || [] : [];
+    const canManageIdentity = currentPermissions.includes("*") || currentPermissions.includes("identity:write");
+    const canReadIdentity = canManageIdentity || currentPermissions.includes("identity:read");
+    const roleLabels: Record<string, string> = {
+      admin: "Administrador",
+      coordinador: "Coordinador",
+      coordinator: "Coordinador",
+      analista: "Analista",
+      analyst: "Analista",
+      legal: "Legal",
+      lector: "Lector"
+    };
+    const statusLabels: Record<string, string> = { active: "Activo", inactive: "Inactivo", suspended: "Suspendido" };
     return (
       <section className="work-surface">
         <div className="section-head">
           <div>
             <h2>Identidad y Permisos</h2>
-            <p>Login local con token bearer, usuario visible y permisos por rol.</p>
+            <p>Acceso local, usuario interviniente y permisos visibles por rol.</p>
           </div>
           <button className="icon-button" onClick={refreshIdentity} title="Actualizar"><RefreshCcw size={18} /></button>
         </div>
 
         {identitySession.authenticated && identitySession.user ? (
-          <div className="preview-grid">
-            <div>
-              <h4>Sesion activa</h4>
+          <div className="identity-panel">
+            <div className="identity-profile">
+              <span className="status">Sesión activa</span>
+              <h3>{identitySession.user.name}</h3>
+              <p>{identitySession.user.email || "Sin email registrado"}</p>
               <div className="summary-list">
-                <span>Usuario: {identitySession.user.name}</span>
-                <span>Email: {identitySession.user.email || "sin email"}</span>
-                <span>Rol: {identitySession.user.role}</span>
-                <span>Organizacion: {identitySession.user.organization_id || "local"}</span>
+                <span>Rol: {roleLabels[identitySession.user.role] || prettySpanish(identitySession.user.role)}</span>
+                <span>Organización: {identitySession.user.organization_id || "local"}</span>
+                <span>Permisos activos: {currentPermissions.length}</span>
               </div>
-              <button className="secondary" onClick={logout}>Cerrar sesion</button>
+              <button className="secondary" onClick={logout}>Cerrar sesión</button>
             </div>
-            <div>
-              <h4>Permisos visibles</h4>
-              <div className="mini-list">
-                {currentPermissions.map((permission) => <span key={permission}>{permission}</span>)}
+            <div className="identity-permissions">
+              <h3>Permisos del usuario</h3>
+              <p>Estas capacidades determinan qué acciones puede ejecutar el operador dentro de OPERIA.</p>
+              <div className="permission-chip-grid">
+                {currentPermissions.map((permission) => <span key={permission}>{prettySpanish(permission.replace(":", ": "))}</span>)}
                 {!currentPermissions.length && <span>Sin permisos declarados para el rol.</span>}
               </div>
             </div>
           </div>
         ) : (
-          <div className="split">
+          <div className="identity-login-grid">
             <form className="form" onSubmit={login}>
-              <h3>Iniciar sesion</h3>
+              <h3>Iniciar sesión</h3>
+              <p>Usa el usuario administrador o analista creado para firmar acciones sensibles.</p>
               <input placeholder="Email" value={loginForm.email} onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })} />
               <input placeholder="Password" type="password" value={loginForm.password} onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })} />
               <button><Users size={17} /> Entrar</button>
+              <button type="button" className="secondary-button" onClick={recoverLocalAdmin} disabled={loading}>
+                <Shield size={17} /> Recuperar acceso local
+              </button>
+              <p className="hint">Si olvidaste la clave local, esta acción restablece el administrador en esta PC y abre sesión automáticamente.</p>
             </form>
             <form className="form" onSubmit={bootstrapAdmin}>
               <h3>Crear admin inicial</h3>
-              <input placeholder="Organizacion" value={bootstrapForm.organization_name} onChange={(e) => setBootstrapForm({ ...bootstrapForm, organization_name: e.target.value })} />
+              <p>Solo se usa la primera vez. Si ya existen usuarios, inicia sesión o recupera el acceso local.</p>
+              <input placeholder="Organización" value={bootstrapForm.organization_name} onChange={(e) => setBootstrapForm({ ...bootstrapForm, organization_name: e.target.value })} />
               <input placeholder="Nombre" value={bootstrapForm.name} onChange={(e) => setBootstrapForm({ ...bootstrapForm, name: e.target.value })} />
               <input placeholder="Email" value={bootstrapForm.email} onChange={(e) => setBootstrapForm({ ...bootstrapForm, email: e.target.value })} />
               <input placeholder="Password" type="password" value={bootstrapForm.password} onChange={(e) => setBootstrapForm({ ...bootstrapForm, password: e.target.value })} />
               <button className="secondary"><Shield size={17} /> Bootstrap admin</button>
+              <p className="hint">Disponible solo cuando todavía no existe ningún usuario. No se usa para recuperar contraseñas.</p>
             </form>
           </div>
         )}
 
-        <JsonPanel data={{ authenticated: identitySession.authenticated, user: identitySession.user, permissions }} />
+        {identityMessage && (
+          <div className={identityState === "error" ? "notice error" : "notice success"}>
+            {identityMessage}
+          </div>
+        )}
+
+        {identitySession.authenticated && identitySession.user && (
+          <>
+            <form className="identity-profile-editor" onSubmit={saveProfile}>
+              <div className="section-head compact">
+                <div>
+                  <h3>Perfil profesional del analista</h3>
+                  <p>Datos de autoría, auditoría, cierre de caso e informes finales.</p>
+                </div>
+                <button disabled={identityState === "working"}><Save size={17} /> Guardar perfil</button>
+              </div>
+              <div className="form-grid two">
+                <input placeholder="Nombre completo" value={profileForm.name} onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })} />
+                <input placeholder="Cargo o función" value={profileForm.title} onChange={(e) => setProfileForm({ ...profileForm, title: e.target.value })} />
+                <input placeholder="Organismo, equipo o estudio" value={profileForm.agency} onChange={(e) => setProfileForm({ ...profileForm, agency: e.target.value })} />
+                <input placeholder="Matrícula, legajo o identificador profesional" value={profileForm.registration_id} onChange={(e) => setProfileForm({ ...profileForm, registration_id: e.target.value })} />
+                <input placeholder="Teléfono de contacto" value={profileForm.phone} onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })} />
+                <input placeholder="Notas internas del perfil" value={profileForm.profile_notes} onChange={(e) => setProfileForm({ ...profileForm, profile_notes: e.target.value })} />
+              </div>
+              <textarea placeholder="Firma profesional o leyenda de intervención" value={profileForm.signature} onChange={(e) => setProfileForm({ ...profileForm, signature: e.target.value })} />
+            </form>
+
+            {canReadIdentity && (
+              <div className="identity-admin-grid">
+                <div className="identity-admin-panel">
+                  <h3>Usuarios del equipo</h3>
+                  <p>Roles, estados y claves se administran con auditoría. Las claves nunca se muestran.</p>
+                  <div className="user-list">
+                    {identityUsers.map((user) => (
+                      <div className="user-card" key={user.id}>
+                        <div>
+                          <strong>{user.name || "Usuario sin nombre"}</strong>
+                          <span>{user.email || "Sin email"} · {roleLabels[user.role] || prettySpanish(user.role)} · {statusLabels[user.status || "active"] || user.status}</span>
+                          <small>{[user.title, user.agency, user.registration_id].filter(Boolean).join(" · ") || "Perfil profesional incompleto"}</small>
+                        </div>
+                        {canManageIdentity && (
+                          <div className="user-actions">
+                            <select value={user.role} onChange={(e) => updateIdentityUser(user.id, { role: e.target.value })}>
+                              {Object.keys(roleLabels).filter((role) => permissions[role]).map((role) => <option key={role} value={role}>{roleLabels[role]}</option>)}
+                            </select>
+                            <select value={user.status || "active"} onChange={(e) => updateIdentityUser(user.id, { status: e.target.value })}>
+                              <option value="active">Activo</option>
+                              <option value="inactive">Inactivo</option>
+                              <option value="suspended">Suspendido</option>
+                            </select>
+                            <input
+                              type="password"
+                              placeholder="Nueva clave"
+                              value={passwordDrafts[user.id] || ""}
+                              onChange={(e) => setPasswordDrafts({ ...passwordDrafts, [user.id]: e.target.value })}
+                            />
+                            <button type="button" className="secondary-button" onClick={() => resetIdentityPassword(user.id)}>Resetear clave</button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {!identityUsers.length && <div className="empty-state">No hay usuarios visibles para tu rol.</div>}
+                  </div>
+                </div>
+
+                {canManageIdentity && (
+                  <form className="identity-admin-panel" onSubmit={createIdentityUser}>
+                    <h3>Crear usuario</h3>
+                    <p>Alta controlada para administradores, analistas, legales, coordinadores o lectores.</p>
+                    <input placeholder="Nombre completo" value={newUserForm.name} onChange={(e) => setNewUserForm({ ...newUserForm, name: e.target.value })} />
+                    <input placeholder="Email" value={newUserForm.email} onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })} />
+                    <div className="form-grid two">
+                      <select value={newUserForm.role} onChange={(e) => setNewUserForm({ ...newUserForm, role: e.target.value })}>
+                        <option value="analista">Analista</option>
+                        <option value="legal">Legal</option>
+                        <option value="coordinador">Coordinador</option>
+                        <option value="lector">Lector</option>
+                        <option value="admin">Administrador</option>
+                      </select>
+                      <select value={newUserForm.status} onChange={(e) => setNewUserForm({ ...newUserForm, status: e.target.value })}>
+                        <option value="active">Activo</option>
+                        <option value="inactive">Inactivo</option>
+                      </select>
+                    </div>
+                    <input placeholder="Cargo o función" value={newUserForm.title} onChange={(e) => setNewUserForm({ ...newUserForm, title: e.target.value })} />
+                    <input placeholder="Organismo o equipo" value={newUserForm.agency} onChange={(e) => setNewUserForm({ ...newUserForm, agency: e.target.value })} />
+                    <input type="password" placeholder="Clave inicial" value={newUserForm.password} onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })} />
+                    <button disabled={identityState === "working"}><Users size={17} /> Crear usuario</button>
+                  </form>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+        <div className="role-grid">
+          {Object.entries(permissions).map(([role, items]) => (
+            <div className="role-card" key={role}>
+              <strong>{roleLabels[role] || prettySpanish(role)}</strong>
+              <span>{items.length} permisos</span>
+              <p>{items.slice(0, 5).map((item) => prettySpanish(item.replace(":", ": "))).join(" · ")}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  function renderSettings() {
+    const readiness = (modulePayload || {}) as {
+      database?: { dialect?: string; schema_version?: string; alembic_heads?: string[]; postgres_ready?: boolean };
+      storage?: Record<string, string>;
+      saas_readiness?: Record<string, boolean>;
+      recommendations?: string[];
+    };
+    const saasEntries = Object.entries(readiness.saas_readiness || {});
+    const storageEntries = Object.entries(readiness.storage || {});
+    return (
+      <section className="work-surface">
+        <div className="section-head">
+          <div>
+            <h2>Configuración</h2>
+            <p>Estado técnico de la plataforma, base de datos, almacenamiento y preparación SaaS.</p>
+          </div>
+          <button className="icon-button" onClick={() => loadModule("settings")} title="Actualizar"><RefreshCcw size={18} /></button>
+        </div>
+
+        <div className="settings-hero">
+          <div>
+            <span>Base de datos</span>
+            <strong>{prettySpanish(readiness.database?.dialect || "Sin datos")}</strong>
+            <p>Versión de esquema: {readiness.database?.schema_version || "No informada"}</p>
+          </div>
+          <div>
+            <span>Preparación SaaS</span>
+            <strong>{saasEntries.filter(([, ok]) => ok).length}/{saasEntries.length || 0}</strong>
+            <p>Controles activos para operación profesional y multi-organización.</p>
+          </div>
+          <div>
+            <span>PostgreSQL</span>
+            <strong>{readiness.database?.postgres_ready ? "Preparado" : "Pendiente"}</strong>
+            <p>{readiness.database?.postgres_ready ? "Listo para despliegue avanzado." : "Operando en modo local SQLite."}</p>
+          </div>
+        </div>
+
+        <div className="settings-grid">
+          <div className="settings-card">
+            <h3>Almacenamiento</h3>
+            <div className="summary-list">
+              {storageEntries.map(([key, value]) => (
+                <span key={key}>{prettySpanish(key)}: {value}</span>
+              ))}
+              {!storageEntries.length && <span>Sin rutas registradas.</span>}
+            </div>
+          </div>
+          <div className="settings-card">
+            <h3>Controles SaaS</h3>
+            <div className="readiness-list">
+              {saasEntries.map(([key, ok]) => (
+                <div className={`readiness-item ${ok ? "ok" : ""}`} key={key}>
+                  <strong>{prettySpanish(key.replace(/_/g, " "))}</strong>
+                  <span>{ok ? "Activo" : "Pendiente"}</span>
+                </div>
+              ))}
+              {!saasEntries.length && <EmptyState text="Sin controles reportados." />}
+            </div>
+          </div>
+        </div>
+
+        <div className="settings-card">
+          <h3>Recomendaciones operativas</h3>
+          <ul className="clean-list">
+            {(readiness.recommendations || []).map((item) => <li key={item}>{prettySpanish(item)}</li>)}
+            {!(readiness.recommendations || []).length && <li>No hay recomendaciones pendientes reportadas.</li>}
+          </ul>
+        </div>
+      </section>
+    );
+  }
+
+  function renderCasePresentation() {
+    const selectedPresentation = presentations.find((item) => item.id === Number(selectedPresentationId)) || presentations[0];
+    const reviewMetrics = presentationReview
+      ? [
+          ["Claridad", presentationReview.clarity],
+          ["Fuerza probatoria", presentationReview.evidentiary_strength],
+          ["Coherencia narrativa", presentationReview.narrative_coherence],
+          ["Solidez legal", presentationReview.legal_solidity],
+          ["Calidad visual", presentationReview.visual_quality]
+        ]
+      : [];
+    return (
+      <section className="work-surface presentation-workbench">
+        <div className="section-head">
+          <div>
+            <h2>Exposición del Caso</h2>
+            <p>Guion profesional para presentar el caso con diapositivas, notas orales, riesgos y exportación PDF.</p>
+          </div>
+          <div className="actions-row">
+            <button onClick={generateCasePresentation} disabled={!latestReport || presentationState === "working"}>
+              <MonitorPlay size={16} /> Generar exposición
+            </button>
+            <button className="secondary" onClick={reviewCasePresentation} disabled={!selectedPresentationId || presentationState === "working"}>
+              <CheckCircle2 size={16} /> Revisar exposición
+            </button>
+            {selectedPresentation && (
+              <a className="download-button secondary" href={`${API_BASE}/reports/presentations/${selectedPresentation.id}/export/pdf`} target="_blank" rel="noreferrer">
+                <Download size={16} /> Exportar PDF
+              </a>
+            )}
+          </div>
+        </div>
+
+        {presentationMessage && (
+          <div className={`inline-alert ${presentationState === "error" ? "danger" : presentationState === "success" ? "success" : ""}`}>
+            {presentationMessage}
+          </div>
+        )}
+
+        <div className="presentation-dashboard">
+          {[
+            ["Caso activo", selectedCase?.case_code || "Sin caso"],
+            ["Informe fuente", latestReport ? `#${latestReport.id}` : "Pendiente"],
+            ["Exposiciones", presentations.length],
+            ["Diapositivas", presentationSlides.length],
+            ["Score oral", presentationReview?.score || selectedPresentation?.review_score || 0]
+          ].map(([label, value]) => (
+            <div className="metric" key={label}>
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </div>
+          ))}
+        </div>
+
+        {!latestReport && <EmptyState text="Genera primero un informe del caso. La exposición se construye desde el informe, la evidencia, la custodia, el daño y el encuadre legal." />}
+
+        {!!presentations.length && (
+          <div className="presentation-selector">
+            <label>
+              Exposición activa
+              <select value={selectedPresentation?.id || ""} onChange={(event) => loadPresentationSlides(Number(event.target.value) || "")}>
+                {presentations.map((item) => (
+                  <option key={item.id} value={item.id}>{item.title} ? v{item.version} ? {prettySpanish(item.status)}</option>
+                ))}
+              </select>
+            </label>
+            <div className="presentation-brief">
+              <strong>{selectedPresentation?.title}</strong>
+              <span>{selectedPresentation?.selected_fragments}</span>
+            </div>
+          </div>
+        )}
+
+        {presentationReview && (
+          <div className="presentation-review">
+            <div>
+              <h3>Revisión de exposición</h3>
+              <p>Score general: <strong>{presentationReview.score}/100</strong></p>
+              <div className="score-grid">
+                {reviewMetrics.map(([label, value]) => (
+                  <span key={label as string}>{label}: <strong>{value}/100</strong></span>
+                ))}
+              </div>
+            </div>
+            <div>
+              <h4>Riesgos orales</h4>
+              <ul className="clean-list">{presentationReview.oral_exposure_risks.map((item) => <li key={item}>{item}</li>)}</ul>
+              <h4>Recomendaciones</h4>
+              <ul className="clean-list">{presentationReview.recommendations.map((item) => <li key={item}>{item}</li>)}</ul>
+            </div>
+          </div>
+        )}
+
+        <div className="slide-grid">
+          {presentationSlides.map((slide) => (
+            <article className="slide-card" key={slide.id}>
+              <div className="slide-number">Slide {slide.slide_number}</div>
+              <input value={slide.title} onChange={(event) => updatePresentationSlide(slide, { title: event.target.value })} />
+              <textarea value={slide.text} onChange={(event) => updatePresentationSlide(slide, { text: event.target.value })} />
+              <label>
+                Notas para exposición oral
+                <textarea value={slide.speaker_notes} onChange={(event) => updatePresentationSlide(slide, { speaker_notes: event.target.value })} />
+              </label>
+              <div className="slide-footer">
+                <span>{prettySpanish(slide.confidentiality_level)}</span>
+                <span>{prettySpanish(slide.content_type)}</span>
+              </div>
+            </article>
+          ))}
+          {!presentationSlides.length && latestReport && (
+            <EmptyState text="Todavía no hay diapositivas. Usa â€œGenerar exposiciónâ€ para crear el guion del caso." />
+          )}
+        </div>
       </section>
     );
   }
@@ -4687,6 +6491,7 @@ export function App() {
     if (active === "cases") return renderCases();
     if (active === "evidence") return renderEvidence();
     if (active === "reports") return renderReportsProfessional();
+    if (active === "casePresentation") return renderCasePresentation();
     if (active === "legalKnowledge") return renderLegalKnowledge();
     if (active === "cybercrime") return renderCybercrime();
     if (active === "deepfakeMedia") return renderDeepfakeMedia();
@@ -4697,18 +6502,15 @@ export function App() {
     if (active === "aiSecurity") return renderAiSecurity();
     if (active === "identity") return renderIdentity();
     if (active === "history") return renderHistory();
-    return renderModuleStatus(modules.find((item) => item.key === active)?.label ?? "Modulo");
+    if (active === "settings") return renderSettings();
+    return renderModuleStatus(modules.find((item) => item.key === active)?.label || "Módulo");
   }
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <Wrench size={23} />
-          <div>
-            <strong>OPERIA</strong>
-            <span>Forensic Tracing</span>
-          </div>
+          <img src="/assets/operia-forensic-tracing.png" alt="Operia Forensic Tracing" />
         </div>
         <nav>
           {modules.map((item) => {
@@ -4732,9 +6534,21 @@ export function App() {
           <span className="status">{loading ? "Cargando" : "Operativo"}</span>
         </header>
 
-        {error && <div className="error">{error}</div>}
+        {error && (
+          <div className={`error ${isAuthenticationErrorMessage(error) ? "auth-error" : ""}`}>
+            <span>{error}</span>
+            {isAuthenticationErrorMessage(error) && (
+              <button className="secondary-button" onClick={() => setActive("identity")}>
+                <Users size={16} /> Ir a Usuarios
+              </button>
+            )}
+          </div>
+        )}
         {renderActive()}
       </main>
     </div>
   );
 }
+
+
+

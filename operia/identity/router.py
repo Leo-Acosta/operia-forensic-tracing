@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from operia.audit.models import AuditLog
+from operia.core.config import settings
 from operia.core.database import get_db
 from operia.identity.dependencies import CurrentUser, get_optional_user, require_permission, require_user
 from operia.identity.models import AuthToken, Membership, Organization, Role, User
@@ -12,12 +13,39 @@ from operia.identity.security import create_access_token, hash_password, hash_to
 
 router = APIRouter()
 
+PROFILE_FIELDS = {"name", "title", "agency", "registration_id", "phone", "signature", "profile_notes"}
+ADMIN_USER_FIELDS = PROFILE_FIELDS | {"email", "role", "status", "organization_id"}
+VALID_ROLES = set(ROLE_PERMISSIONS)
+VALID_STATUSES = {"active", "inactive", "suspended"}
+
 
 def as_dict(obj) -> dict:
     data = {column.name: getattr(obj, column.name) for column in obj.__table__.columns}
     data.pop("password_hash", None)
     data.pop("token_hash", None)
     return data
+
+
+def apply_user_updates(user: User, payload: dict, allowed_fields: set[str]) -> list[str]:
+    changed: list[str] = []
+    for field in allowed_fields:
+        if field not in payload:
+            continue
+        value = payload.get(field)
+        if field == "email":
+            value = str(value or "").lower().strip()
+        elif field == "organization_id":
+            value = int(value) if value not in (None, "") else None
+        else:
+            value = str(value or "").strip()
+        if field == "role" and value not in VALID_ROLES:
+            raise HTTPException(status_code=422, detail="Rol no permitido")
+        if field == "status" and value not in VALID_STATUSES:
+            raise HTTPException(status_code=422, detail="Estado de usuario no permitido")
+        if getattr(user, field) != value:
+            setattr(user, field, value)
+            changed.append(field)
+    return changed
 
 
 def audit(db: Session, action: str, module: str, current_user: CurrentUser | None = None, details: str = "") -> None:
@@ -31,6 +59,26 @@ def audit(db: Session, action: str, module: str, current_user: CurrentUser | Non
             details=details,
         )
     )
+
+
+def is_local_recovery_request(request: Request) -> bool:
+    host = request.client.host if request.client else ""
+    return settings.env == "local" and host in {"127.0.0.1", "::1", "localhost", "testclient"}
+
+
+def issue_token(user: User, request: Request, db: Session) -> tuple[str, str]:
+    token, expires_at = create_access_token(user.id, user.organization_id, user.role)
+    db.add(
+        AuthToken(
+            organization_id=user.organization_id,
+            user_id=user.id,
+            token_hash=hash_token(token),
+            expires_at=expires_at,
+            user_agent=request.headers.get("user-agent", ""),
+            ip_address=request.client.host if request.client else "",
+        )
+    )
+    return token, expires_at
 
 
 @router.get("/")
@@ -65,19 +113,70 @@ def bootstrap_admin(payload: dict, request: Request, db: Session = Depends(get_d
     db.add(user)
     db.flush()
     db.add(Membership(organization_id=organization.id, user_id=user.id, status="active"))
-    token, expires_at = create_access_token(user.id, user.organization_id, user.role)
-    db.add(
-        AuthToken(
-            organization_id=user.organization_id,
-            user_id=user.id,
-            token_hash=hash_token(token),
-            expires_at=expires_at,
-            user_agent=request.headers.get("user-agent", ""),
-            ip_address=request.client.host if request.client else "",
-        )
-    )
+    token, expires_at = issue_token(user, request, db)
     audit(db, "bootstrap_admin", "identity", details=f"Admin inicial creado: {user.email}")
     db.commit()
+    return {"access_token": token, "token_type": "bearer", "expires_at": expires_at, "user": as_dict(user)}
+
+
+@router.post("/local-admin-recovery")
+def local_admin_recovery(payload: dict, request: Request, db: Session = Depends(get_db)):
+    if not is_local_recovery_request(request):
+        raise HTTPException(status_code=403, detail="Recuperación local no disponible en este entorno.")
+
+    email = str(payload.get("email") or "admin@operia.local").lower().strip()
+    password = str(payload.get("password") or "OperiaAdmin2026!")
+    name = str(payload.get("name") or "OPERIA Admin").strip() or "OPERIA Admin"
+
+    organization = (
+        db.query(Organization).filter_by(slug=str(payload.get("organization_slug") or "operia-local")).first()
+        or db.query(Organization).order_by(Organization.id.asc()).first()
+    )
+    if not organization:
+        organization = Organization(
+            name=str(payload.get("organization_name") or "OPERIA Local"),
+            slug=str(payload.get("organization_slug") or "operia-local"),
+            status="active",
+        )
+        db.add(organization)
+        db.flush()
+
+    user = db.query(User).filter_by(email=email).first()
+    if not user:
+        user = db.query(User).filter_by(role="admin").order_by(User.id.asc()).first()
+    if not user:
+        user = db.query(User).order_by(User.id.asc()).first()
+
+    if user:
+        existing_email_owner = db.query(User).filter_by(email=email).first()
+        if not existing_email_owner or existing_email_owner.id == user.id:
+            user.email = email
+        user.name = name
+        user.organization_id = organization.id
+        user.role = "admin"
+        user.status = "active"
+        user.failed_login_attempts = 0
+        user.password_hash = hash_password(password)
+    else:
+        user = User(
+            organization_id=organization.id,
+            name=name,
+            email=email,
+            role="admin",
+            password_hash=hash_password(password),
+            status="active",
+        )
+        db.add(user)
+        db.flush()
+
+    membership = db.query(Membership).filter_by(organization_id=organization.id, user_id=user.id).first()
+    if not membership:
+        db.add(Membership(organization_id=organization.id, user_id=user.id, status="active"))
+
+    token, expires_at = issue_token(user, request, db)
+    audit(db, "local_admin_recovery", "identity", details=f"Acceso local recuperado: {user.email}")
+    db.commit()
+    db.refresh(user)
     return {"access_token": token, "token_type": "bearer", "expires_at": expires_at, "user": as_dict(user)}
 
 
@@ -89,23 +188,20 @@ def login(payload: dict, request: Request, db: Session = Depends(get_db)):
     if not user or not user.password_hash or not verify_password(password, user.password_hash):
         if user:
             user.failed_login_attempts += 1
+            audit(
+                db,
+                "failed_login",
+                "identity",
+                CurrentUser(user.id, user.organization_id, user.name, user.email, user.role),
+                details=f"Intento fallido #{user.failed_login_attempts}",
+            )
             db.commit()
-        raise HTTPException(status_code=401, detail="Credenciales invalidas")
+        raise HTTPException(status_code=401, detail="Credenciales inválidas")
     if user.status != "active":
         raise HTTPException(status_code=403, detail="Usuario inactivo")
     user.failed_login_attempts = 0
     user.last_login_at = datetime.now(timezone.utc).isoformat()
-    token, expires_at = create_access_token(user.id, user.organization_id, user.role)
-    db.add(
-        AuthToken(
-            organization_id=user.organization_id,
-            user_id=user.id,
-            token_hash=hash_token(token),
-            expires_at=expires_at,
-            user_agent=request.headers.get("user-agent", ""),
-            ip_address=request.client.host if request.client else "",
-        )
-    )
+    token, expires_at = issue_token(user, request, db)
     audit(db, "login", "identity", CurrentUser(user.id, user.organization_id, user.name, user.email, user.role))
     db.commit()
     return {"access_token": token, "token_type": "bearer", "expires_at": expires_at, "user": as_dict(user)}
@@ -128,6 +224,22 @@ def me(current_user: CurrentUser | None = Depends(get_optional_user)):
     return {"authenticated": bool(current_user), "user": current_user.__dict__ if current_user else None}
 
 
+@router.put("/me/profile")
+def update_my_profile(
+    payload: dict,
+    current_user: CurrentUser = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    user = db.query(User).filter_by(id=current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    changed = apply_user_updates(user, payload, PROFILE_FIELDS)
+    audit(db, "update_profile", "identity", current_user, details=", ".join(changed) or "sin cambios")
+    db.commit()
+    db.refresh(user)
+    return as_dict(user)
+
+
 @router.get("/permissions")
 def permissions():
     return {role: sorted(values) for role, values in ROLE_PERMISSIONS.items()}
@@ -136,7 +248,7 @@ def permissions():
 @router.get("/organizations")
 def list_organizations(
     db: Session = Depends(get_db),
-    current_user: CurrentUser = Depends(require_permission("audit:read")),
+    current_user: CurrentUser = Depends(require_permission("identity:read")),
 ):
     query = db.query(Organization)
     if current_user.organization_id:
@@ -148,7 +260,7 @@ def list_organizations(
 def create_organization(
     payload: dict,
     db: Session = Depends(get_db),
-    current_user: CurrentUser = Depends(require_permission("audit:read")),
+    current_user: CurrentUser = Depends(require_permission("identity:write")),
 ):
     row = Organization(**payload)
     db.add(row)
@@ -161,7 +273,7 @@ def create_organization(
 @router.get("/users")
 def list_users(
     db: Session = Depends(get_db),
-    current_user: CurrentUser = Depends(require_permission("audit:read")),
+    current_user: CurrentUser = Depends(require_permission("identity:read")),
 ):
     query = db.query(User)
     if current_user.organization_id:
@@ -173,7 +285,7 @@ def list_users(
 def create_user(
     payload: dict,
     db: Session = Depends(get_db),
-    current_user: CurrentUser = Depends(require_permission("audit:read")),
+    current_user: CurrentUser = Depends(require_permission("identity:write")),
 ):
     organization_id = payload.get("organization_id") or current_user.organization_id
     row = User(
@@ -182,6 +294,12 @@ def create_user(
         email=str(payload.get("email") or "").lower(),
         role=str(payload.get("role") or "analista"),
         status=str(payload.get("status") or "active"),
+        title=str(payload.get("title") or ""),
+        agency=str(payload.get("agency") or ""),
+        registration_id=str(payload.get("registration_id") or ""),
+        phone=str(payload.get("phone") or ""),
+        signature=str(payload.get("signature") or ""),
+        profile_notes=str(payload.get("profile_notes") or ""),
         password_hash=hash_password(str(payload.get("password") or "operia-change-me")),
     )
     db.add(row)
@@ -194,8 +312,60 @@ def create_user(
     return as_dict(row)
 
 
+@router.put("/users/{user_id}")
+def update_user(
+    user_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("identity:write")),
+):
+    row = db.query(User).filter_by(id=user_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if current_user.organization_id and row.organization_id != current_user.organization_id:
+        raise HTTPException(status_code=403, detail="Usuario fuera de la organizacion")
+    existing_email = str(payload.get("email") or "").lower().strip()
+    if existing_email:
+        owner = db.query(User).filter(User.email == existing_email, User.id != user_id).first()
+        if owner:
+            raise HTTPException(status_code=409, detail="El email ya esta asignado a otro usuario")
+    changed = apply_user_updates(row, payload, ADMIN_USER_FIELDS)
+    if row.id == current_user.id and row.status != "active":
+        raise HTTPException(status_code=422, detail="No podes desactivar tu propio usuario activo")
+    audit(db, "update_user", "identity", current_user, details=f"{row.email or row.id}: {', '.join(changed) or 'sin cambios'}")
+    db.commit()
+    db.refresh(row)
+    return as_dict(row)
+
+
+@router.post("/users/{user_id}/reset-password")
+def reset_user_password(
+    user_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("identity:write")),
+):
+    password = str(payload.get("password") or "")
+    if len(password) < 10:
+        raise HTTPException(status_code=422, detail="La nueva clave debe tener al menos 10 caracteres")
+    row = db.query(User).filter_by(id=user_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if current_user.organization_id and row.organization_id != current_user.organization_id:
+        raise HTTPException(status_code=403, detail="Usuario fuera de la organizacion")
+    row.password_hash = hash_password(password)
+    row.failed_login_attempts = 0
+    db.query(AuthToken).filter_by(user_id=user_id).update({"revoked": True})
+    audit(db, "reset_user_password", "identity", current_user, details=row.email or str(row.id))
+    db.commit()
+    return {"ok": True, "message": "Clave actualizada y sesiones anteriores revocadas"}
+
+
 @router.get("/roles")
-def list_roles(db: Session = Depends(get_db)):
+def list_roles(
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("identity:read")),
+):
     db_roles = [as_dict(row) for row in db.query(Role).order_by(Role.name).all()]
     configured = [{"name": role, "permissions": sorted(perms)} for role, perms in ROLE_PERMISSIONS.items()]
     return {"configured": configured, "database": db_roles}
@@ -204,10 +374,9 @@ def list_roles(db: Session = Depends(get_db)):
 @router.get("/memberships")
 def list_memberships(
     db: Session = Depends(get_db),
-    current_user: CurrentUser = Depends(require_permission("audit:read")),
+    current_user: CurrentUser = Depends(require_permission("identity:read")),
 ):
     query = db.query(Membership)
     if current_user.organization_id:
         query = query.filter_by(organization_id=current_user.organization_id)
     return [as_dict(row) for row in query.order_by(Membership.id.desc()).all()]
-

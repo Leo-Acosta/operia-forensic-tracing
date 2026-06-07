@@ -6,9 +6,19 @@ from sqlalchemy.orm import Session
 from operia.audit.service import write_audit
 from operia.cases.models import Case
 from operia.core.database import get_db
-from operia.identity.dependencies import CurrentUser, get_optional_user
-from operia.reports.schemas import ExecutiveSummaryUpdate, ReportRead, ReportUpdate, ReportVersionTransition, ReviewResult
-from operia.exports.service import export_docx, export_html, export_markdown, export_pdf
+from operia.identity.dependencies import CurrentUser, require_permission
+from operia.reports.schemas import (
+    ExecutiveSummaryUpdate,
+    PresentationRead,
+    PresentationReviewResult,
+    PresentationSlideRead,
+    PresentationSlideUpdate,
+    ReportRead,
+    ReportUpdate,
+    ReportVersionTransition,
+    ReviewResult,
+)
+from operia.exports.service import export_docx, export_html, export_markdown, export_pdf, export_presentation_pdf
 from operia.ai_assistant.ollama_client import OllamaUnavailable, generate_with_ollama
 from operia.ai_assistant.prompts import build_forensic_prompt
 from operia.ai_assistant.service import case_context_for_prompt, legal_context_for_prompt
@@ -27,8 +37,9 @@ from operia.legal_report.services.report_service import (
     legal_probatory_assessment,
     snapshot_report,
 )
-from operia.legal_report.services.review_service import review_report
-from operia.reports.models import Report, ReportReview, ReportSection, ReportVersion
+from operia.legal_report.services.presentation_service import build_presentation
+from operia.legal_report.services.review_service import review_presentation, review_report
+from operia.reports.models import Presentation, PresentationReview, PresentationSlide, Report, ReportReview, ReportSection, ReportVersion
 from operia.shared.crud import get_or_404
 
 router = APIRouter()
@@ -48,7 +59,7 @@ def generate_report(
     case_id: int,
     author: str = "",
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("reports:write")),
 ):
     case = get_or_404(db, Case, case_id)
     db.expire(
@@ -94,7 +105,7 @@ def enrich_report_with_ai(
     report_id: int,
     payload: dict,
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("reports:write")),
 ):
     report = get_or_404(db, Report, report_id)
     case = report.case
@@ -196,7 +207,7 @@ def update_report(
     report_id: int,
     payload: ReportUpdate,
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("reports:write")),
 ):
     report = get_or_404(db, Report, report_id)
     for key, value in payload.model_dump(exclude_unset=True).items():
@@ -212,7 +223,7 @@ def update_report(
 def refresh_report_annexes(
     report_id: int,
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("reports:write")),
 ):
     report = get_or_404(db, Report, report_id)
     annex_block = report_annexes_markdown(report)
@@ -235,7 +246,7 @@ def transition_report_version(
     report_id: int,
     payload: ReportVersionTransition,
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("reports:write")),
 ):
     report = get_or_404(db, Report, report_id)
     allowed = {"borrador", "preliminar", "revisado", "final", "corregido", "reabierto"}
@@ -268,7 +279,7 @@ def update_executive_summary(
     report_id: int,
     payload: ExecutiveSummaryUpdate,
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("reports:write")),
 ):
     report = get_or_404(db, Report, report_id)
     if not payload.executive_summary.strip():
@@ -303,7 +314,11 @@ def list_report_sections(report_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{report_id}/review", response_model=ReviewResult)
-def review_report_endpoint(report_id: int, db: Session = Depends(get_db)):
+def review_report_endpoint(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("reports:write")),
+):
     report = get_or_404(db, Report, report_id)
     result = review_report(report, report.case)
     report.review_score = result["score"]
@@ -324,7 +339,12 @@ def review_report_endpoint(report_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{report_id}/export/{fmt}")
-def export_report(report_id: int, fmt: str, db: Session = Depends(get_db)):
+def export_report(
+    report_id: int,
+    fmt: str,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("reports:read")),
+):
     report = get_or_404(db, Report, report_id)
     exporters = {"markdown": export_markdown, "html": export_html, "docx": export_docx, "pdf": export_pdf}
     if fmt not in exporters:
@@ -332,4 +352,120 @@ def export_report(report_id: int, fmt: str, db: Session = Depends(get_db)):
 
         raise HTTPException(status_code=400, detail="Formato no soportado")
     path = exporters[fmt](report)
+    return FileResponse(path, filename=path.name)
+
+
+@router.post("/{report_id}/presentations/generate", response_model=PresentationRead)
+def generate_case_presentation(
+    report_id: int,
+    presentation_type: str = "Exposicion ejecutiva del caso",
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("reports:write")),
+):
+    report = get_or_404(db, Report, report_id)
+    presentation = build_presentation(report.case, report, presentation_type)
+    presentation.organization_id = current_user.organization_id if current_user and current_user.organization_id else report.organization_id
+    for slide in presentation.slides:
+        slide.organization_id = presentation.organization_id
+    db.add(presentation)
+    db.flush()
+    write_audit(
+        db,
+        "generate_presentation",
+        "presentations",
+        current_user,
+        case_id=report.case_id,
+        entity_type="presentation",
+        entity_id=str(presentation.id),
+        details=presentation.title,
+    )
+    db.commit()
+    db.refresh(presentation)
+    return presentation
+
+
+@router.get("/case/{case_id}/presentations", response_model=list[PresentationRead])
+def list_case_presentations(case_id: int, db: Session = Depends(get_db)):
+    get_or_404(db, Case, case_id)
+    return db.query(Presentation).filter_by(case_id=case_id).order_by(desc(Presentation.updated_at)).all()
+
+
+@router.get("/presentations/case/{case_id}", response_model=list[PresentationRead])
+def list_case_presentations_safe(case_id: int, db: Session = Depends(get_db)):
+    return list_case_presentations(case_id, db)
+
+
+@router.get("/presentations/{presentation_id}/slides", response_model=list[PresentationSlideRead])
+def list_presentation_slides(presentation_id: int, db: Session = Depends(get_db)):
+    get_or_404(db, Presentation, presentation_id)
+    return (
+        db.query(PresentationSlide)
+        .filter_by(presentation_id=presentation_id)
+        .order_by(PresentationSlide.slide_number.asc())
+        .all()
+    )
+
+
+@router.put("/presentation-slides/{slide_id}", response_model=PresentationSlideRead)
+def update_presentation_slide(
+    slide_id: int,
+    payload: PresentationSlideUpdate,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("reports:write")),
+):
+    slide = get_or_404(db, PresentationSlide, slide_id)
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(slide, key, value)
+    db.commit()
+    db.refresh(slide)
+    return slide
+
+
+@router.post("/presentations/{presentation_id}/review", response_model=PresentationReviewResult)
+def review_case_presentation(
+    presentation_id: int,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("reports:write")),
+):
+    presentation = get_or_404(db, Presentation, presentation_id)
+    result = review_presentation(presentation)
+    presentation.review_score = result["score"]
+    db.add(
+        PresentationReview(
+            organization_id=presentation.organization_id,
+            presentation_id=presentation.id,
+            score=result["score"],
+            clarity=result["clarity"],
+            evidentiary_strength=result["evidentiary_strength"],
+            narrative_coherence=result["narrative_coherence"],
+            legal_solidity=result["legal_solidity"],
+            visual_quality=result["visual_quality"],
+            oral_exposure_risks="\n".join(result["oral_exposure_risks"]),
+            recommendations="\n".join(result["recommendations"]),
+        )
+    )
+    write_audit(
+        db,
+        "review_presentation",
+        "presentations",
+        current_user,
+        case_id=presentation.case_id,
+        entity_type="presentation",
+        entity_id=str(presentation.id),
+        details=f"Score {result['score']}",
+    )
+    db.commit()
+    return result
+
+
+@router.get("/presentations/{presentation_id}/export/pdf")
+def export_case_presentation(
+    presentation_id: int,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("reports:read")),
+):
+    presentation = get_or_404(db, Presentation, presentation_id)
+    path = export_presentation_pdf(presentation)
+    presentation.exported_file = str(path)
+    db.commit()
     return FileResponse(path, filename=path.name)

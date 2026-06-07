@@ -39,10 +39,13 @@ from operia.cybercrime.services import (
     deepfake_payload,
     iot_payload,
     run_lab_command,
+    update_iot_device_record,
+    update_blockchain_transaction_record,
     verify_tool,
 )
 from operia.evidence.models import ChainOfCustodyAction, Evidence
 from operia.exports.service import export_pdf
+from operia.identity.dependencies import CurrentUser, require_permission
 from operia.legal_report.services.report_service import build_integral_markdown, populate_report_sections, snapshot_report
 from operia.reports.models import Report
 
@@ -211,7 +214,11 @@ def status() -> dict[str, object]:
 
 
 @router.post("/analyze-indicator")
-def analyze_indicator(payload: dict[str, Any], db: Session = Depends(get_db)):
+def analyze_indicator(
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     indicator = str(payload.get("indicator") or "").strip()
     if not indicator:
         raise HTTPException(status_code=400, detail="Debe indicar una IP, dominio o URL.")
@@ -266,7 +273,11 @@ def get_tools(db: Session = Depends(get_db)):
 
 
 @router.post("/tools")
-def create_tool(payload: dict[str, Any], db: Session = Depends(get_db)):
+def create_tool(
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     return as_dict(create_row(db, ExternalTool, payload))
 
 
@@ -531,7 +542,10 @@ FORENSIC_TOOL_PRESETS.extend(FORENSIC_AI_MEDIA_PRESETS)
 
 
 @router.post("/tools/seed-forensic-set")
-def seed_forensic_tool_set(db: Session = Depends(get_db)):
+def seed_forensic_tool_set(
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     created = 0
     updated = 0
     for preset in FORENSIC_TOOL_PRESETS:
@@ -553,17 +567,30 @@ def seed_forensic_tool_set(db: Session = Depends(get_db)):
 
 
 @router.patch("/tools/{tool_id}")
-def update_tool(tool_id: int, payload: dict[str, Any], db: Session = Depends(get_db)):
+def update_tool(
+    tool_id: int,
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     return as_dict(update_row(db, ExternalTool, tool_id, payload, "Herramienta"))
 
 
 @router.delete("/tools/{tool_id}")
-def delete_tool(tool_id: int, db: Session = Depends(get_db)):
+def delete_tool(
+    tool_id: int,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     return delete_row(db, ExternalTool, tool_id, "Herramienta")
 
 
 @router.post("/tools/{tool_id}/verify")
-def verify_external_tool(tool_id: int, db: Session = Depends(get_db)):
+def verify_external_tool(
+    tool_id: int,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     tool = db.get(ExternalTool, tool_id)
     if not tool:
         raise HTTPException(404, "Herramienta no encontrada")
@@ -581,7 +608,11 @@ def get_lab_sessions(case_id: int | None = None, db: Session = Depends(get_db)):
 
 
 @router.post("/lab/sessions")
-def create_lab_session(payload: dict[str, Any], db: Session = Depends(get_db)):
+def create_lab_session(
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     next_id = db.query(ForensicLabSession).count() + 1
     payload.setdefault("session_code", f"LAB-{next_id:04d}")
     payload.setdefault("checklist", "Trabajar sobre copia; hash antes/despues; no ejecutar muestra sospechosa; registrar limitaciones.")
@@ -590,7 +621,12 @@ def create_lab_session(payload: dict[str, Any], db: Session = Depends(get_db)):
 
 
 @router.post("/lab/sessions/{session_id}/run")
-def run_lab_session(session_id: int, payload: dict[str, Any] | None = None, db: Session = Depends(get_db)):
+def run_lab_session(
+    session_id: int,
+    payload: dict[str, Any] | None = None,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     payload = payload or {}
     session = db.get(ForensicLabSession, session_id)
     if not session:
@@ -635,7 +671,11 @@ def get_ctf_events(db: Session = Depends(get_db)):
 
 
 @router.post("/ctf/events")
-def create_ctf_event(payload: dict[str, Any], db: Session = Depends(get_db)):
+def create_ctf_event(
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("cases:write")),
+):
     return as_dict(create_row(db, CTFEvent, payload))
 
 
@@ -648,12 +688,21 @@ def get_ctf_challenges(event_id: int | None = None, db: Session = Depends(get_db
 
 
 @router.post("/ctf/challenges")
-def create_ctf_challenge(payload: dict[str, Any], db: Session = Depends(get_db)):
+def create_ctf_challenge(
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("cases:write")),
+):
     return as_dict(create_row(db, CTFChallenge, payload))
 
 
 @router.post("/ctf/challenges/{challenge_id}/mark-solved")
-def mark_ctf_solved(challenge_id: int, payload: dict[str, Any] | None = None, db: Session = Depends(get_db)):
+def mark_ctf_solved(
+    challenge_id: int,
+    payload: dict[str, Any] | None = None,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("cases:write")),
+):
     payload = payload or {}
     challenge = db.get(CTFChallenge, challenge_id)
     if not challenge:
@@ -673,7 +722,12 @@ def get_ctf_steps(challenge_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/ctf/challenges/{challenge_id}/analysis-steps")
-def create_ctf_step(challenge_id: int, payload: dict[str, Any], db: Session = Depends(get_db)):
+def create_ctf_step(
+    challenge_id: int,
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("cases:write")),
+):
     payload["challenge_id"] = challenge_id
     return as_dict(create_row(db, CTFAnalysisStep, payload))
 
@@ -687,7 +741,11 @@ forensic_models = {
 
 
 @router.post("/reports/from-case/{case_id}/export/pdf")
-def export_case_pdf(case_id: int, db: Session = Depends(get_db)):
+def export_case_pdf(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("reports:write")),
+):
     case = db.get(Case, case_id)
     if not case:
         raise HTTPException(404, "Caso no encontrado")
@@ -723,12 +781,20 @@ def list_deepfake_analyses(case_id: int | None = None, db: Session = Depends(get
 
 
 @router.post("/deepfake-analyses")
-def create_deepfake_analysis(payload: dict[str, Any], db: Session = Depends(get_db)):
+def create_deepfake_analysis(
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     return create_cybercrime_collection_item("deepfake-analyses", payload, db)
 
 
 @router.post("/deepfake")
-def register_deepfake_analysis(payload: dict[str, Any], db: Session = Depends(get_db)):
+def register_deepfake_analysis(
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     case_id = int(payload.get("case_id") or 0)
     if not case_id or not db.get(Case, case_id):
         raise HTTPException(status_code=404, detail="Caso no encontrado")
@@ -748,7 +814,12 @@ def list_case_deepfake_analyses(case_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/deepfake/{analysis_id}/finding")
-def register_deepfake_finding(analysis_id: int, payload: dict[str, Any] | None = None, db: Session = Depends(get_db)):
+def register_deepfake_finding(
+    analysis_id: int,
+    payload: dict[str, Any] | None = None,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     analysis = db.get(DeepfakeAnalysis, analysis_id)
     if not analysis:
         raise HTTPException(status_code=404, detail="Analisis de medio no encontrado")
@@ -765,7 +836,12 @@ def register_deepfake_finding(analysis_id: int, payload: dict[str, Any] | None =
 
 
 @router.post("/deepfake/{analysis_id}/apply-legal")
-def apply_deepfake_suggested_legal(analysis_id: int, payload: dict[str, Any] | None = None, db: Session = Depends(get_db)):
+def apply_deepfake_suggested_legal(
+    analysis_id: int,
+    payload: dict[str, Any] | None = None,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("legal:write")),
+):
     analysis = db.get(DeepfakeAnalysis, analysis_id)
     if not analysis:
         raise HTTPException(status_code=404, detail="Analisis de medio no encontrado")
@@ -778,12 +854,20 @@ def list_iot_devices(case_id: int | None = None, db: Session = Depends(get_db)):
 
 
 @router.post("/iot-devices")
-def create_iot_device(payload: dict[str, Any], db: Session = Depends(get_db)):
+def create_iot_device(
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     return create_cybercrime_collection_item("iot-devices", payload, db)
 
 
 @router.post("/iot")
-def register_iot_device(payload: dict[str, Any], db: Session = Depends(get_db)):
+def register_iot_device(
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     case_id = int(payload.get("case_id") or 0)
     if not case_id or not db.get(Case, case_id):
         raise HTTPException(status_code=404, detail="Caso no encontrado")
@@ -802,8 +886,30 @@ def list_case_iot_devices(case_id: int, db: Session = Depends(get_db)):
     return [iot_payload(row) for row in rows]
 
 
+@router.patch("/iot/{device_id}")
+def update_iot_device(
+    device_id: int,
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
+    device = db.get(IoTDevice, device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Dispositivo IoT no encontrado")
+    try:
+        updated = update_iot_device_record(db, device, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return iot_payload(updated)
+
+
 @router.post("/iot/{device_id}/finding")
-def register_iot_finding(device_id: int, payload: dict[str, Any] | None = None, db: Session = Depends(get_db)):
+def register_iot_finding(
+    device_id: int,
+    payload: dict[str, Any] | None = None,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     device = db.get(IoTDevice, device_id)
     if not device:
         raise HTTPException(status_code=404, detail="Dispositivo IoT no encontrado")
@@ -820,7 +926,12 @@ def register_iot_finding(device_id: int, payload: dict[str, Any] | None = None, 
 
 
 @router.post("/iot/{device_id}/apply-legal")
-def apply_iot_suggested_legal(device_id: int, payload: dict[str, Any] | None = None, db: Session = Depends(get_db)):
+def apply_iot_suggested_legal(
+    device_id: int,
+    payload: dict[str, Any] | None = None,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("legal:write")),
+):
     device = db.get(IoTDevice, device_id)
     if not device:
         raise HTTPException(status_code=404, detail="Dispositivo IoT no encontrado")
@@ -833,12 +944,20 @@ def list_blockchain_transactions(case_id: int | None = None, db: Session = Depen
 
 
 @router.post("/blockchain-transactions")
-def create_blockchain_transaction(payload: dict[str, Any], db: Session = Depends(get_db)):
+def create_blockchain_transaction(
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     return create_cybercrime_collection_item("blockchain-transactions", payload, db)
 
 
 @router.post("/blockchain")
-def register_blockchain_transaction(payload: dict[str, Any], db: Session = Depends(get_db)):
+def register_blockchain_transaction(
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     case_id = int(payload.get("case_id") or 0)
     if not case_id or not db.get(Case, case_id):
         raise HTTPException(status_code=404, detail="Caso no encontrado")
@@ -853,12 +972,39 @@ def register_blockchain_transaction(payload: dict[str, Any], db: Session = Depen
 def list_case_blockchain_transactions(case_id: int, db: Session = Depends(get_db)):
     if not db.get(Case, case_id):
         raise HTTPException(status_code=404, detail="Caso no encontrado")
-    rows = db.query(BlockchainTransaction).filter(BlockchainTransaction.case_id == case_id).order_by(BlockchainTransaction.id.desc()).all()
+    rows = (
+        db.query(BlockchainTransaction)
+        .filter(BlockchainTransaction.case_id == case_id)
+        .order_by(BlockchainTransaction.route_order.asc(), BlockchainTransaction.id.asc())
+        .all()
+    )
     return [blockchain_payload(row) for row in rows]
 
 
+@router.patch("/blockchain/{transaction_id}")
+def update_blockchain_transaction(
+    transaction_id: int,
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
+    transaction = db.get(BlockchainTransaction, transaction_id)
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transacción blockchain no encontrada")
+    try:
+        updated = update_blockchain_transaction_record(db, transaction, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return blockchain_payload(updated)
+
+
 @router.post("/blockchain/{transaction_id}/finding")
-def register_blockchain_finding(transaction_id: int, payload: dict[str, Any] | None = None, db: Session = Depends(get_db)):
+def register_blockchain_finding(
+    transaction_id: int,
+    payload: dict[str, Any] | None = None,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     transaction = db.get(BlockchainTransaction, transaction_id)
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaccion blockchain no encontrada")
@@ -875,7 +1021,12 @@ def register_blockchain_finding(transaction_id: int, payload: dict[str, Any] | N
 
 
 @router.post("/blockchain/{transaction_id}/apply-legal")
-def apply_blockchain_suggested_legal(transaction_id: int, payload: dict[str, Any] | None = None, db: Session = Depends(get_db)):
+def apply_blockchain_suggested_legal(
+    transaction_id: int,
+    payload: dict[str, Any] | None = None,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("legal:write")),
+):
     transaction = db.get(BlockchainTransaction, transaction_id)
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaccion blockchain no encontrada")
@@ -888,5 +1039,9 @@ def list_proof_matrix(case_id: int | None = None, db: Session = Depends(get_db))
 
 
 @router.post("/proof-matrix")
-def create_proof_matrix_row(payload: dict[str, Any], db: Session = Depends(get_db)):
+def create_proof_matrix_row(
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     return create_cybercrime_collection_item("proof-matrix", payload, db)

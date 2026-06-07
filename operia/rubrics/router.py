@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from operia.audit.service import write_audit
 from operia.cases.models import Case
 from operia.core.database import get_db
-from operia.identity.dependencies import CurrentUser, get_optional_user
+from operia.identity.dependencies import CurrentUser, require_permission
 from operia.rubrics.service import (
     evaluation_payload,
     latest_case_evaluation,
@@ -40,10 +40,10 @@ def get_case_rubric_score(case_id: int, db: Session = Depends(get_db)):
 def evaluate_case_rubric_endpoint(
     case_id: int,
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("reports:write")),
 ):
     case = get_or_404(db, Case, case_id)
-    item = persist_case_evaluation(db, case, evaluated_by=current_user.name if current_user else "OPERIA")
+    item = persist_case_evaluation(db, case, evaluated_by=current_user.name)
     write_audit(
         db,
         "evaluate_report_rubric",
@@ -57,4 +57,3 @@ def evaluate_case_rubric_endpoint(
     db.commit()
     db.refresh(item)
     return evaluation_payload(item)
-

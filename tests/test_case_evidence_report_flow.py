@@ -35,6 +35,40 @@ def test_case_can_be_closed_operationally_with_pending_warnings(client, admin_he
     assert payload["closure_warnings"]
 
 
+def test_history_delete_case_requires_auth_and_removes_reports_and_exports(client, admin_headers):
+    case = client.post(
+        "/api/cases",
+        json={
+            "case_code": "TEST-HISTORY-DELETE-001",
+            "title": "Caso para eliminar desde historial",
+            "description": "incidente de prueba con informe asociado",
+            "incident_type": "phishing",
+        },
+        headers=admin_headers,
+    )
+    assert case.status_code == 200
+    case_id = case.json()["id"]
+
+    report = client.post(f"/api/reports/case/{case_id}/generate?author=Analista%20Historial", headers=admin_headers)
+    assert report.status_code == 200
+    report_id = report.json()["id"]
+
+    pdf = client.get(f"/api/exports/reports/{report_id}/pdf", headers=admin_headers)
+    assert pdf.status_code == 200
+    assert client.get(f"/api/reports/case/{case_id}", headers=admin_headers).json()
+    assert client.get(f"/api/exports/manifests?case_id={case_id}", headers=admin_headers).json()
+
+    unauthenticated_delete = client.delete(f"/api/cases/{case_id}")
+    assert unauthenticated_delete.status_code == 401
+
+    deleted = client.delete(f"/api/cases/{case_id}", headers=admin_headers)
+    assert deleted.status_code == 200
+    assert deleted.json()["deleted_reports"] == 1
+    assert client.get(f"/api/cases/{case_id}").status_code == 404
+    assert client.get(f"/api/reports/case/{case_id}", headers=admin_headers).json() == []
+    assert client.get(f"/api/exports/manifests?case_id={case_id}", headers=admin_headers).json() == []
+
+
 def test_case_evidence_report_flow_with_audit(client, admin_headers):
     case = client.post(
         "/api/cases",
@@ -118,7 +152,6 @@ def test_case_evidence_report_flow_with_audit(client, admin_headers):
     assert "Nivel de exportabilidad" in report.json()["markdown_content"]
     assert "Qué se pudo acreditar" in report.json()["markdown_content"]
     assert "Conclusión específica por phishing/fraude digital" in report.json()["markdown_content"]
-    assert "Recomendaciones procesales automáticas" in report.json()["markdown_content"]
     assert "cuenta receptora" in report.json()["markdown_content"]
 
     preview = client.get(f"/api/reports/{report_id}/preview", headers=admin_headers)

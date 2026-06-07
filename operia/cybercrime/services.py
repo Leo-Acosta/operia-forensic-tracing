@@ -48,8 +48,11 @@ BLOCKCHAIN_WALLET_CLASSIFICATIONS = {
     "mixer",
     "bridge",
     "contrato inteligente",
+    "wallet desconocida",
     "wallet receptora",
     "wallet intermediaria",
+    "wallet de origen",
+    "wallet de destino",
     "desconocido",
 }
 BLOCKCHAIN_WARNING = (
@@ -412,6 +415,21 @@ def normalize_wallet_classification(value: str | None) -> str:
     return normalized if normalized in BLOCKCHAIN_WALLET_CLASSIFICATIONS else "desconocido"
 
 
+def as_bool(value: Any, default: bool = True) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "si", "sí", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+
 def blockchain_payload(transaction: BlockchainTransaction) -> dict[str, Any]:
     evidence = transaction.evidence
     measures = [item.strip() for item in (transaction.recommended_measures or "").split("\n") if item.strip()]
@@ -440,6 +458,9 @@ def blockchain_payload(transaction: BlockchainTransaction) -> dict[str, Any]:
         "recommended_measures": measures,
         "legal_mapping_ids": [int(item) for item in transaction.legal_mapping_ids.split(",") if item.strip().isdigit()],
         "analyst_name": transaction.analyst_name,
+        "route_order": transaction.route_order,
+        "include_in_report": transaction.include_in_report,
+        "preservation_checklist": transaction.preservation_checklist or "",
         "warning": transaction.warning or BLOCKCHAIN_WARNING,
         "created_at": transaction.created_at.isoformat() if transaction.created_at else "",
         "updated_at": transaction.updated_at.isoformat() if transaction.updated_at else "",
@@ -477,10 +498,13 @@ def create_blockchain_transaction_record(db: Session, payload: dict[str, Any]) -
         route_hypothesis=str(payload.get("route_hypothesis") or "").strip(),
         wallet_classification=normalize_wallet_classification(payload.get("wallet_classification")),
         evidence_hash=str(payload.get("evidence_hash") or (evidence.sha256_hash if evidence else "") or "").strip(),
-        tool_used=str(payload.get("tool_used") or (evidence.tool_used if evidence else "") or "OPERIA Blockchain Forensics").strip(),
+        tool_used=str(payload.get("tool_used") or (evidence.tool_used if evidence else "") or "OPERIA Blockchain Investigation Lab").strip(),
         limitations=str(payload.get("limitations") or BLOCKCHAIN_WARNING).strip(),
         recommended_measures="\n".join(payload.get("recommended_measures") or BLOCKCHAIN_RECOMMENDED_MEASURES),
         analyst_name=str(payload.get("analyst_name") or "").strip(),
+        route_order=int(payload.get("route_order") or 0),
+        include_in_report=as_bool(payload.get("include_in_report"), True),
+        preservation_checklist=str(payload.get("preservation_checklist") or "").strip(),
         warning=BLOCKCHAIN_WARNING,
     )
     if not transaction.tx_hash:
@@ -495,6 +519,65 @@ def create_blockchain_transaction_record(db: Session, payload: dict[str, Any]) -
             detailed_description=f"Registro de transacción {transaction.blockchain}/{transaction.token}: {transaction.tx_hash}.",
             tool_used=transaction.tool_used,
             result_obtained=transaction.route_hypothesis or "Transacción registrada para trazabilidad blockchain.",
+            hash_after=transaction.evidence_hash,
+            legal_observations=BLOCKCHAIN_WARNING,
+            status="registrada",
+        )
+    )
+    db.commit()
+    db.refresh(transaction)
+    return transaction
+
+
+def update_blockchain_transaction_record(db: Session, transaction: BlockchainTransaction, payload: dict[str, Any]) -> BlockchainTransaction:
+    evidence: Evidence | None = None
+    evidence_id = payload.get("evidence_id")
+    if evidence_id:
+        evidence = db.get(Evidence, int(evidence_id))
+        if not evidence:
+            raise ValueError("Evidencia no encontrada")
+        if evidence.case_id != transaction.case_id:
+            raise ValueError("La evidencia no pertenece al caso indicado")
+
+    def as_float(value: Any, fallback: float = 0.0) -> float:
+        try:
+            return float(value if value not in (None, "") else fallback)
+        except (TypeError, ValueError):
+            return fallback
+
+    previous_hash = transaction.tx_hash
+    transaction.evidence_id = evidence.id if evidence else None
+    transaction.source_wallet = str(payload.get("source_wallet") or "").strip()
+    transaction.destination_wallet = str(payload.get("destination_wallet") or "").strip()
+    transaction.tx_hash = str(payload.get("tx_hash") or "").strip()
+    transaction.blockchain = str(payload.get("blockchain") or "Bitcoin").strip()
+    transaction.token = str(payload.get("token") or "BTC").strip()
+    transaction.amount = as_float(payload.get("amount"))
+    transaction.approximate_value = as_float(payload.get("approximate_value"), transaction.amount * as_float(payload.get("unit_value")))
+    transaction.tx_datetime = str(payload.get("tx_datetime") or "").strip()
+    transaction.explorer_url = str(payload.get("explorer_url") or "").strip()
+    transaction.route_hypothesis = str(payload.get("route_hypothesis") or "").strip()
+    transaction.wallet_classification = normalize_wallet_classification(payload.get("wallet_classification"))
+    transaction.evidence_hash = str(payload.get("evidence_hash") or (evidence.sha256_hash if evidence else "") or "").strip()
+    transaction.tool_used = str(payload.get("tool_used") or (evidence.tool_used if evidence else "") or "OPERIA Blockchain Investigation Lab").strip()
+    transaction.limitations = str(payload.get("limitations") or BLOCKCHAIN_WARNING).strip()
+    transaction.recommended_measures = "\n".join(payload.get("recommended_measures") or BLOCKCHAIN_RECOMMENDED_MEASURES)
+    transaction.analyst_name = str(payload.get("analyst_name") or transaction.analyst_name or "").strip()
+    transaction.route_order = int(payload.get("route_order") or transaction.route_order or 0)
+    transaction.include_in_report = as_bool(payload.get("include_in_report"), transaction.include_in_report)
+    transaction.preservation_checklist = str(payload.get("preservation_checklist") or transaction.preservation_checklist or "").strip()
+    transaction.warning = BLOCKCHAIN_WARNING
+    if not transaction.tx_hash:
+        raise ValueError("Debe indicar hash de transacción")
+
+    db.add(
+        ChainOfCustodyAction(
+            case_id=transaction.case_id,
+            evidence_id=transaction.evidence_id,
+            action_type="actualizacion blockchain",
+            detailed_description=f"Actualización de transacción blockchain #{transaction.id}. Hash previo: {previous_hash or 'sin hash'}; hash actual: {transaction.tx_hash}.",
+            tool_used=transaction.tool_used,
+            result_obtained=transaction.route_hypothesis or "Transacción blockchain actualizada para trazabilidad del caso.",
             hash_after=transaction.evidence_hash,
             legal_observations=BLOCKCHAIN_WARNING,
             status="registrada",
@@ -538,8 +621,8 @@ def create_blockchain_finding(db: Session, transaction: BlockchainTransaction, p
             case_id=transaction.case_id,
             evidence_id=transaction.evidence_id,
             action_type="hallazgo blockchain",
-            detailed_description=f"Hallazgo #{finding.id} creado desde Blockchain Forensics Lab.",
-            tool_used="OPERIA Blockchain Forensics",
+            detailed_description=f"Hallazgo #{finding.id} creado desde Blockchain Investigation Lab.",
+            tool_used="OPERIA Blockchain Investigation Lab",
             result_obtained=finding.technical_finding,
             status="registrada",
         )
@@ -598,17 +681,17 @@ def apply_blockchain_legal_mapping(db: Session, transaction: BlockchainTransacti
             mapping = LegalMapping(
                 case_id=transaction.case_id,
                 finding_id=transaction.finding_id,
-                legal_area="Blockchain Forensics",
+                legal_area="Blockchain Investigation Lab",
                 norm_reference=norm_reference,
                 source_id=article.source_id,
                 article_id=article.id,
-                analysis=f"Aplicación sugerida desde Blockchain Forensics Lab. {applicability} {BLOCKCHAIN_WARNING}",
+                analysis=f"Aplicación sugerida desde Blockchain Investigation Lab. {applicability} {BLOCKCHAIN_WARNING}",
                 verification_status="Fuente registrada en biblioteca legal OPERIA",
             )
             db.add(mapping)
         mapping.finding_id = transaction.finding_id or mapping.finding_id
         mapping.decision_status = "aprobado"
-        mapping.analyst_name = payload.get("analyst_name") or transaction.analyst_name or "OPERIA Blockchain Forensics"
+        mapping.analyst_name = payload.get("analyst_name") or transaction.analyst_name or "OPERIA Blockchain Investigation Lab"
         mapping.analyst_rationale = payload.get("analyst_rationale") or "Norma aplicada como marco preliminar por trazabilidad blockchain registrada."
         mapping.legal_role = role
         mapping.applicability_to_case = applicability
@@ -761,6 +844,56 @@ def create_iot_device_record(db: Session, payload: dict[str, Any]) -> IoTDevice:
             detailed_description=f"Registro de dispositivo IoT {device.device_type}: {device.manufacturer or 'fabricante pendiente'} {device.model or ''}.",
             tool_used=device.tool_used,
             result_obtained=device.known_vulnerabilities or device.logs_available or "Dispositivo IoT registrado para analisis forense.",
+            hash_after=device.evidence_hash,
+            legal_observations=IOT_WARNING,
+            status="registrada",
+        )
+    )
+    db.commit()
+    db.refresh(device)
+    return device
+
+
+def update_iot_device_record(db: Session, device: IoTDevice, payload: dict[str, Any]) -> IoTDevice:
+    evidence: Evidence | None = None
+    evidence_id = payload.get("evidence_id")
+    if evidence_id:
+        evidence = db.get(Evidence, int(evidence_id))
+        if not evidence:
+            raise ValueError("Evidencia no encontrada")
+        if evidence.case_id != device.case_id:
+            raise ValueError("La evidencia no pertenece al caso indicado")
+
+    device.evidence_id = evidence.id if evidence else None
+    device.device_type = str(payload.get("device_type") or device.device_type or "dispositivo IoT").strip()
+    device.manufacturer = str(payload.get("manufacturer") or "").strip()
+    device.model = str(payload.get("model") or "").strip()
+    device.firmware = str(payload.get("firmware") or "").strip()
+    device.internal_ip = str(payload.get("internal_ip") or "").strip()
+    device.external_ip = str(payload.get("external_ip") or "").strip()
+    device.mac = str(payload.get("mac") or "").strip()
+    device.open_ports = str(payload.get("open_ports") or "").strip()
+    device.known_vulnerabilities = str(payload.get("known_vulnerabilities") or "").strip()
+    device.logs_available = str(payload.get("logs_available") or "").strip()
+    device.evidence_hash = str(payload.get("evidence_hash") or (evidence.sha256_hash if evidence else "") or "").strip()
+    device.checklist = serialize_iot_checklist(payload.get("checklist") or {})
+    device.tool_used = str(payload.get("tool_used") or (evidence.tool_used if evidence else "") or "OPERIA IoT Forensics").strip()
+    device.limitations = str(payload.get("limitations") or IOT_WARNING).strip()
+    device.recommended_measures = "\n".join(payload.get("recommended_measures") or IOT_RECOMMENDED_MEASURES)
+    device.analyst_name = str(payload.get("analyst_name") or device.analyst_name or "").strip()
+    device.warning = IOT_WARNING
+
+    db.add(
+        ChainOfCustodyAction(
+            case_id=device.case_id,
+            evidence_id=device.evidence_id,
+            action_type="actualizacion analisis iot",
+            detailed_description=(
+                f"Actualización de dispositivo IoT #{device.id}: {device.device_type}; "
+                f"{device.manufacturer or 'fabricante pendiente'} {device.model or ''}."
+            ),
+            tool_used=device.tool_used,
+            result_obtained=device.known_vulnerabilities or device.logs_available or "Ficha IoT actualizada para análisis forense.",
             hash_after=device.evidence_hash,
             legal_observations=IOT_WARNING,
             status="registrada",

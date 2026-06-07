@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
@@ -16,6 +17,22 @@ class CurrentUser:
     name: str
     email: str | None
     role: str
+    title: str = ""
+    agency: str = ""
+    registration_id: str = ""
+    phone: str = ""
+    signature: str = ""
+    profile_notes: str = ""
+
+
+def _parse_datetime(value: str) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 
 def get_optional_user(
@@ -31,7 +48,24 @@ def get_optional_user(
     token_row = db.query(AuthToken).filter_by(token_hash=hash_token(token), revoked=False).first()
     if not token_row:
         return None
-    user = db.get(User, int(payload["user_id"]))
+    try:
+        payload_user_id = int(payload["user_id"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if token_row.user_id != payload_user_id:
+        return None
+    expires_at = _parse_datetime(str(token_row.expires_at))
+    if not expires_at or expires_at < datetime.now(timezone.utc):
+        return None
+    payload_organization_id = payload.get("organization_id")
+    if payload_organization_id is not None:
+        try:
+            organization_id = int(payload_organization_id)
+        except (TypeError, ValueError):
+            return None
+        if token_row.organization_id != organization_id:
+            return None
+    user = db.get(User, payload_user_id)
     if not user or user.status != "active":
         return None
     return CurrentUser(
@@ -40,12 +74,18 @@ def get_optional_user(
         name=user.name,
         email=user.email,
         role=user.role,
+        title=user.title,
+        agency=user.agency,
+        registration_id=user.registration_id,
+        phone=user.phone,
+        signature=user.signature,
+        profile_notes=user.profile_notes,
     )
 
 
 def require_user(current_user: CurrentUser | None = Depends(get_optional_user)) -> CurrentUser:
     if not current_user:
-        raise HTTPException(status_code=401, detail="Autenticacion requerida")
+        raise HTTPException(status_code=401, detail="Sesión requerida o vencida. Inicia sesión en Usuarios.")
     return current_user
 
 
@@ -62,4 +102,3 @@ def same_organization(current_user: CurrentUser | None, organization_id: int | N
     if current_user is None or current_user.organization_id is None or organization_id is None:
         return True
     return current_user.organization_id == organization_id
-

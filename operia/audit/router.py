@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from operia.audit.models import AuditLog
 from operia.core.database import get_db
-from operia.identity.dependencies import CurrentUser, get_optional_user
+from operia.identity.dependencies import CurrentUser, require_permission
 
 router = APIRouter()
 
@@ -26,7 +26,7 @@ def list_logs(
     case_id: int | None = None,
     module: str | None = None,
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("audit:read")),
 ):
     query = db.query(AuditLog)
     if current_user and current_user.organization_id:
@@ -39,8 +39,14 @@ def list_logs(
 
 
 @router.post("/logs")
-def create_log(payload: dict, db: Session = Depends(get_db)):
+def create_log(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("audit:read")),
+):
     row = AuditLog(**payload)
+    row.organization_id = current_user.organization_id or payload.get("organization_id")
+    row.user_id = current_user.id
     db.add(row)
     db.commit()
     db.refresh(row)

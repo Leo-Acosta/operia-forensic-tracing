@@ -1,6 +1,6 @@
 # Cybercrime Module
 
-The cybercrime workspace includes controlled indicator analysis, forensic lab sessions, proof-matrix rows, Deepfake / Medios, Blockchain Forensics and IoT Forensics.
+The cybercrime workspace includes controlled indicator analysis, forensic lab sessions, proof-matrix rows, Deepfake / Medios, Blockchain Investigation Lab and IoT Forensics.
 
 ## Deepfake / Medios
 
@@ -55,9 +55,9 @@ Required caution:
 - a detector, metadata inconsistency, visual artifact or platform trace is not enough to prove authorship;
 - classification is preliminary and must be corroborated with preserved originals, expert review and independent sources.
 
-## Blockchain Forensics
+## Blockchain Investigation Lab
 
-Blockchain Forensics registers cryptoasset evidence without using external APIs by default. OPERIA does not query explorers automatically; an explorer URL is stored only when the analyst provides it manually.
+Blockchain Investigation Lab registers cryptoasset evidence without using external APIs by default. OPERIA does not query explorers automatically; an explorer URL is stored only when the analyst provides it manually.
 
 Operational fields:
 

@@ -9,6 +9,7 @@ from operia.cases.models import Case
 from operia.geo_trace.models import GeoTarget, GeoTraceAnalysis
 from operia.geo_trace.services import analyze_url, create_target_map, evidence_hash, extract_ips, extract_urls, geolocate_ip
 from operia.exports.service import export_pdf
+from operia.identity.dependencies import CurrentUser, require_permission
 from operia.legal_report.services.report_service import populate_report_sections, snapshot_report
 from operia.reports.models import Report
 
@@ -71,7 +72,11 @@ def dashboard(db: Session = Depends(get_db)):
 
 
 @router.post("/analyze")
-def create_analysis(payload: dict[str, Any], db: Session = Depends(get_db)):
+def create_analysis(
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     case_id = payload.get("case_id")
     if case_id and not db.get(Case, int(case_id)):
         raise HTTPException(404, "Caso no encontrado")
@@ -132,7 +137,11 @@ def export_map(analysis_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/analyses/{analysis_id}/export/pdf")
-def export_analysis_pdf(analysis_id: int, db: Session = Depends(get_db)):
+def export_analysis_pdf(
+    analysis_id: int,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("reports:write")),
+):
     analysis = db.get(GeoTraceAnalysis, analysis_id)
     if not analysis:
         raise HTTPException(404, "Analisis no encontrado")

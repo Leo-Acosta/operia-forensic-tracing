@@ -24,8 +24,8 @@ EXPECTED_ARTICLES = {
 }
 
 
-def _seed_and_articles(client):
-    seed = client.post("/api/legal-knowledge/articles/seed")
+def _seed_and_articles(client, admin_headers):
+    seed = client.post("/api/legal-knowledge/articles/seed", headers=admin_headers)
     assert seed.status_code == 200
     response = client.get("/api/legal-knowledge/articles")
     assert response.status_code == 200
@@ -39,14 +39,14 @@ def _recommend_refs(client, incident_text):
     return body, {item["reference"] for item in body["recommendations"]}
 
 
-def test_ctf_legal_articles_exist(client):
-    articles = _seed_and_articles(client)
+def test_ctf_legal_articles_exist(client, admin_headers):
+    articles = _seed_and_articles(client, admin_headers)
     present = {(item["code"], item["article_number"], item["subsection"] or "") for item in articles}
     assert EXPECTED_ARTICLES.issubset(present)
 
 
-def test_ctf_profiles_return_expected_norms(client):
-    _seed_and_articles(client)
+def test_ctf_profiles_return_expected_norms(client, admin_headers):
+    _seed_and_articles(client, admin_headers)
     expectations = {
         "phishing fraude digital con pago y credenciales": {"CP art. 172", "CP art. 173 inc. 16"},
         "ransomware extorsión con cifrado y nota de rescate": {"CP art. 168", "CP art. 183"},
@@ -59,29 +59,29 @@ def test_ctf_profiles_return_expected_norms(client):
         assert expected_refs.issubset(refs)
 
 
-def test_deepfake_returns_cccn_and_intellectual_property(client):
-    _seed_and_articles(client)
+def test_deepfake_returns_cccn_and_intellectual_property(client, admin_headers):
+    _seed_and_articles(client, admin_headers)
     body, refs = _recommend_refs(client, "deepfake de voz e imagen para suplantar identidad")
     assert body["profile"]["key"] == "deepfake"
     assert {"CCCN art. 51-53", "LPI art. 1"}.issubset(refs)
 
 
-def test_blockchain_returns_cp_172_173_168(client):
-    _seed_and_articles(client)
+def test_blockchain_returns_cp_172_173_168(client, admin_headers):
+    _seed_and_articles(client, admin_headers)
     body, refs = _recommend_refs(client, "blockchain criptoactivos wallet estafa manipulación informática extorsión")
     assert body["profile"]["key"] == "blockchain"
     assert {"CP art. 172", "CP art. 173 inc. 16", "CP art. 168"}.issubset(refs)
 
 
-def test_iot_returns_cp_153bis_183_197(client):
-    _seed_and_articles(client)
+def test_iot_returns_cp_153bis_183_197(client, admin_headers):
+    _seed_and_articles(client, admin_headers)
     body, refs = _recommend_refs(client, "iot dispositivos conectados acceso ilegítimo daño informático comunicaciones")
     assert body["profile"]["key"] == "iot"
     assert {"CP art. 153 bis", "CP art. 183", "CP art. 197"}.issubset(refs)
 
 
-def test_ctf_library_does_not_invent_sources(client):
-    articles = _seed_and_articles(client)
+def test_ctf_library_does_not_invent_sources(client, admin_headers):
+    articles = _seed_and_articles(client, admin_headers)
     official_hosts = (
         "https://www.argentina.gob.ar/normativa/nacional/",
     )

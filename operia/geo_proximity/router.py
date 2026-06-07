@@ -9,6 +9,7 @@ from operia.cases.models import Case
 from operia.geo_proximity.models import GeoProximityQuery, LocationReference
 from operia.geo_proximity.services import distance_km
 from operia.exports.service import export_pdf
+from operia.identity.dependencies import CurrentUser, require_permission
 from operia.legal_report.services.report_service import populate_report_sections, snapshot_report
 from operia.reports.models import Report
 
@@ -43,7 +44,11 @@ def list_locations(db: Session = Depends(get_db)):
 
 
 @router.post("/locations")
-def create_location(payload: dict[str, Any], db: Session = Depends(get_db)):
+def create_location(
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     row = LocationReference(**payload)
     db.add(row)
     db.commit()
@@ -52,7 +57,14 @@ def create_location(payload: dict[str, Any], db: Session = Depends(get_db)):
 
 
 @router.get("/nearest")
-def nearest(lat: float, lon: float, case_id: int | None = None, category: str | None = None, db: Session = Depends(get_db)):
+def nearest(
+    lat: float,
+    lon: float,
+    case_id: int | None = None,
+    category: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write")),
+):
     if case_id and not db.get(Case, case_id):
         raise HTTPException(404, "Caso no encontrado")
     query = db.query(LocationReference)
@@ -86,7 +98,11 @@ def list_queries(case_id: int | None = None, db: Session = Depends(get_db)):
 
 
 @router.post("/queries/{query_id}/export/pdf")
-def export_query_pdf(query_id: int, db: Session = Depends(get_db)):
+def export_query_pdf(
+    query_id: int,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("reports:write")),
+):
     query = db.get(GeoProximityQuery, query_id)
     if not query:
         raise HTTPException(404, "Consulta no encontrada")

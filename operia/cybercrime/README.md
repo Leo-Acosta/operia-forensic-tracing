@@ -18,7 +18,7 @@ This module migrates the operational parts of `Old_Operia Cybercrime Intelligenc
 - CTF events, challenges, and analysis steps.
 - Deepfake analysis records.
 - IoT/device records.
-- Blockchain transaction records.
+- Blockchain Investigation Lab transaction records.
 - Proof matrix rows.
 - Cybercrime dashboard metrics.
 - PDF export through the shared report/export pipeline.
@@ -28,4 +28,3 @@ This module migrates the operational parts of `Old_Operia Cybercrime Intelligenc
 - The old Cybercrime React screen has not been merged into the new web UI.
 - CTF file attachment upload/writeup export is not migrated yet.
 - The old bridge to the separate Forensic Legal Report API was removed because both modules now run in the same platform.
-

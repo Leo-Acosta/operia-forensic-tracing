@@ -24,7 +24,7 @@ from operia.legal_report.services.report_service import (
     report_exportability_assessment,
     snapshot_report,
 )
-from operia.identity.dependencies import CurrentUser, get_optional_user
+from operia.identity.dependencies import CurrentUser, require_permission
 from operia.reports.models import Report
 from operia.shared.crud import get_or_404
 
@@ -69,7 +69,7 @@ def list_manifests(
     case_id: int | None = None,
     report_id: int | None = None,
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("reports:read")),
 ):
     query = db.query(ExportManifest)
     if current_user and current_user.organization_id:
@@ -82,13 +82,26 @@ def list_manifests(
 
 
 @router.get("/manifests/{manifest_id}")
-def read_manifest(manifest_id: int, db: Session = Depends(get_db)):
-    return as_dict(get_or_404(db, ExportManifest, manifest_id))
+def read_manifest(
+    manifest_id: int,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("reports:read")),
+):
+    manifest = get_or_404(db, ExportManifest, manifest_id)
+    if current_user.organization_id and manifest.organization_id not in {current_user.organization_id, None}:
+        raise HTTPException(status_code=404, detail="Manifiesto no encontrado")
+    return as_dict(manifest)
 
 
 @router.get("/manifests/{manifest_id}/download")
-def download_manifest(manifest_id: int, db: Session = Depends(get_db)):
+def download_manifest(
+    manifest_id: int,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("reports:read")),
+):
     manifest = get_or_404(db, ExportManifest, manifest_id)
+    if current_user.organization_id and manifest.organization_id not in {current_user.organization_id, None}:
+        raise HTTPException(status_code=404, detail="Manifiesto no encontrado")
     path = Path(manifest.manifest_path)
     if not path.exists():
         raise HTTPException(status_code=404, detail="Archivo de manifiesto no encontrado")
@@ -96,7 +109,11 @@ def download_manifest(manifest_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/json")
-def export_json(payload: dict, db: Session = Depends(get_db), current_user: CurrentUser | None = Depends(get_optional_user)):
+def export_json(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("reports:write")),
+):
     filename = str(payload.get("filename") or "operia-export.json")
     content = payload.get("content")
     if not isinstance(content, dict):
@@ -113,7 +130,7 @@ def seal_final_report_pdf(
     report_id: int,
     payload: dict | None = None,
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("reports:write")),
 ):
     report = get_or_404(db, Report, report_id)
     payload = payload or {}
@@ -191,7 +208,11 @@ def seal_final_report_pdf(
 
 
 @router.post("/csv")
-def export_csv(payload: dict, db: Session = Depends(get_db), current_user: CurrentUser | None = Depends(get_optional_user)):
+def export_csv(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("reports:write")),
+):
     filename = str(payload.get("filename") or "operia-export.csv")
     rows = payload.get("rows")
     if not isinstance(rows, list) or not all(isinstance(row, dict) for row in rows):
@@ -204,7 +225,11 @@ def export_csv(payload: dict, db: Session = Depends(get_db), current_user: Curre
 
 
 @router.post("/markdown")
-def export_markdown_payload(payload: dict, db: Session = Depends(get_db), current_user: CurrentUser | None = Depends(get_optional_user)):
+def export_markdown_payload(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("reports:write")),
+):
     filename = str(payload.get("filename") or "operia-export.md")
     markdown = str(payload.get("markdown") or "")
     path = export_markdown_text(markdown, filename)
@@ -215,7 +240,11 @@ def export_markdown_payload(payload: dict, db: Session = Depends(get_db), curren
 
 
 @router.post("/pdf")
-def export_pdf_payload(payload: dict, db: Session = Depends(get_db), current_user: CurrentUser | None = Depends(get_optional_user)):
+def export_pdf_payload(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("reports:write")),
+):
     filename = str(payload.get("filename") or "operia-export.pdf")
     title = str(payload.get("title") or "OPERIA Export")
     body = str(payload.get("body") or payload.get("markdown") or "")
@@ -232,7 +261,7 @@ def export_report(
     fmt: str,
     final: bool = False,
     db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_user),
+    current_user: CurrentUser = Depends(require_permission("reports:write")),
 ):
     report = get_or_404(db, Report, report_id)
     legal_probatory = legal_probatory_assessment(report.case)

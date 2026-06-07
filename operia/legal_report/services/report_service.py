@@ -1,4 +1,6 @@
+import json
 from hashlib import sha256
+from types import SimpleNamespace
 from typing import Any
 
 from operia.cases.models import Case
@@ -41,7 +43,7 @@ REPORT_SECTIONS = [
     "Conclusiones técnicas",
     "Encuadre jurídico argentino",
     "Matriz legal-probatoria aplicada",
-    "SemÃ¡foro de suficiencia legal",
+    "Sem?foro de suficiencia legal",
     "Responsabilidad penal preliminar",
     "Responsabilidad civil preliminar",
     "Protección de datos personales",
@@ -49,15 +51,100 @@ REPORT_SECTIONS = [
     "Cuantificación económica del daño",
     "Conclusión jurídicamente defendible",
     "Recomendaciones",
-    "Recomendaciones procesales automÃ¡ticas",
+    "Recomendaciones procesales autom?ticas",
     "Anexos",
     "Glosario técnico",
     "Preguntas y respuestas para testimonio experto",
 ]
 
 
+def isolated_case_snapshot(case: Case) -> Any:
+    """Return a read-only case-shaped object with only records that belong to this case."""
+    case_id = getattr(case, "id", None)
+
+    def belongs(item: Any) -> bool:
+        return getattr(item, "case_id", case_id) == case_id
+
+    evidence = [item for item in getattr(case, "evidence", []) or [] if belongs(item)]
+    evidence_ids = {item.id for item in evidence}
+    technical_data = [item for item in getattr(case, "technical_data", []) or [] if belongs(item)]
+    actions = [
+        item
+        for item in getattr(case, "actions", []) or []
+        if belongs(item) and (getattr(item, "evidence_id", None) is None or getattr(item, "evidence_id", None) in evidence_ids)
+    ]
+    findings = [
+        item
+        for item in getattr(case, "findings", []) or []
+        if belongs(item) and (getattr(item, "evidence_id", None) is None or getattr(item, "evidence_id", None) in evidence_ids)
+    ]
+    hypotheses = [item for item in getattr(case, "hypotheses", []) or [] if belongs(item)]
+    legal_mappings = [item for item in getattr(case, "legal_mappings", []) or [] if belongs(item)]
+    damage_items = [item for item in getattr(case, "damage_items", []) or [] if belongs(item)]
+    participants = [item for item in getattr(case, "participants", []) or [] if belongs(item)]
+    reports = [item for item in getattr(case, "reports", []) or [] if belongs(item)]
+    presentations = [item for item in getattr(case, "presentations", []) or [] if belongs(item)]
+    rubric_evaluations = [item for item in getattr(case, "rubric_evaluations", []) or [] if belongs(item)]
+
+    def linked(items: list[Any]) -> list[Any]:
+        return [
+            item
+            for item in items
+            if belongs(item) and (getattr(item, "evidence_id", None) is None or getattr(item, "evidence_id", None) in evidence_ids)
+        ]
+
+    return SimpleNamespace(
+        id=case.id,
+        organization_id=getattr(case, "organization_id", None),
+        case_code=case.case_code,
+        title=case.title,
+        description=case.description,
+        responsible=case.responsible,
+        client_or_victim=case.client_or_victim,
+        incident_type=case.incident_type,
+        status=case.status,
+        jurisdiction=case.jurisdiction,
+        general_observations=case.general_observations,
+        created_at=getattr(case, "created_at", None),
+        updated_at=getattr(case, "updated_at", None),
+        technical_data=technical_data,
+        evidence=evidence,
+        actions=actions,
+        findings=findings,
+        hypotheses=hypotheses,
+        legal_mappings=legal_mappings,
+        participants=participants,
+        damage_items=damage_items,
+        reports=reports,
+        presentations=presentations,
+        rubric_evaluations=rubric_evaluations,
+        deepfake_analyses=linked(getattr(case, "deepfake_analyses", []) or []),
+        blockchain_transactions=linked(getattr(case, "blockchain_transactions", []) or []),
+        iot_devices=linked(getattr(case, "iot_devices", []) or []),
+    )
+
+
+def _mapping_links_for_case(mapping: Any, case: Any | None = None) -> list[Any]:
+    case_id = getattr(case, "id", getattr(mapping, "case_id", None))
+    return [
+        link
+        for link in getattr(mapping, "evidence_links", []) or []
+        if getattr(link, "case_id", case_id) == case_id
+        and getattr(link, "legal_mapping_id", getattr(mapping, "id", None)) == getattr(mapping, "id", None)
+        and getattr(getattr(link, "evidence", None), "case_id", case_id) == case_id
+    ]
+
+
 def build_integral_markdown(case: Case, legal_recommendations: list[Any] | None = None) -> str:
+    case = isolated_case_snapshot(case)
     total_damage = sum(item.amount for item in case.damage_items)
+    case_narrative = _case_narrative_markdown(case)
+    evidence_overview = _evidence_overview_markdown(case)
+    investigative_techniques = _investigative_techniques_markdown(case)
+    evidence_identification = _evidence_identification_markdown(case)
+    investigated_documentation = _investigated_documentation_markdown(case)
+    analysis_evidence = _analysis_evidence_markdown(case)
+    damage_methodology = _damage_methodology_markdown(case, total_damage)
     participant_lines = "\n".join(
         (
             f"- {p.display_name} ({p.person_type}; rol: {p.participant_type}). "
@@ -106,6 +193,7 @@ def build_integral_markdown(case: Case, legal_recommendations: list[Any] | None 
     legal_probatory = legal_probatory_assessment(case)
     legal_probatory_lines = _legal_probatory_matrix_markdown(legal_probatory)
     legal_sufficiency_lines = _legal_sufficiency_markdown(legal_probatory)
+    penal_legal_theory = _penal_legal_theory_markdown(case, legal_probatory)
     procedural_recommendations = _procedural_recommendations_markdown(case, legal_probatory)
     exportability = report_exportability_assessment(case, legal_probatory)
     executive_summary = build_smart_executive_summary(case, legal_probatory, exportability)
@@ -129,7 +217,7 @@ def build_integral_markdown(case: Case, legal_recommendations: list[Any] | None 
     if getattr(case, "rubric_evaluations", None):
         from operia.rubrics.service import rubric_markdown
 
-        latest_rubric = sorted(case.rubric_evaluations, key=lambda item: item.created_at, reverse=True)[0]
+        latest_rubric = sorted(case.rubric_evaluations, key=lambda item: (getattr(item, "route_order", 0) or 999999, item.created_at), reverse=True)[0]
         rubric_lines = "\n\n" + rubric_markdown(latest_rubric)
 
     responsible_text = case.responsible or NO_ATTRIBUTION_TEXT
@@ -174,9 +262,17 @@ La herramienta asiste, pero no reemplaza revisión profesional humana. No se afi
 
 Se preservaron datos técnicos, se registraron acciones de cadena de custodia, se calcularon hashes cuando hubo archivos y se construyó la matriz dato técnico -> evidencia -> hallazgo -> hipótesis -> conclusión.
 
+## Tecnicas usadas, herramientas forenses y metodologia
+
+{investigative_techniques}
+
 ## Resumen ejecutivo
 
 {executive_summary}
+
+### Narrativa ejecutiva del caso
+
+{case_narrative}
 
 ### Nivel de exportabilidad del informe
 
@@ -191,6 +287,22 @@ Se preservaron datos técnicos, se registraron acciones de cadena de custodia, s
 ## Evidencia recibida
 
 {evidence_lines}
+
+## Identificacion, categorizacion y preservacion de evidencia
+
+{evidence_identification}
+
+### Punteo pericial de evidencias informáticas
+
+{evidence_overview}
+
+## Documentacion investigada
+
+{investigated_documentation}
+
+## Evidencia de analisis y trazabilidad del hallazgo
+
+{analysis_evidence}
 
 ## Registro de cadena de custodia
 
@@ -236,17 +348,21 @@ Con el alcance y limitaciones indicadas, los hallazgos permiten sostener prelimi
 
 {legal_lines}
 
+## Fundamentacion penal y legal aplicada
+
+{penal_legal_theory}
+
 ## Matriz legal-probatoria aplicada
 
 | Norma | Elemento legal | Evidencia | Estado | Fuerza | Riesgo | Medida recomendada |
 | --- | --- | --- | --- | --- | --- | --- |
 {legal_probatory_lines}
 
-## SemÃ¡foro de suficiencia legal
+## Semáforo de suficiencia legal
 
 {legal_sufficiency_lines}
 
-### MÃ©todo de aplicaciÃ³n normativa
+### Método de aplicación normativa
 
 {_normative_application_method(legal_probatory)}
 
@@ -274,6 +390,8 @@ Debe evaluarse si existe relación de consumo, plataformas, bancos, fintech, exc
 
 **Daño total estimado:** {total_damage:.2f} ARS.
 
+{damage_methodology}
+
 ## Conclusión jurídicamente defendible
 
 La evidencia resulta compatible con los hallazgos indicados, con las limitaciones explicitadas. La conclusión requiere validación humana técnica y jurídica.
@@ -292,7 +410,7 @@ La evidencia resulta compatible con los hallazgos indicados, con las limitacione
 - Validar hashes, bitácora y anexos.
 - Reformular afirmaciones categóricas en términos técnicos probabilísticos.
 
-## Recomendaciones procesales automÃ¡ticas
+## Recomendaciones procesales autom?ticas
 
 {procedural_recommendations}
 {rubric_lines}
@@ -491,7 +609,7 @@ def _technical_forensic_overview_markdown(
 
 
 def _media_authentication_markdown(case: Case) -> str:
-    analyses = sorted(getattr(case, "deepfake_analyses", []) or [], key=lambda item: item.created_at, reverse=True)
+    analyses = sorted(getattr(case, "deepfake_analyses", []) or [], key=lambda item: (getattr(item, "route_order", 0) or 999999, item.created_at), reverse=True)
     if not analyses:
         return ""
     lines = []
@@ -520,25 +638,34 @@ def _media_authentication_markdown(case: Case) -> str:
 
 
 def _blockchain_forensics_markdown(case: Case) -> str:
-    transactions = sorted(getattr(case, "blockchain_transactions", []) or [], key=lambda item: item.created_at, reverse=True)
+    all_transactions = getattr(case, "blockchain_transactions", []) or []
+    selected = [item for item in all_transactions if getattr(item, "include_in_report", True)]
+    transactions = sorted(selected or all_transactions, key=lambda item: (getattr(item, "route_order", 0) or 999999, item.created_at))
     if not transactions:
         return ""
+    route_lines = _blockchain_multihop_lines(transactions)
+    critical_lines = _blockchain_critical_lines(transactions)
+    request_lines = _blockchain_request_lines(transactions)
+    annex_lines = _blockchain_annex_lines(transactions)
     rows = [
-        "| ID | Red | Hash | Origen | Destino | Token/monto | Evidencia | Clasificacion |",
-        "| --- | --- | --- | --- | --- | ---: | --- | --- |",
+        "| ID | Red | Hash / fuente | Ruta documentada | Token/monto | Soporte probatorio | Clasificacion |",
+        "| --- | --- | --- | --- | ---: | --- | --- |",
     ]
     details = []
     for tx in transactions:
+        readiness_label, readiness_score, readiness_missing = _blockchain_readiness(tx)
         rows.append(
-            f"| #{tx.id} | {tx.blockchain} | `{tx.tx_hash}` | {tx.source_wallet or 'pendiente'} | {tx.destination_wallet or 'pendiente'} | {tx.amount:.8g} {tx.token} | #{tx.evidence_id or '-'} / {tx.evidence_hash or 'pendiente'} | {tx.wallet_classification} |"
+            f"| #{tx.id} | {tx.blockchain} | `{tx.tx_hash}`<br>{tx.explorer_url or 'URL no informada'} | {tx.source_wallet or 'pendiente'} -> {tx.destination_wallet or 'pendiente'} | {tx.amount:.8g} {tx.token}<br>Valor aprox. {tx.approximate_value:.2f} | Evidencia #{tx.evidence_id or '-'}<br>Hash: `{tx.evidence_hash or 'pendiente'}`<br>Herramienta: {tx.tool_used or 'pendiente'}<br>Suficiencia: {readiness_label} ({readiness_score}/100) | {tx.wallet_classification} |"
         )
         details.append(
             "\n".join(
                 [
-                    f"- Transaccion #{tx.id}: valor aproximado {tx.approximate_value:.2f}; fecha/hora: {tx.tx_datetime or 'pendiente'}; URL: {tx.explorer_url or 'pendiente'}.",
+                    f"- Transaccion #{tx.id}: red {tx.blockchain}, token {tx.token}, monto {tx.amount:.8g}, valor aproximado {tx.approximate_value:.2f}, fecha/hora {tx.tx_datetime or 'pendiente'}.",
+                    f"  - Ruta documentada: {tx.source_wallet or 'origen pendiente'} -> {tx.destination_wallet or 'destino pendiente'}.",
+                    f"  - Fuente preservada: {tx.explorer_url or 'pendiente'}; herramienta/metodo: {tx.tool_used or 'pendiente'}.",
                     f"  - Hipotesis de ruta: {tx.route_hypothesis or 'pendiente'}.",
-                    f"  - Herramienta usada: {tx.tool_used or 'pendiente'}.",
                     f"  - Evidencia que sostiene o limita: evidencia #{tx.evidence_id or '-'}, hash `{tx.evidence_hash or 'pendiente'}`; limites: {tx.limitations or 'requiere corroboracion externa'}.",
+                    f"  - Suficiencia preliminar: {readiness_label} ({readiness_score}/100). Faltantes principales: {', '.join(readiness_missing[:5]) if readiness_missing else 'sin faltantes criticos para documentacion inicial'}.",
                     f"  - Normas aplicables vinculadas: {tx.legal_mapping_ids or 'pendiente'}.",
                 ]
             )
@@ -557,8 +684,20 @@ def _blockchain_forensics_markdown(case: Case) -> str:
             [
                 *rows,
                 "",
+                "### Ruta multi-salto observada",
+                *route_lines,
+                "",
                 "### Hipotesis de ruta y limites",
                 *details,
+                "",
+                "### Anexo blockchain profesional",
+                *annex_lines,
+                "",
+                "### Puntos criticos de trazabilidad",
+                *critical_lines,
+                "",
+                "### Requerimientos sugeridos",
+                *request_lines,
                 "",
                 "### Medidas procesales recomendadas",
                 measures,
@@ -569,8 +708,127 @@ def _blockchain_forensics_markdown(case: Case) -> str:
     )
 
 
+def _blockchain_annex_lines(transactions: list[Any]) -> list[str]:
+    lines: list[str] = [
+        "| Registro | Acta de consulta | Preservación | Checklist | Uso pericial |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for tx in sorted(transactions, key=lambda item: (getattr(item, "route_order", 0) or 999999, item.created_at)):
+        readiness_label, readiness_score, readiness_missing = _blockchain_readiness(tx)
+        source = getattr(tx, "explorer_url", "") or "fuente no informada"
+        evidence = f"evidencia #{getattr(tx, 'evidence_id', None)}" if getattr(tx, "evidence_id", None) else "sin evidencia vinculada"
+        evidence_hash = getattr(tx, "evidence_hash", "") or "hash pendiente"
+        act = (
+            f"{getattr(tx, 'tx_datetime', '') or 'fecha/hora pendiente'}; "
+            f"{getattr(tx, 'tool_used', '') or 'herramienta pendiente'}; "
+            f"{source}"
+        )
+        preservation = (
+            f"{evidence}; hash {evidence_hash}; "
+            f"wallet origen {getattr(tx, 'source_wallet', '') or 'pendiente'}; "
+            f"wallet destino {getattr(tx, 'destination_wallet', '') or 'pendiente'}"
+        )
+        checklist = f"{readiness_label} ({readiness_score}/100); faltantes: {', '.join(readiness_missing[:4]) if readiness_missing else 'sin faltantes criticos'}"
+        use = (
+            "Orienta trazabilidad economica y medidas investigativas; "
+            "no acredita identidad personal ni titularidad efectiva sin corroboracion externa."
+        )
+        lines.append(f"| #{tx.id} | {act} | {preservation} | {checklist} | {use} |")
+    if len(lines) == 2:
+        lines.append("| - | Sin transacciones registradas | - | - | - |")
+    return lines
+
+
+def _blockchain_critical_lines(transactions: list[Any]) -> list[str]:
+    lines: list[str] = []
+    for tx in sorted(transactions, key=lambda item: (getattr(item, "route_order", 0) or 999999, item.created_at)):
+        missing: list[str] = []
+        if not getattr(tx, "evidence_id", None):
+            missing.append("evidencia preservada")
+        if not getattr(tx, "explorer_url", ""):
+            missing.append("URL/captura del explorador")
+        if not getattr(tx, "tx_datetime", ""):
+            missing.append("fecha y hora de consulta")
+        if not getattr(tx, "finding_id", None):
+            missing.append("hallazgo tecnico")
+        if not getattr(tx, "legal_mapping_ids", ""):
+            missing.append("normas vinculadas")
+        classification = (getattr(tx, "wallet_classification", "") or "").lower()
+        if classification in {"mixer", "bridge", "contrato inteligente"}:
+            lines.append(f"- Transaccion #{tx.id}: punto de cautela reforzada por {classification}; no sostener atribucion sin corroboracion externa.")
+        if missing:
+            lines.append(f"- Transaccion #{tx.id}: faltan {', '.join(missing)}.")
+    if not lines:
+        lines.append("- No se registran puntos criticos adicionales en la documentacion blockchain cargada.")
+    return lines
+
+
+def _blockchain_request_lines(transactions: list[Any]) -> list[str]:
+    classifications = {(getattr(tx, "wallet_classification", "") or "").lower() for tx in transactions}
+    lines: list[str] = []
+    if "exchange" in classifications:
+        lines.append("- Requerir a exchange o plataforma informacion de KYC, titularidad, logs, IPs, fechas, dispositivo y movimientos relacionados.")
+    if "mixer" in classifications:
+        lines.append("- Documentar limite por mixer y solicitar analisis complementario antes de sostener continuidad de fondos o atribucion.")
+    if "bridge" in classifications:
+        lines.append("- Preservar ambos lados del bridge: red origen, red destino, hash, monto, wallet y fecha/hora.")
+    if "contrato inteligente" in classifications:
+        lines.append("- Revisar contrato inteligente, eventos, funciones invocadas, direccion del contrato y wallets firmantes.")
+    if any(not getattr(tx, "evidence_id", None) for tx in transactions):
+        lines.append("- Vincular cada transaccion relevante con captura, comprobante, exportacion del explorador o evidencia hashada.")
+    if any(not getattr(tx, "finding_id", None) for tx in transactions):
+        lines.append("- Convertir los movimientos relevantes en hallazgos tecnicos antes de cerrar el informe.")
+    if not lines:
+        lines.append("- Mantener preservacion de capturas, hashes, URL, fecha/hora, herramienta usada y analista interviniente.")
+    return lines
+
+
+def _blockchain_multihop_lines(transactions: list[Any]) -> list[str]:
+    if not transactions:
+        return ["- No hay transacciones registradas."]
+    ordered = sorted(transactions, key=lambda item: (getattr(item, "route_order", 0) or 999999, item.created_at))
+    links: dict[str, int] = {}
+    for tx in ordered:
+        if tx.source_wallet:
+            links[tx.source_wallet.strip()] = links.get(tx.source_wallet.strip(), 0) + 1
+        if tx.destination_wallet:
+            links[tx.destination_wallet.strip()] = links.get(tx.destination_wallet.strip(), 0) + 1
+    repeated = [wallet for wallet, count in links.items() if count > 1]
+    lines = [
+        f"- Salto {index}: {tx.source_wallet or 'origen pendiente'} -> {tx.destination_wallet or 'destino pendiente'}; {tx.amount:.8g} {tx.token}; hash `{tx.tx_hash or 'pendiente'}`."
+        for index, tx in enumerate(ordered, start=1)
+    ]
+    if repeated:
+        lines.append(f"- Wallets que conectan saltos: {', '.join(repeated)}.")
+    else:
+        lines.append("- No se detectaron wallets repetidas entre saltos cargados; la ruta debe interpretarse como trazabilidad documental preliminar.")
+    return lines
+
+
+def _blockchain_readiness(tx: Any) -> tuple[str, int, list[str]]:
+    checks = [
+        ("hash de transaccion", bool(getattr(tx, "tx_hash", ""))),
+        ("URL o fuente preservada", bool(getattr(tx, "explorer_url", ""))),
+        ("wallet origen y destino", bool(getattr(tx, "source_wallet", "") and getattr(tx, "destination_wallet", ""))),
+        ("monto y token", bool((getattr(tx, "amount", 0) or 0) > 0 and getattr(tx, "token", ""))),
+        ("fecha/hora observada", bool(getattr(tx, "tx_datetime", ""))),
+        ("evidencia vinculada", bool(getattr(tx, "evidence_id", None))),
+        ("hipotesis de ruta", bool(getattr(tx, "route_hypothesis", ""))),
+        ("hallazgo creado", bool(getattr(tx, "finding_id", None))),
+        ("normas aplicadas", bool(getattr(tx, "legal_mapping_ids", ""))),
+    ]
+    ok_count = sum(1 for _, ok in checks if ok)
+    score = round((ok_count / len(checks)) * 100)
+    missing = [label for label, ok in checks if not ok]
+    if score >= 78:
+        return "listo para informe", score, missing
+    if score >= 45:
+        return "requiere refuerzo", score, missing
+    return "insuficiente", score, missing
+
+
 def _iot_forensics_markdown(case: Case) -> str:
-    devices = sorted(getattr(case, "iot_devices", []) or [], key=lambda item: item.created_at, reverse=True)
+    devices = sorted(getattr(case, "iot_devices", []) or [], key=lambda item: (getattr(item, "route_order", 0) or 999999, item.created_at), reverse=True)
     if not devices:
         return ""
     rows = [
@@ -579,6 +837,7 @@ def _iot_forensics_markdown(case: Case) -> str:
     ]
     details = []
     for device in devices:
+        checklist = _iot_checklist_summary(device.checklist or "")
         rows.append(
             f"| #{device.id} | {device.device_type} | {device.manufacturer or 'pendiente'} {device.model or ''} | {device.firmware or 'pendiente'} | {device.internal_ip or '-'} / {device.external_ip or '-'} | #{device.evidence_id or '-'} / {device.evidence_hash or 'pendiente'} |"
         )
@@ -587,6 +846,8 @@ def _iot_forensics_markdown(case: Case) -> str:
                 [
                     f"- Dispositivo #{device.id}: MAC {device.mac or 'pendiente'}; puertos observados: {device.open_ports or 'pendiente'}.",
                     f"  - Metodologia/herramienta: {device.tool_used or 'OPERIA IoT Forensics'}; no se ejecutan escaneos reales automaticamente.",
+                    f"  - Timeline pericial: identificacion, preservacion, observacion tecnica, hallazgo, norma aplicable e incorporacion al informe.",
+                    f"  - Checklist: {checklist}.",
                     f"  - Logs disponibles: {device.logs_available or 'pendiente'}.",
                     f"  - Vulnerabilidades conocidas: {device.known_vulnerabilities or 'pendiente'}.",
                     f"  - Evidencia: #{device.evidence_id or '-'}, hash `{device.evidence_hash or 'pendiente'}`.",
@@ -622,13 +883,313 @@ def _iot_forensics_markdown(case: Case) -> str:
     )
 
 
+def _iot_checklist_summary(raw_checklist: str) -> str:
+    labels = {
+        "physical_identification": "identificacion fisica",
+        "photo_capture": "fotografia/captura",
+        "hash_evidence": "hash de evidencia",
+        "firmware": "firmware",
+        "configuration": "configuracion",
+        "logs": "logs",
+        "ports": "puertos",
+        "default_credentials": "credenciales por defecto",
+        "network_connection": "conexion a red",
+        "timeline": "linea temporal",
+        "state_preservation": "preservacion de estado",
+        "alteration_risk": "riesgo de alteracion",
+    }
+    try:
+        parsed = json.loads(raw_checklist or "{}")
+    except json.JSONDecodeError:
+        return "checklist no estructurado"
+    done = [labels.get(key, key) for key, value in parsed.items() if isinstance(value, dict) and value.get("ok")]
+    if not done:
+        return "sin controles marcados"
+    return ", ".join(done)
+
+
+def _case_narrative_markdown(case: Case) -> str:
+    incident = normalize_spanish(case.incident_type or "incidente digital").strip()
+    description = normalize_spanish(case.description or "").strip()
+    evidence_count = len(case.evidence)
+    custody_count = len(case.actions)
+    finding_count = len(case.findings)
+    damage_total = sum(item.amount for item in case.damage_items)
+    opening = (
+        f"El caso se inicia a partir de un hecho descripto como {incident}."
+        if not description
+        else f"El caso se inicia a partir del siguiente hecho investigado: {description}."
+    )
+    connectors = [
+        opening,
+        f"A partir de esa hipótesis fáctica, se incorporaron {evidence_count} evidencia(s) digital(es) y {custody_count} acción(es) de cadena de custodia vinculadas exclusivamente a este caso.",
+    ]
+    if finding_count:
+        connectors.append(
+            f"Sobre esa base se registraron {finding_count} hallazgo(s) técnico(s), que permiten ordenar la teoría del caso sin confundir indicios técnicos con atribución penal definitiva."
+        )
+    else:
+        connectors.append(
+            "Todavía no se cargaron hallazgos técnicos autónomos; por ello, la narrativa conserva carácter preliminar y se apoya en la evidencia preservada, la descripción del hecho y el encuadre legal aprobado."
+        )
+    if case.legal_mappings:
+        norms = ", ".join(list(dict.fromkeys(mapping.norm_reference for mapping in case.legal_mappings if mapping.norm_reference))[:4])
+        connectors.append(f"El encuadre jurídico de trabajo se estructura sobre {norms or 'las normas seleccionadas por el analista'}, siempre sujeto a validación humana y a la prueba efectivamente reunida.")
+    if damage_total:
+        connectors.append(f"En el plano económico, el daño preliminar cargado asciende a {damage_total:.2f} ARS, compuesto únicamente por conceptos documentados en el caso.")
+    else:
+        connectors.append("No se registró todavía una cuantificación económica positiva; la sección de daño queda limitada a metodología y datos pendientes.")
+    connectors.append("La lectura integral debe seguir esta secuencia: hecho denunciado, evidencia preservada, custodia, hallazgos, matriz legal-probatoria, daño acreditado y conclusión técnico-jurídica.")
+    return normalize_spanish("\n\n".join(connectors))
+
+
+def _evidence_overview_markdown(case: Case) -> str:
+    if not case.evidence:
+        return "No hay evidencia informática cargada para puntear."
+    rows = []
+    custody_by_evidence: dict[int, list[Any]] = {}
+    for action in case.actions:
+        if getattr(action, "evidence_id", None):
+            custody_by_evidence.setdefault(action.evidence_id, []).append(action)
+    for evidence in case.evidence:
+        linked_findings = [finding for finding in case.findings if getattr(finding, "evidence_id", None) == evidence.id]
+        custody_count = len(custody_by_evidence.get(evidence.id, []))
+        what_proves = (
+            "; ".join(finding.title for finding in linked_findings[:3])
+            if linked_findings
+            else "presencia, origen declarado o contenido observable de la pieza incorporada"
+        )
+        what_limits = []
+        if not evidence.sha256_hash:
+            what_limits.append("falta hash SHA-256")
+        if custody_count == 0:
+            what_limits.append("falta acción de custodia vinculada")
+        if evidence.was_altered:
+            what_limits.append("existe alteración declarada que debe justificarse")
+        limit_text = "; ".join(what_limits) if what_limits else "sin límite crítico registrado en integridad básica"
+        rows.append(
+            "\n".join(
+                [
+                    f"- Evidencia #{evidence.id}: {evidence.description}.",
+                    f"  - Tipo/categoría: {evidence.evidence_type or 'digital'}; fuente: {evidence.source or 'no informada'}.",
+                    f"  - Hash SHA-256: `{evidence.sha256_hash or 'pendiente'}`; integridad: {evidence.integrity_status}.",
+                    f"  - Aporta al caso: {what_proves}.",
+                    f"  - Límite probatorio: {limit_text}.",
+                ]
+            )
+        )
+    return normalize_spanish("\n".join(rows))
+
+
+def _investigative_techniques_markdown(case: Case) -> str:
+    rows = [
+        "| Tecnica o herramienta | Quien la aplico | Como se uso | Resultado esperado | Limite pericial |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    seen: set[str] = set()
+
+    def add(tool: str, actor: str, method: str, result: str, limit: str) -> None:
+        key = f"{tool}|{actor}|{method}"
+        if key in seen:
+            return
+        seen.add(key)
+        rows.append(f"| {tool} | {actor or 'Analista interviniente'} | {method} | {result} | {limit} |")
+
+    for evidence in case.evidence:
+        add(
+            evidence.tool_used or "Preservacion documental y hash",
+            evidence.responsible or evidence.custodian,
+            f"Se identifico y preservo la evidencia #{evidence.id}: {evidence.description}.",
+            f"Control de integridad: SHA-256 {evidence.sha256_hash or 'pendiente'}; estado {evidence.integrity_status}.",
+            "El hash acredita integridad del objeto preservado, no autoria personal.",
+        )
+    for action in case.actions:
+        add(
+            action.tool_used or "Cadena de custodia",
+            action.user_responsible or action.validated_by,
+            action.command_or_procedure or action.detailed_description,
+            action.result_obtained or f"Accion registrada como {action.action_type}.",
+            action.legal_observations or "Requiere continuidad cronologica y validacion de responsables.",
+        )
+    for finding in case.findings:
+        add(
+            finding.tools_used or "Analisis tecnico-forense",
+            "Analista interviniente",
+            finding.technical_finding or finding.explanation,
+            finding.preliminary_legal_relevance or "Hallazgo incorporado a la teoria del caso.",
+            finding.weaknesses_or_limitations or "No sostener atribucion personal sin corroboracion externa.",
+        )
+    if not seen:
+        add(
+            "Metodologia documental forense",
+            "Analista interviniente",
+            "Ordenamiento inicial del caso, definicion de alcance, preservacion pendiente y matriz legal-probatoria.",
+            "Base minima para planificar la investigacion.",
+            "Requiere evidencia, hash, custodia y revision profesional.",
+        )
+    return normalize_spanish("\n".join(rows))
+
+
+def _evidence_identification_markdown(case: Case) -> str:
+    if not case.evidence:
+        return "No hay evidencia identificada para esta seccion."
+    rows = [
+        "| Evidencia | Categoria | Quien la identifico | Como se encontro | Preservacion | Hash | Estado |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for evidence in case.evidence:
+        how_found = evidence.source or evidence.custody_observations or "Incorporada por el analista a partir del relato y los archivos disponibles."
+        who = evidence.responsible or evidence.custodian or "Analista interviniente"
+        rows.append(
+            f"| #{evidence.id} {evidence.description} | {evidence.evidence_type or 'digital'} | {who} | {how_found} | {evidence.preservation_method or evidence.evidence_nature or 'preservacion pendiente de ampliar'} | `{evidence.sha256_hash or 'pendiente'}` | {evidence.integrity_status} |"
+        )
+    return normalize_spanish("\n".join(rows))
+
+
+def _investigated_documentation_markdown(case: Case) -> str:
+    rows = [
+        "| Documento o fuente | Quien lo reviso | Metodo de revision | Relevancia | Pendiente o limite |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for evidence in case.evidence:
+        rows.append(
+            f"| Evidencia #{evidence.id}: {evidence.description} | {evidence.responsible or evidence.custodian or 'Analista interviniente'} | Verificacion de descripcion, fuente, hash, preservacion y custodia. | Soporta la existencia material del hecho o un indicador del caso. | {evidence.custody_observations or 'Ampliar contexto, origen y autorizacion si corresponde.'} |"
+        )
+    for action in case.actions:
+        rows.append(
+            f"| Registro de custodia #{action.id} | {action.user_responsible or action.validated_by or 'Analista interviniente'} | Revision cronologica de accion, procedimiento, resultado y hashes. | Permite reconstruir manipulacion, preservacion o analisis de la evidencia. | {action.legal_observations or 'Mantener bitacora completa y validacion posterior.'} |"
+        )
+    for mapping in case.legal_mappings:
+        if getattr(mapping, "decision_status", "sugerido") == "descartado":
+            continue
+        rows.append(
+            f"| Fuente legal {mapping.norm_reference} | {mapping.analyst_name or 'Analista legal'} | Contraste con biblioteca legal registrada y decision del analista. | Fundar la tipificacion preliminar y la relevancia probatoria. | {mapping.probatory_limits or 'Vincular evidencia concreta a cada elemento del tipo penal.'} |"
+        )
+    if len(rows) == 2:
+        rows.append("| Sin documentacion investigada cargada | Analista interviniente | Pendiente | Pendiente | Incorporar evidencia, custodia y fuentes legales. |")
+    return normalize_spanish("\n".join(rows))
+
+
+def _analysis_evidence_markdown(case: Case) -> str:
+    rows = [
+        "| Elemento analizado | Quien lo encontro | Como lo encontro | Que sostiene | Que no permite afirmar |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for finding in case.findings:
+        evidence = next((item for item in case.evidence if item.id == getattr(finding, "evidence_id", None)), None)
+        who = evidence.responsible if evidence else "Analista interviniente"
+        how = evidence.source if evidence and evidence.source else finding.tools_used or "Analisis de la evidencia cargada."
+        supports = finding.supporting_evidence or finding.technical_finding or finding.explanation
+        limits = finding.weaknesses_or_limitations or "No permite condena ni atribucion penal por si solo; requiere corroboracion externa y valoracion judicial."
+        rows.append(f"| {finding.title} | {who or 'Analista interviniente'} | {how} | {supports} | {limits} |")
+    if not case.findings:
+        for evidence in case.evidence:
+            rows.append(
+                f"| Evidencia #{evidence.id}: {evidence.description} | {evidence.responsible or evidence.custodian or 'Analista interviniente'} | {evidence.source or 'Incorporacion documental al expediente tecnico.'} | Permite demostrar existencia, contenido o indicador tecnico preservado. | No permite por si sola identificar autor, dolo, participacion o responsabilidad penal definitiva. |"
+            )
+    if len(rows) == 2:
+        rows.append("| Sin evidencia analitica cargada | Analista interviniente | Pendiente | Pendiente | No formular conclusiones condenatorias sin evidencia. |")
+    return normalize_spanish("\n".join(rows))
+
+
+def _penal_legal_theory_markdown(case: Case, legal_probatory: dict) -> str:
+    approved = [
+        mapping for mapping in case.legal_mappings if getattr(mapping, "decision_status", "sugerido") != "descartado"
+    ]
+    intro = [
+        "La aplicacion penal se formula como hipotesis juridico-probatoria, no como declaracion de culpabilidad. Para sostener una imputacion o eventual condena se requiere acreditar materialidad del hecho, tipicidad objetiva, elemento subjetivo, nexo causal, autoria o participacion, antijuridicidad, culpabilidad y prueba valorable bajo control judicial.",
+        "En el contexto de OPERIA, la norma aplicable solo puede sostenerse cuando proviene de la biblioteca legal registrada y se vincula con evidencia concreta del caso.",
+    ]
+    if not approved:
+        intro.append(
+            "Actualmente no hay normas aprobadas por analista en el caso. No corresponde afirmar delito aplicable ni responsabilidad penal hasta completar el mapeo legal y la matriz probatoria."
+        )
+        return normalize_spanish("\n\n".join(intro))
+
+    blocks = intro + [
+        "| Norma | Por que resulta relevante | Evidencia que la sostiene | Que falta para una condena o reproche penal robusto |",
+        "| --- | --- | --- | --- |",
+    ]
+    for mapping in approved:
+        links = _mapping_links_for_case(mapping, case)
+        linked_evidence = []
+        missing = []
+        for link in links:
+            evidence = getattr(link, "evidence", None)
+            if evidence:
+                linked_evidence.append(
+                    f"Evidencia #{evidence.id}: {evidence.description} ({link.legal_element or 'elemento legal no indicado'}, fuerza {link.probatory_strength})"
+                )
+            if getattr(link, "missing_evidence", ""):
+                missing.append(link.missing_evidence)
+            elif getattr(link, "recommended_measure", ""):
+                missing.append(link.recommended_measure)
+        evidence_text = "; ".join(linked_evidence) if linked_evidence else "Sin evidencia vinculada de manera especifica."
+        missing_text = "; ".join(missing) if missing else mapping.probatory_limits or "Corroborar todos los elementos del tipo penal, autoria, dolo, nexo causal y alcance del dano."
+        relevance = mapping.applicability_to_case or mapping.analysis or "Relevancia pendiente de ampliar por analista."
+        blocks.append(f"| {mapping.norm_reference} | {relevance} | {evidence_text} | {missing_text} |")
+
+    score = legal_probatory.get("score", 0) if isinstance(legal_probatory, dict) else 0
+    risk = legal_probatory.get("risk_level", "pendiente") if isinstance(legal_probatory, dict) else "pendiente"
+    blocks.append(
+        f"\nEvaluacion de suficiencia: score legal-probatorio {score}/100; riesgo {risk}. Si el soporte probatorio es parcial, el informe debe hablar de compatibilidad juridica y medidas investigativas, no de condena asegurada."
+    )
+    return normalize_spanish("\n".join(blocks))
+
+
+def _damage_methodology_markdown(case: Case, total_damage: float) -> str:
+    base = (
+        "Metodología de cuantificación: el daño económico preliminar se calcula como suma de conceptos individualizados "
+        "y documentados en el caso: pérdida directa acreditada, costos razonables de respuesta, recuperación o remediación, "
+        "lucro cesante documentado cuando exista soporte suficiente y costos periciales necesarios. La fórmula aplicada "
+        "no presume perjuicios no cargados ni sustituye determinación judicial."
+    )
+    legal_basis = (
+        "Base normativa civil registrada para futuras validaciones: Código Civil y Comercial de la Nación, arts. 1716, "
+        "1737, 1738, 1739 y 1740, en cuanto orientan deber de reparar, concepto de daño, indemnización, prueba del daño "
+        "y reparación plena. La cita específica debe mantenerse vinculada a fuente oficial registrada en la biblioteca legal."
+    )
+    if not case.damage_items:
+        return normalize_spanish(
+            "\n".join(
+                [
+                    base,
+                    legal_basis,
+                    "Resultado: no hay conceptos económicos cargados; el monto informado permanece en 0.00 ARS hasta que se incorporen comprobantes, presupuestos, facturas, registros contables, trazabilidad de pagos o documentación equivalente.",
+                ]
+            )
+        )
+    supported = [item for item in case.damage_items if item.value_source or item.supporting_evidence]
+    unsupported = [item for item in case.damage_items if not item.value_source and not item.supporting_evidence]
+    lines = [
+        base,
+        legal_basis,
+        f"Resultado: se computan {len(case.damage_items)} concepto(s) por un total preliminar de {total_damage:.2f} ARS.",
+        f"Soporte documental: {len(supported)} concepto(s) con fuente o evidencia indicada; {len(unsupported)} concepto(s) requieren respaldo adicional.",
+    ]
+    if unsupported:
+        lines.append("Advertencia metodológica: los conceptos sin fuente o evidencia se informan como estimación débil y no deben presentarse como daño acreditado.")
+    return normalize_spanish("\n".join(lines))
+
+
 def _default_hypotheses_markdown(case: Case) -> str:
     evidence_count = len(case.evidence)
     custody_count = len(case.actions)
     incident = normalize_spanish(case.incident_type or "incidente digital")
+    incident_l = incident.lower()
     if evidence_count <= 1 and not case.findings:
+        if any(term in incident_l for term in ["acceso", "intrusion", "intrusión"]):
+            core = "un acceso ilegítimo o intrusión sobre cuenta, sistema, servicio o entorno digital, cuya materialidad exige corroborar logs, sesiones, permisos, titulares, IPs, dispositivos y trazabilidad temporal"
+        elif any(term in incident_l for term in ["daño", "dano", "dos", "disponibilidad", "ransomware"]):
+            core = "una afectación de disponibilidad, integridad o funcionamiento de sistemas o datos, cuya materialidad exige preservar estado previo/posterior, logs, hash, configuración, impacto operativo y nexo causal"
+        elif any(term in incident_l for term in ["blockchain", "cripto", "wallet"]):
+            core = "una ruta económica digital o transferencia cripto vinculada al hecho investigado, cuya relevancia exige corroborar wallet, hash de transacción, titularidad, plataforma, comunicaciones y trazabilidad de fondos"
+        elif any(term in incident_l for term in ["deepfake", "medio", "audio", "video", "imagen"]):
+            core = "una posible manipulación o autenticidad controvertida de medios digitales, cuya valoración exige fuente original, metadatos, hash, análisis de edición, contexto de publicación y corroboración independiente"
+        else:
+            core = f"un incidente digital de tipo {incident}, cuya explicación exige preservar evidencia, verificar integridad, identificar fuente, reconstruir cronología y precisar nexo causal"
         return normalize_spanish(
-            f"- Hipótesis principal: el hecho investigado resulta compatible con una maniobra de {incident} mediante captación engañosa de la víctima a través de anuncio, enlace, perfil o comunicación falsa, orientada a obtener datos, credenciales o desplazamiento patrimonial. Con el estado actual de la evidencia no corresponde formular hipótesis alternativas autónomas."
+            f"- Hipótesis principal: el hecho investigado resulta compatible con {core}. Con el estado actual de la evidencia no corresponde formular hipótesis alternativas autónomas."
         )
     return normalize_spanish(
         "\n".join(
@@ -678,7 +1239,7 @@ def _legal_recommendation_markdown(recommendations: list[Any]) -> str:
 
 
 def _legal_mapping_evidence_suffix(mapping: Any) -> str:
-    links = [link for link in getattr(mapping, "evidence_links", []) if getattr(link, "evidence", None)]
+    links = [link for link in _mapping_links_for_case(mapping) if getattr(link, "evidence", None)]
     if not links:
         return ""
     pieces = []
@@ -693,13 +1254,14 @@ def _legal_mapping_evidence_suffix(mapping: Any) -> str:
 
 
 def legal_probatory_assessment(case: Case) -> dict[str, Any]:
+    case = isolated_case_snapshot(case)
     approved_mappings = [
         mapping for mapping in case.legal_mappings if getattr(mapping, "decision_status", "sugerido") != "descartado"
     ]
     rows: list[dict[str, Any]] = []
     missing = weak = proved = contested = high_risk = 0
     for mapping in approved_mappings:
-        links = list(getattr(mapping, "evidence_links", []) or [])
+        links = _mapping_links_for_case(mapping, case)
         if not links:
             missing += 1
             rows.append(
@@ -1436,7 +1998,7 @@ def build_ai_enrichment_markdown(case: Case, legal_recommendations: list[Any], a
 | --- | --- | --- | --- | --- | --- | --- |
 {_legal_probatory_matrix_markdown(legal_probatory)}
 
-## SemÃ¡foro de suficiencia legal
+## Semáforo de suficiencia legal
 
 {_legal_sufficiency_markdown(legal_probatory)}
 
@@ -1448,7 +2010,7 @@ def build_ai_enrichment_markdown(case: Case, legal_recommendations: list[Any], a
 
 {build_attribution_conclusion(case)}
 
-## Recomendaciones procesales automÃ¡ticas
+## Recomendaciones procesales automáticas
 
 {procedural_recommendations}
 """
@@ -1640,4 +2202,3 @@ Este encuadre automático no inventa jurisprudencia, doctrina ni citas. Cuando n
         polished = polished.rstrip() + "\n\n" + automatic_block.strip() + "\n"
 
     return normalize_spanish(polished)
-

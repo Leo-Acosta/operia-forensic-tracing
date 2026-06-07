@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from operia.ai_assistant.router import router as ai_assistant_router
 from operia.ai_security.router import router as ai_security_router
@@ -11,6 +11,7 @@ from operia.exports.router import router as exports_router
 from operia.geo_proximity.router import router as geo_proximity_router
 from operia.geo_trace.router import router as geo_trace_router
 from operia.identity.router import router as identity_router
+from operia.identity.dependencies import require_permission
 from operia.legal_knowledge.router import router as legal_knowledge_router
 from operia.legal_report.legal_router import router as legal_router
 from operia.legal_report.router import router as legal_report_router
@@ -35,7 +36,12 @@ api_router.include_router(users_cases_router, prefix="/users-cases", tags=["user
 api_router.include_router(evidence_router, prefix="/evidence", tags=["evidence"])
 api_router.include_router(cybercrime_router, prefix="/cybercrime", tags=["cybercrime"])
 api_router.include_router(legal_router, prefix="/legal", tags=["legal"])
-api_router.include_router(legal_report_router, prefix="/legal-report", tags=["legal-report-legacy"])
+api_router.include_router(
+    legal_report_router,
+    prefix="/legal-report",
+    tags=["legal-report-legacy"],
+    dependencies=[Depends(require_permission("reports:write"))],
+)
 api_router.include_router(legal_knowledge_router, prefix="/legal-knowledge", tags=["legal-knowledge"])
 api_router.include_router(ai_assistant_router, prefix="/ai", tags=["ai"])
 api_router.include_router(ai_security_router, prefix="/ai-security", tags=["ai-security"])
