@@ -1157,6 +1157,14 @@ const emptyIoTForm = {
 
 function prettySpanish(value = "") {
   return value
+    .replace(/\?ltima/g, "Última")
+    .replace(/\?ltimo/g, "Último")
+    .replace(/est\?/g, "está")
+    .replace(/autor\?a/g, "autoría")
+    .replace(/Auditor\?a/g, "Auditoría")
+    .replace(/auditor\?a/g, "auditoría")
+    .replace(/fundamentaci\?n/g, "fundamentación")
+    .replace(/cerro/g, "cerró")
     .replace(/\bDano\b/g, "Daño")
     .replace(/\bdano\b/g, "daño")
     .replace(/\bdanino\b/g, "dañino")
@@ -1222,6 +1230,35 @@ async function readExportOutcome(response: Response): Promise<ExportOutcome> {
     }
   }
   return { status: "blocked", message: raw || "La exportación final fue bloqueada por controles periciales." };
+}
+
+function extractReadableMessage(value: unknown, fallback = "La acción no pudo completarse."): string {
+  if (!value) return fallback;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return fallback;
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      try {
+        return extractReadableMessage(JSON.parse(trimmed), fallback);
+      } catch {
+        return prettySpanish(trimmed);
+      }
+    }
+    return prettySpanish(trimmed);
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => extractReadableMessage(item, "")).filter(Boolean).join("; ") || fallback;
+  }
+  if (typeof value === "object") {
+    const data = value as Record<string, unknown>;
+    for (const key of ["message", "detail", "error", "title"]) {
+      if (data[key]) return extractReadableMessage(data[key], fallback);
+    }
+    if (data.exportability || data.final_checklist || data.contradictions) {
+      return "La exportación final requiere completar controles periciales antes de sellarse.";
+    }
+  }
+  return fallback;
 }
 
 function reportExportabilitySnapshot(
@@ -1792,8 +1829,31 @@ export function App() {
     }
     const message = raw.includes("Failed to fetch")
       ? "No se pudo conectar con el backend local. Verificá que la API esté levantada y volvé a intentar."
-      : prettySpanish(raw || fallback);
+      : extractReadableMessage(raw || fallback, fallback);
     setError(message);
+  }
+
+  function activePermissions() {
+    const role = identitySession.user?.role || "";
+    return role ? permissions[role] || [] : [];
+  }
+
+  function canUse(permission: string) {
+    const granted = activePermissions();
+    return granted.includes("*") || granted.includes(permission);
+  }
+
+  function guardPermission(permission: string, actionLabel: string) {
+    if (!identitySession.authenticated) {
+      setError(`Para ${actionLabel} tenés que iniciar sesión con un usuario autorizado.`);
+      setActive("identity");
+      return false;
+    }
+    if (!canUse(permission)) {
+      setError(`Tu rol actual no tiene permiso para ${actionLabel}. Requiere: ${permission}.`);
+      return false;
+    }
+    return true;
   }
 
   function handleMindError(err: unknown, fallback: string) {
@@ -1804,7 +1864,7 @@ export function App() {
     }
     const message = raw.includes("Failed to fetch")
       ? "No se pudo conectar con el backend local. Verificá que la API esté levantada y volvé a intentar."
-      : prettySpanish(raw || fallback);
+      : extractReadableMessage(raw || fallback, fallback);
     setMindMessage(message);
   }
 
@@ -1987,6 +2047,7 @@ export function App() {
   }
 
   async function deleteCaseFromHistory(caseId: number, title: string) {
+    if (!guardPermission("cases:write", "eliminar casos del historial")) return;
     const confirmed = window.confirm(`¿Eliminar definitivamente el caso "${title}" y sus informes asociados? Esta acción no se puede deshacer.`);
     if (!confirmed) return;
     setLoading(true);
@@ -2933,6 +2994,7 @@ export function App() {
 
   async function generateReport() {
     if (!selectedCaseId) return;
+    if (!guardPermission("reports:write", "generar informes")) return;
     localStorage.setItem("operia_analyst_name", analystName);
     const author = encodeURIComponent(analystName.trim());
     const report = await apiPost<ReportItem>(`/reports/case/${selectedCaseId}/generate?author=${author}`);
@@ -2941,6 +3003,7 @@ export function App() {
   }
 
   async function generateReportFromCtfDashboard() {
+    if (!guardPermission("reports:write", "generar informes desde el dashboard CTF")) return;
     if (!selectedCaseId) {
       setCtfDashboardState("error");
       setCtfDashboardMessage("Selecciona un caso antes de generar el informe.");
@@ -2960,6 +3023,7 @@ export function App() {
 
   async function reviewReport() {
     if (!latestReport) return;
+    if (!guardPermission("reports:write", "revisar informes")) return;
     const result = await apiPost<ReportReviewResult>(`/reports/${latestReport.id}/review`);
     setReviewAudit(result);
     setReviewResult(result);
@@ -3060,6 +3124,7 @@ export function App() {
   }
 
   async function updateRubricEvaluation() {
+    if (!guardPermission("reports:write", "evaluar la rúbrica del caso")) return;
     if (!selectedCaseId) {
       setRubricState("error");
       setRubricMessage("Selecciona un caso para evaluar la rúbrica.");
@@ -3080,6 +3145,7 @@ export function App() {
   }
 
   async function updateRubricFromCtfDashboard() {
+    if (!guardPermission("reports:write", "evaluar la rúbrica CTF")) return;
     setCtfDashboardState("working");
     setCtfDashboardMessage("Evaluando cumplimiento de rúbrica CTF...");
     try {
@@ -3116,6 +3182,7 @@ export function App() {
 
   async function requestFinalExport() {
     if (!latestReport) return;
+    if (!guardPermission("reports:write", "sellar y exportar el informe final")) return;
     setError("");
     try {
       const readiness = await apiGet<ExportOutcome>(
@@ -3148,7 +3215,7 @@ export function App() {
       await loadReportPreview(latestReport.id);
     } catch (error) {
       const message = error instanceof Error ? error.message : "No se pudo evaluar la exportación final.";
-      setExportFinalResult({ status: "blocked", message });
+      setExportFinalResult({ status: "blocked", message: extractReadableMessage(message, "No se pudo evaluar la exportación final.") });
       handleUiError(error, message, { focusIdentity: true });
     }
   }
@@ -3222,6 +3289,7 @@ export function App() {
 
   async function closeCase() {
     if (!selectedCaseId) return;
+    if (!guardPermission("cases:write", "cerrar el caso")) return;
     try {
       const result = await apiPost<ClosureStatus>(`/cases/${selectedCaseId}/close`, { closure_note: closureNote });
       setClosureStatus(result);
@@ -3476,8 +3544,14 @@ export function App() {
     if (!exportFinalResult) return null;
     const result = exportFinalResult as ExportOutcome;
     const blocked = result.status === "blocked" || result.can_export_final === false;
-    const missing = result.missing || result.final_checklist?.missing || [];
+    const missing = Array.from(new Set(result.missing || result.final_checklist?.missing || []));
     const pendingChecklist = (result.final_checklist?.items || []).filter((item) => !item.ok);
+    const readableMessage = extractReadableMessage(
+      result.message,
+      blocked
+        ? "La exportación final requiere completar controles periciales antes de sellarse."
+        : "Operación de exportación final completada."
+    );
     return (
       <div className={`export-outcome ${blocked ? "blocked" : "ready"}`}>
         <div>
@@ -3490,7 +3564,7 @@ export function App() {
           {result.exportability?.score !== undefined && <small>Score de exportabilidad: {result.exportability.score}/100</small>}
           {result.contradictions?.count !== undefined && <small>Contradicciones detectadas: {result.contradictions.count}</small>}
           {result.final_checklist?.score !== undefined && <small>Checklist pericial: {result.final_checklist.score}/100</small>}
-          {result.message && <p>{prettySpanish(result.message)}</p>}
+          <p>{readableMessage}</p>
           {blocked && Boolean(missing.length || pendingChecklist.length) && (
             <div className="requirements compact">
               <strong>Falta para exportar final sellado:</strong>
@@ -3723,12 +3797,12 @@ export function App() {
             {legalTypification?.principal_typification ? (
               <div className="typification-card compact">
                 <span>{legalTypification.profile?.label || "Tipificación asistida"}</span>
-                <h3>{legalTypification.principal_typification.reference} ? {prettySpanish(legalTypification.principal_typification.title)}</h3>
+                <h3>{legalTypification.principal_typification.reference} · {prettySpanish(legalTypification.principal_typification.title)}</h3>
                 <p>{prettySpanish(legalTypification.principal_typification.applicability_to_case)}</p>
                 <small>Elementos: {prettySpanish(legalTypification.principal_typification.why)}</small>
                 <small>Límites: {prettySpanish(legalTypification.principal_typification.probatory_limits)}</small>
                 <div className="readiness-bar"><div style={{ width: `${legalTypification.readiness_score}%` }} /></div>
-                <small>Confianza {prettySpanish(legalTypification.confidence)} ? {prettySpanish(legalTypification.decision_level)}</small>
+                <small>Confianza {prettySpanish(legalTypification.confidence)} · {prettySpanish(legalTypification.decision_level)}</small>
               </div>
             ) : (
               <EmptyState text="Describe el incidente y ejecuta la tipificación. OPERIA sugerirá la norma principal y conexas." />
@@ -3736,7 +3810,7 @@ export function App() {
             {legalTypification?.connected_typifications?.length ? (
               <div className="mini-list">
                 {legalTypification.connected_typifications.slice(0, 4).map((item) => (
-                  <span key={`${item.article_id}-${item.reference}`}>{item.reference} ? {prettySpanish(item.title)} ? {prettySpanish(item.legal_role)}</span>
+                  <span key={`${item.article_id}-${item.reference}`}>{item.reference} · {prettySpanish(item.title)} · {prettySpanish(item.legal_role)}</span>
                 ))}
               </div>
             ) : null}
@@ -3748,7 +3822,7 @@ export function App() {
           </StepCard>
 
           <StepCard number={7} title="Cuantificar daño económico" done={damageItems.length > 0}>
-            <p className="muted">Carga rubros, fuentes y f?rmulas. El informe final usa únicamente conceptos asociados a este caso.</p>
+            <p className="muted">Carga rubros, fuentes y fórmulas. El informe final usa únicamente conceptos asociados a este caso.</p>
             {renderDamagePanel()}
           </StepCard>
 
@@ -3757,7 +3831,7 @@ export function App() {
               <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} />
               <button onClick={runAiAssist}><Bot size={17} /> {latestReport ? "Ampliar informe" : "Analizar caso"}</button>
             </div>
-            {latestReport && <p className="notice">Con informe generado, esta acción agrega hipótesis, conclusiones y fundamentaci?n legal al reporte.</p>}
+            {latestReport && <p className="notice">Con informe generado, esta acción agrega hipótesis, conclusiones y fundamentación legal al reporte.</p>}
             {latestReport ? renderAiEnrichmentOutcome() : renderCaseAnalysisOutcome()}
           </StepCard>
 
@@ -3766,7 +3840,7 @@ export function App() {
               <input placeholder="Analista / operador interviniente" value={analystName} onChange={(e) => setAnalystName(e.target.value)} />
             </div>
             <button onClick={generateReport} disabled={!selectedCaseId}><FileText size={17} /> Generar informe integral</button>
-            {latestReport && <p className="notice">?ltimo informe: {latestReport.title}</p>}
+            {latestReport && <p className="notice">Último informe: {latestReport.title}</p>}
             <div className="summary-list">
               <span>Nivel de exportabilidad: {exportabilitySnapshot.level}</span>
               <span>Score de exportabilidad: {exportabilitySnapshot.score}/100</span>
@@ -3865,7 +3939,7 @@ export function App() {
       { key: "report", label: "Informe generado", value: reports.length ? "Sí" : "No", status: reports.length ? "listo" : "incompleto", detail: reports.length ? latestReport?.title || "Informe disponible." : "Genera el informe integral." },
       { key: "review", label: "Informe revisado", value: latestReport ? `${latestReport.review_score}/100` : "Sin revisión", status: reportReviewed ? "listo" : latestReport ? "parcial" : "incompleto", detail: reportReviewed ? "La revisión supera el umbral operativo." : "Ejecuta revisión y corrige advertencias." },
       { key: "export", label: "PDF exportado", value: `${pdfExports.length}`, status: pdfExports.length ? "listo" : "incompleto", detail: pdfExports.length ? "Hay exportación registrada." : "Exporta PDF con manifiesto antes de entregar." },
-      { key: "rubric", label: "Rúbrica completada", value: rubricEvaluation ? `${rubricEvaluation.percentage}%` : "Sin evaluar", status: rubricEvaluation ? (rubricPercent >= 80 ? "listo" : rubricPercent >= 50 ? "parcial" : "crítico") : "incompleto", detail: rubricEvaluation ? rubricEvaluation.summary : "Eval?a la rúbrica del desafío." },
+      { key: "rubric", label: "Rúbrica completada", value: rubricEvaluation ? `${rubricEvaluation.percentage}%` : "Sin evaluar", status: rubricEvaluation ? (rubricPercent >= 80 ? "listo" : rubricPercent >= 50 ? "parcial" : "crítico") : "incompleto", detail: rubricEvaluation ? rubricEvaluation.summary : "Evaluá la rúbrica del desafío." },
     ];
     const statusWeight: Record<string, number> = { listo: 1, parcial: 0.55, incompleto: 0, ["crítico"]: 0 };
     const ctfScore = Math.round((ctfItems.reduce((total, item) => total + statusWeight[item.status], 0) / ctfItems.length) * 100);
@@ -3924,7 +3998,7 @@ export function App() {
         <div className="ctf-panel">
           <div className="ctf-hero">
             <div>
-              <span className="tool-kicker">Preparaci?n CTF</span>
+              <span className="tool-kicker">Preparación CTF</span>
               <h3>Estado de entrega del caso</h3>
               <p>
                 Semáforo operativo para verificar evidencia, laboratorios, encuadre legal, informe, exportación y rúbrica antes de entregar.
@@ -4093,7 +4167,7 @@ export function App() {
                   </div>
                   <div className="history-meta">
                     <span>{prettySpanish(item.incident_type)}</span>
-                    <span>?ltima actividad: {formatHistoryDate(item.updated_at || item.created_at)}</span>
+                    <span>Última actividad: {formatHistoryDate(item.updated_at || item.created_at)}</span>
                   </div>
                   <p>{item.description ? prettySpanish(item.description) : "Sin descripción inicial registrada."}</p>
                   <div className="history-footnote">
@@ -4242,7 +4316,7 @@ export function App() {
         {legalRows.slice(0, 8).map((item, index) => (
           <div className="editable-record" key={`${item.mapping_id}-${index}`}>
             <div>
-              <strong>{item.norm_reference} ? {prettySpanish(item.legal_element)}</strong>
+              <strong>{item.norm_reference} · {prettySpanish(item.legal_element)}</strong>
               <span>{prettySpanish(item.element_status)} | fuerza {prettySpanish(item.probatory_strength)} | riesgo {prettySpanish(item.contradiction_risk)}</span>
               <small>{item.evidence_description || item.missing_evidence || "Sin vínculo probatorio registrado."}</small>
             </div>
@@ -4331,7 +4405,7 @@ export function App() {
                 <div className="dossier-badges">
                   <span>{prettySpanish(selectedCase.status)}</span>
                   <span>{prettySpanish(selectedCase.incident_type)}</span>
-                  <span>{exportabilitySnapshot.level} ? {exportabilitySnapshot.score}/100</span>
+                  <span>{exportabilitySnapshot.level} · {exportabilitySnapshot.score}/100</span>
                 </div>
               </div>
               <div className="dossier-actions">
@@ -4385,7 +4459,7 @@ export function App() {
               </div>
               <div className="detail-panel">
                 <div className="panel-head">
-                  <h3>Ãšltima actividad</h3>
+                  <h3>Última actividad</h3>
                 </div>
                 {latestAudit ? (
                   <div className="editable-record single">
@@ -4518,7 +4592,7 @@ export function App() {
               <div>
                 <span className="eyebrow">Vista previa del informe</span>
                 <h3>{reportPreview.title}</h3>
-                <p>{prettySpanish(reportPreview.exportability.level)} ? Score {reportPreview.exportability.score}/100 ? Revisión {reportPreview.review_score}</p>
+                <p>{prettySpanish(reportPreview.exportability.level)} · Score {reportPreview.exportability.score}/100 · Revisión {reportPreview.review_score}</p>
               </div>
               <span className={`badge ${reportPreview.can_export_final ? "success" : ""}`}>
                 {reportPreview.can_export_final ? "Exportable como final" : "No exportable como final"}
@@ -4551,7 +4625,7 @@ export function App() {
                 </div>
                 {reportPreview.final_checklist.items.map((item) => (
                   <div className={`preview-section ${item.ok ? "" : "warning"}`} key={item.key}>
-                    <strong>{item.ok ? "Cumplido" : "Pendiente"} ? {prettySpanish(item.label)}</strong>
+                    <strong>{item.ok ? "Cumplido" : "Pendiente"} · {prettySpanish(item.label)}</strong>
                     <small>{prettySpanish(item.message)}</small>
                   </div>
                 ))}
@@ -4583,7 +4657,7 @@ export function App() {
                 <h4>Contradicciones legal-probatorias</h4>
                 {reportPreview.contradictions.issues.map((issue, index) => (
                   <div className="preview-section warning" key={`${issue.norm_reference}-${index}`}>
-                    <strong>{issue.norm_reference} ? {prettySpanish(issue.legal_element)}</strong>
+                    <strong>{issue.norm_reference} · {prettySpanish(issue.legal_element)}</strong>
                     <span>{prettySpanish(issue.severity)}</span>
                     <small>{prettySpanish(issue.message)} {prettySpanish(issue.recommended_action)}</small>
                   </div>
@@ -4597,7 +4671,7 @@ export function App() {
                 {reportPreview.annexes.items.map((item, index) => (
                   <div className="preview-section" key={`${item.type}-${index}`}>
                     <strong>{prettySpanish(item.title)}</strong>
-                    <span>{prettySpanish(item.type)} {item.sha256 ? ` ? SHA-256 ${item.sha256}` : ""}</span>
+                    <span>{prettySpanish(item.type)} {item.sha256 ? ` · SHA-256 ${item.sha256}` : ""}</span>
                     <small>{prettySpanish(item.detail || item.integrity_status || `Elementos: ${item.rows || 1}`)}</small>
                   </div>
                 ))}
@@ -4651,7 +4725,7 @@ export function App() {
               {rubricEvaluation.sections.map((section) => (
                 <article className={`rubric-section ${section.status}`} key={section.key}>
                   <div>
-                    <span>Secci?n {section.key} - {section.weight}%</span>
+                    <span>Sección {section.key} - {section.weight}%</span>
                     <h4>{section.label}</h4>
                   </div>
                   <strong>{section.estimated_score}/{section.max_score}</strong>
@@ -4891,7 +4965,7 @@ export function App() {
           </div>
         )}
         <div className="notice">
-          La biblioteca solo usa normas y fuentes registradas. No atribuye autor?a sin evidencia suficiente ni reemplaza revisión profesional.
+          La biblioteca solo usa normas y fuentes registradas. No atribuye autoría sin evidencia suficiente ni reemplaza revisión profesional.
         </div>
         {legalRecommendation?.profile && (
           <div className="case-panel">
@@ -4922,7 +4996,7 @@ export function App() {
             {legalRecommendation.recommendations.map((item) => (
               <article className={item.sensitive ? "sensitive" : ""} key={`${item.reference}-${item.article_id}`}>
                 <div>
-                  <span>{item.reference} ? {item.legal_role} ? confianza {item.confidence}</span>
+                  <span>{item.reference} · {item.legal_role} · confianza {item.confidence}</span>
                   <h3>{prettySpanish(item.title)}</h3>
                 </div>
                 <p>{prettySpanish(item.text)}</p>
@@ -4967,7 +5041,7 @@ export function App() {
               const elementOptions = legalElementsForMapping(item.id);
               return (
               <div className="record" key={item.id}>
-                <strong>{item.norm_reference} ? {item.decision_status}</strong>
+                <strong>{item.norm_reference} · {item.decision_status}</strong>
                 <span>{item.legal_role || item.legal_area} ? confianza {item.confidence_level}</span>
                 <em>{item.analyst_name || "Analista no informado"}</em>
                 <small>{prettySpanish(item.analysis)}</small>
@@ -5012,7 +5086,7 @@ export function App() {
                   const current = { ...link, ...draft };
                   return (
                     <div className="inline-editor" key={link.id}>
-                      Evidencia vinculada: #{link.evidence_id} {ev?.description || ""} ? {link.legal_element} ? fuerza {link.probatory_strength}
+                      Evidencia vinculada: #{link.evidence_id} {ev?.description || ""} · {link.legal_element} · fuerza {link.probatory_strength}
                       <input value={current.legal_element || ""} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, legal_element: event.target.value } })} placeholder="Elemento legal" />
                       <select value={current.element_status || "pendiente"} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, element_status: event.target.value } })}>
                         <option value="probado">Probado</option>
@@ -5055,9 +5129,9 @@ export function App() {
           <div className="table">
             {legalProbatoryMatrix?.rows.slice(0, 8).map((row, index) => (
               <div className="record" key={`${row.mapping_id}-${row.legal_element}-${index}`}>
-                <strong>{row.norm_reference} ? {row.legal_element}</strong>
+                <strong>{row.norm_reference} · {row.legal_element}</strong>
                 <span>{row.element_status} ? fuerza {row.probatory_strength} ? riesgo {row.contradiction_risk}</span>
-                {row.evidence_id && <small>#{row.evidence_id} {row.evidence_description} {row.evidence_hash ? ` ? SHA-256 ${row.evidence_hash}` : ""}</small>}
+                {row.evidence_id && <small>#{row.evidence_id} {row.evidence_description} {row.evidence_hash ? ` · SHA-256 ${row.evidence_hash}` : ""}</small>}
                 {row.missing_evidence && <small>{prettySpanish(row.missing_evidence)}</small>}
                 {row.recommended_measure && <em>{prettySpanish(row.recommended_measure)}</em>}
               </div>
@@ -5074,7 +5148,7 @@ export function App() {
           <div className="table">
             {legalQualityControl?.issues.slice(0, 6).map((issue) => (
               <div className="record" key={`${issue.code}-${issue.message}`}>
-                <strong>{issue.severity} ? {issue.code}</strong>
+                <strong>{issue.severity} · {issue.code}</strong>
                 <span>{issue.message}</span>
                 <small>{issue.recommended_action}</small>
               </div>
@@ -5202,7 +5276,7 @@ export function App() {
             {cyberLabSessions.slice(0, 8).map((item) => (
               <div className="editable-record single" key={item.id}>
                 <div>
-                  <strong>{item.session_code} ? {item.title}</strong>
+                  <strong>{item.session_code} · {item.title}</strong>
                   <span>{prettySpanish(item.purpose)} | {prettySpanish(item.risk_level)} | {prettySpanish(item.status)}</span>
                   <small>{item.result_summary || `Operador: ${item.operator}`}</small>
                 </div>
@@ -5218,7 +5292,7 @@ export function App() {
             {cyberProofRows.slice(0, 8).map((item) => (
               <div className="editable-record single" key={item.id}>
                 <div>
-                  <strong>{prettySpanish(item.confidence_level)} ? {prettySpanish(item.status)}</strong>
+                  <strong>{prettySpanish(item.confidence_level)} · {prettySpanish(item.status)}</strong>
                   <span>{item.defensible_conclusion}</span>
                   <small>{item.risk_flag || item.weakness || item.legal_framing || "Sin observaciones."}</small>
                 </div>
@@ -5309,7 +5383,7 @@ export function App() {
                 </label>
               ))}
             </div>
-            <p className="notice">La clasificación es preliminar: no prueba por sí sola autenticidad, falsedad, autor?a ni origen del archivo.</p>
+            <p className="notice">La clasificación es preliminar: no prueba por sí sola autenticidad, falsedad, autoría ni origen del archivo.</p>
           </div>
         </div>
 
@@ -5320,11 +5394,11 @@ export function App() {
               <article key={analysis.id}>
                 <div className="panel-head">
                   <div>
-                    <span>{analysis.media_type} ? {analysis.classification}</span>
+                    <span>{analysis.media_type} · {analysis.classification}</span>
                     <h3>Análisis #{analysis.id} {analysis.evidence_id ? ` ? Evidencia #${analysis.evidence_id}` : ""}</h3>
                   </div>
                   <div className="route-status-stack">
-                    <span className={`readiness-badge ${quality.status}`}>{quality.score}/100 ? {quality.status}</span>
+                    <span className={`readiness-badge ${quality.status}`}>{quality.score}/100 · {quality.status}</span>
                     <span className="badge">{analysis.finding_id ? `Hallazgo #${analysis.finding_id}` : "Sin hallazgo"}</span>
                   </div>
                 </div>
@@ -5548,7 +5622,7 @@ export function App() {
                 <span>Origen</span>
                 <strong>{blockchainForm.source_wallet || "Wallet origen pendiente"}</strong>
               </div>
-              <div className="trace-arrow">â†’</div>
+              <div className="trace-arrow">→</div>
               <div>
                 <span>Destino</span>
                 <strong>{blockchainForm.destination_wallet || "Wallet destino pendiente"}</strong>
@@ -5557,7 +5631,7 @@ export function App() {
             <div className={`preservation-checklist ${draftChecklist.ready ? "ready" : "pending"}`}>
               <div>
                 <strong>Checklist de preservación previo al registro</strong>
-                <span>{draftChecklist.score}/100 ? {draftChecklist.ready ? "Registro suficientemente documentado" : "Completar antes de usar en informe final"}</span>
+                <span>{draftChecklist.score}/100 · {draftChecklist.ready ? "Registro suficientemente documentado" : "Completar antes de usar en informe final"}</span>
               </div>
               <div className="forensic-check-grid">
                 {draftChecklist.checks.map((check) => (
@@ -5593,11 +5667,11 @@ export function App() {
         <div className={`detail-panel blockchain-readiness-panel ${moduleStatus}`}>
           <div className="panel-head">
             <div>
-              <h3>Preparaci?n pericial blockchain</h3>
-              <p>Control r?pido para saber si la secci?n blockchain puede pasar al informe con suficiente orden técnico.</p>
+              <h3>Preparación pericial blockchain</h3>
+              <p>Control rápido para saber si la sección blockchain puede pasar al informe con suficiente orden técnico.</p>
             </div>
             <span className={`readiness-badge ${moduleStatus}`}>
-              {moduleScore}/100 ? {moduleStatus === "listo" ? "Listo" : moduleStatus === "parcial" ? "Parcial" : "Incompleto"}
+              {moduleScore}/100 · {moduleStatus === "listo" ? "Listo" : moduleStatus === "parcial" ? "Parcial" : "Incompleto"}
             </span>
           </div>
           <div className="forensic-check-grid">
@@ -5665,7 +5739,7 @@ export function App() {
               <h4>Puntos de servicio</h4>
               <div className="summary-list">
                 {routeOverview.servicePoints.map((item) => (
-                  <span key={item.id}>#{item.id} {prettySpanish(item.wallet_classification)} ? {shortBlockchainLabel(item.destination_wallet || item.source_wallet)}</span>
+                  <span key={item.id}>#{item.id} {prettySpanish(item.wallet_classification)} · {shortBlockchainLabel(item.destination_wallet || item.source_wallet)}</span>
                 ))}
                 {!routeOverview.servicePoints.length && <span>No se registraron exchanges, mixers, bridges ni contratos inteligentes.</span>}
               </div>
@@ -5700,7 +5774,7 @@ export function App() {
                     <div className="graph-edge">
                       <span>Salto {index + 1}</span>
                       <strong>{edge.amountLabel}</strong>
-                      <small>{prettySpanish(edge.classification)} ? {edge.readiness.score}/100 ? {edge.txHashLabel}</small>
+                      <small>{prettySpanish(edge.classification)} · {edge.readiness.score}/100 · {edge.txHashLabel}</small>
                     </div>
                     <div className={`graph-node ${edge.risk ? "service" : ""} ${blockchainGraph.repeatedWallets.some((node) => node.id === edge.target) ? "linked" : ""}`}>
                       <span>Destino</span>
@@ -5740,18 +5814,18 @@ export function App() {
               <article className={`blockchain-route-card ${quality.status}`} key={item.id}>
                 <div className="route-card-head">
                   <div>
-                    <span>{item.blockchain} ? {item.token}</span>
-                    <h3>{item.amount} {item.token} ? {formatMoneyARS(item.approximate_value)}</h3>
-                    <small>{item.tx_datetime || "Fecha/hora pendiente"} ? {item.tool_used || "Herramienta pendiente"}</small>
+                    <span>{item.blockchain} · {item.token}</span>
+                    <h3>{item.amount} {item.token} · {formatMoneyARS(item.approximate_value)}</h3>
+                    <small>{item.tx_datetime || "Fecha/hora pendiente"} · {item.tool_used || "Herramienta pendiente"}</small>
                   </div>
                   <div className="route-status-stack">
                     <span className={`badge ${["mixer", "bridge"].includes(item.wallet_classification) ? "blocked" : ""}`}>{prettySpanish(item.wallet_classification)}</span>
-                    <span className={`readiness-badge ${quality.status}`}>{quality.label} ? {quality.score}/100</span>
+                    <span className={`readiness-badge ${quality.status}`}>{quality.label} · {quality.score}/100</span>
                   </div>
                 </div>
                 <div className="route-graph">
                   <div><span>Origen</span><strong>{item.source_wallet || "Pendiente"}</strong></div>
-                  <div className="trace-arrow">â†’</div>
+                  <div className="trace-arrow">→</div>
                   <div><span>Destino</span><strong>{item.destination_wallet || "Pendiente"}</strong></div>
                 </div>
                 <div className="route-meta">
@@ -5769,7 +5843,7 @@ export function App() {
                   </div>
                   <div>
                     <strong>Qué no acredita por sí solo</strong>
-                    <span>Identidad civil, autor?a penal, dolo o control humano efectivo de la wallet.</span>
+                    <span>Identidad civil, autoría penal, dolo o control humano efectivo de la wallet.</span>
                   </div>
                   <div>
                     <strong>Qué hacer ahora</strong>
@@ -6219,7 +6293,7 @@ export function App() {
         </div>
 
         <footer className="inventory-footer">
-          Este inventario est? destinado a fines de informática forense, investigación defensiva, respuesta a incidentes, auditoría autorizada, preservación de evidencia, docencia y análisis técnico-jurídico. No debe utilizarse para acceder, interferir, explotar o analizar sistemas sin autorización expresa.
+          Este inventario está destinado a fines de informática forense, investigación defensiva, respuesta a incidentes, auditoría autorizada, preservación de evidencia, docencia y análisis técnico-jurídico. No debe utilizarse para acceder, interferir, explotar o analizar sistemas sin autorización expresa.
         </footer>
       </section>
     );
@@ -6285,12 +6359,12 @@ export function App() {
             {legalTypification?.principal_typification ? (
               <div className="typification-card">
                 <span>{legalTypification.profile?.label || "Incidente digital"}</span>
-                <h3>{legalTypification.principal_typification.reference} ? {prettySpanish(legalTypification.principal_typification.title)}</h3>
+                <h3>{legalTypification.principal_typification.reference} · {prettySpanish(legalTypification.principal_typification.title)}</h3>
                 <p>{prettySpanish(legalTypification.principal_typification.applicability_to_case)}</p>
                 <div className="readiness-bar">
                   <div style={{ width: `${legalTypification.readiness_score}%` }} />
                 </div>
-                <small>{prettySpanish(legalTypification.decision_level)} ? Score {legalTypification.readiness_score}/100</small>
+                <small>{prettySpanish(legalTypification.decision_level)} · Score {legalTypification.readiness_score}/100</small>
               </div>
             ) : (
               <EmptyState text="Ejecuta 'Tipificar delito' para obtener una propuesta jurídica asistida." />
@@ -6313,7 +6387,7 @@ export function App() {
               <h3>Normas conexas</h3>
               <div className="mini-list">
                 {legalTypification.connected_typifications.slice(0, 5).map((item) => (
-                  <span key={`${item.article_id}-${item.reference}`}>{item.reference} ? {prettySpanish(item.title)} ? {prettySpanish(item.legal_role)}</span>
+                  <span key={`${item.article_id}-${item.reference}`}>{item.reference} · {prettySpanish(item.title)} · {prettySpanish(item.legal_role)}</span>
                 ))}
                 {!legalTypification.connected_typifications.length && <span>Sin normas conexas registradas para este perfil.</span>}
               </div>
@@ -6740,7 +6814,7 @@ export function App() {
               Exposición activa
               <select value={selectedPresentation?.id || ""} onChange={(event) => loadPresentationSlides(Number(event.target.value) || "")}>
                 {presentations.map((item) => (
-                  <option key={item.id} value={item.id}>{item.title} ? v{item.version} ? {prettySpanish(item.status)}</option>
+                  <option key={item.id} value={item.id}>{item.title} · v{item.version} · {prettySpanish(item.status)}</option>
                 ))}
               </select>
             </label>
@@ -6788,7 +6862,7 @@ export function App() {
             </article>
           ))}
           {!presentationSlides.length && latestReport && (
-            <EmptyState text="Todavía no hay diapositivas. Usa â€œGenerar exposiciónâ€ para crear el guion del caso." />
+            <EmptyState text="Todavía no hay diapositivas. Usa “Generar exposición” para crear el guion del caso." />
           )}
         </div>
       </section>

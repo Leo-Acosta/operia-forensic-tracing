@@ -92,7 +92,7 @@ def require_user(current_user: CurrentUser | None = Depends(get_optional_user)) 
 def require_permission(permission: str):
     def dependency(current_user: CurrentUser = Depends(require_user)) -> CurrentUser:
         if not has_permission(current_user.role, permission):
-            raise HTTPException(status_code=403, detail="Permiso insuficiente")
+            raise HTTPException(status_code=403, detail="Permiso insuficiente para ejecutar esta acción.")
         return current_user
 
     return dependency
