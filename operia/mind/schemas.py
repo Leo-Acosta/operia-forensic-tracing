@@ -23,6 +23,20 @@ class MindNoteCreate(BaseModel):
     sensitive: bool = False
 
 
+class MindSearchResult(BaseModel):
+    id: int
+    case_id: int | None = None
+    note_type: str
+    title: str
+    summary: str
+    content_excerpt: str
+    vault_path: str
+    confidence: str
+    review_status: str
+    score: int
+    matches: list[str]
+
+
 class MindNoteRead(ORMModel):
     id: int
     organization_id: int | None = None
@@ -106,6 +120,20 @@ class MindAuditCreate(BaseModel):
     entity_id: str = ""
     severity: str = "info"
     details: str = ""
+
+
+class MindAuditRead(ORMModel):
+    id: int
+    organization_id: int | None = None
+    user_id: int | None = None
+    case_id: int | None = None
+    action: str
+    entity_type: str
+    entity_id: str
+    severity: str
+    details: str
+    created_at: datetime
+    updated_at: datetime
 
 
 class MindSnapshotRead(BaseModel):

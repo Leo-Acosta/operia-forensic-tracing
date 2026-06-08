@@ -3911,6 +3911,7 @@ pre {
 .mind-metrics div,
 .panel-card,
 .mind-note-card,
+.mind-result-card,
 .prompt-grid article {
   background: #ffffff;
   border: 1px solid #d8e3ee;
@@ -3940,6 +3941,39 @@ pre {
   display: grid;
   gap: 16px;
   grid-template-columns: minmax(0, 1fr) minmax(340px, 0.75fr);
+}
+
+.mind-search-panel {
+  gap: 14px;
+}
+
+.search-row {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.mind-search-results {
+  display: grid;
+  gap: 8px;
+}
+
+.mind-result-card {
+  align-items: start;
+  background: #fbfdff;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 12px;
+}
+
+.mind-result-card h4 {
+  margin: 3px 0 6px;
+}
+
+.mind-result-card p {
+  color: #43566c;
+  margin: 0 0 6px;
 }
 
 .panel-card {
@@ -4068,7 +4102,8 @@ pre {
   }
 
   .mind-metrics,
-  .form-grid.two {
+  .form-grid.two,
+  .search-row {
     grid-template-columns: 1fr;
   }
 }

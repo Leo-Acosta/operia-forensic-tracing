@@ -693,6 +693,31 @@ type MindGraphPayload = {
   edges: Array<{ id: number; source_node_key: string; target_node_key: string; relation_type: string; label?: string; confidence?: string }>;
 };
 
+type MindSearchResult = {
+  id: number;
+  case_id?: number;
+  note_type: string;
+  title: string;
+  summary: string;
+  content_excerpt: string;
+  vault_path: string;
+  confidence: string;
+  review_status: string;
+  score: number;
+  matches: string[];
+};
+
+type MindAuditEntry = {
+  id: number;
+  case_id?: number;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  severity: string;
+  details: string;
+  created_at?: string;
+};
+
 const modules: Array<{ key: ModuleKey; label: string; icon: typeof BarChart3 }> = [
   { key: "workflow", label: "Flujo Operativo", icon: CheckCircle2 },
   { key: "dashboard", label: "Dashboard", icon: BarChart3 },
@@ -1308,6 +1333,9 @@ export function App() {
   const [mindPrompts, setMindPrompts] = useState<MindPrompt[]>([]);
   const [mindAgents, setMindAgents] = useState<MindAgent[]>([]);
   const [mindGraph, setMindGraph] = useState<MindGraphPayload | null>(null);
+  const [mindAudit, setMindAudit] = useState<MindAuditEntry[]>([]);
+  const [mindSearchQuery, setMindSearchQuery] = useState("");
+  const [mindSearchResults, setMindSearchResults] = useState<MindSearchResult[]>([]);
   const [mindMessage, setMindMessage] = useState("");
   const [mindState, setMindState] = useState<"idle" | "working" | "success" | "error">("idle");
   const [mindNoteForm, setMindNoteForm] = useState({
@@ -1579,16 +1607,18 @@ export function App() {
 
   async function refreshMind() {
     const caseQuery = selectedCaseId ? `?case_id=${selectedCaseId}` : "";
-    const [notesData, promptsData, agentsData, graphData] = await Promise.all([
+    const [notesData, promptsData, agentsData, graphData, auditData] = await Promise.all([
       apiGet<MindNote[]>(`/mind/notes${caseQuery}`).catch(() => []),
       apiGet<MindPrompt[]>("/mind/prompts").catch(() => []),
       apiGet<MindAgent[]>("/mind/agents").catch(() => []),
-      selectedCaseId ? apiGet<MindGraphPayload>(`/mind/cases/${selectedCaseId}/graph`).catch(() => null) : Promise.resolve(null)
+      selectedCaseId ? apiGet<MindGraphPayload>(`/mind/cases/${selectedCaseId}/graph`).catch(() => null) : Promise.resolve(null),
+      apiGet<MindAuditEntry[]>(`/mind/audit${caseQuery}`).catch(() => [])
     ]);
     setMindNotes(notesData);
     setMindPrompts(promptsData);
     setMindAgents(agentsData);
     setMindGraph(graphData);
+    setMindAudit(auditData);
   }
 
   async function loadModule(key: ModuleKey) {
@@ -1752,6 +1782,29 @@ export function App() {
     } catch (err) {
       setMindState("error");
       handleUiError(err, "No se pudo crear el snapshot del caso.", { focusIdentity: true });
+    }
+  }
+
+  async function searchMind(event?: FormEvent) {
+    event?.preventDefault();
+    const query = mindSearchQuery.trim();
+    if (query.length < 2) {
+      setMindSearchResults([]);
+      setMindState("error");
+      setMindMessage("Escribí al menos dos caracteres para consultar la memoria.");
+      return;
+    }
+    setMindState("working");
+    setMindMessage("");
+    try {
+      const caseParam = selectedCaseId ? `&case_id=${selectedCaseId}` : "";
+      const results = await apiGet<MindSearchResult[]>(`/mind/search?q=${encodeURIComponent(query)}${caseParam}`);
+      setMindSearchResults(results);
+      setMindState("success");
+      setMindMessage(results.length ? `Memoria consultada: ${results.length} coincidencia(s) relevantes.` : "No se encontraron coincidencias en la memoria seleccionada.");
+    } catch (err) {
+      setMindState("error");
+      handleUiError(err, "No se pudo consultar la memoria.", { focusIdentity: true });
     }
   }
 
@@ -6625,6 +6678,31 @@ export function App() {
           </div>
         </div>
 
+        <form className="panel-card mind-search-panel" onSubmit={searchMind}>
+          <div>
+            <h3>Consultar memoria</h3>
+            <p>Busca en notas, snapshots, hallazgos, hipótesis, tags y resúmenes guardados. La búsqueda es local y no envía evidencia a servicios externos.</p>
+          </div>
+          <div className="search-row">
+            <input value={mindSearchQuery} onChange={(event) => setMindSearchQuery(event.target.value)} placeholder="Buscar concepto, evidencia, hipótesis, norma o decisión..." />
+            <button disabled={mindState === "working"}><Search size={16} /> Buscar</button>
+          </div>
+          <div className="mind-search-results">
+            {mindSearchResults.map((result) => (
+              <article key={result.id} className="mind-result-card">
+                <div>
+                  <span className="eyebrow">{prettySpanish(result.note_type)} · score {result.score}</span>
+                  <h4>{result.title}</h4>
+                  <p>{result.content_excerpt || result.summary || "Resultado sin extracto visible."}</p>
+                  <small>{result.vault_path}</small>
+                </div>
+                <span className="pill">{result.matches.map(prettySpanish).join(", ")}</span>
+              </article>
+            ))}
+            {!mindSearchResults.length && <EmptyState text="Consultá la memoria para recuperar notas, hallazgos y contexto del caso." />}
+          </div>
+        </form>
+
         <div className="mind-grid">
           <form className="panel-card mind-note-form" onSubmit={createMindNote}>
             <h3>Nueva nota de memoria</h3>
@@ -6632,6 +6710,7 @@ export function App() {
             <div className="form-grid two">
               <select value={mindNoteForm.note_type} onChange={(event) => setMindNoteForm({ ...mindNoteForm, note_type: event.target.value })}>
                 <option value="nota">Nota</option>
+                <option value="analisis">Análisis</option>
                 <option value="hallazgo">Hallazgo</option>
                 <option value="hipotesis">Hipótesis</option>
                 <option value="matriz">Matriz</option>
@@ -6713,6 +6792,21 @@ export function App() {
               </article>
             ))}
             {!mindPrompts.length && <EmptyState text="Sin prompts cargados." />}
+          </div>
+        </div>
+
+        <div className="panel-card">
+          <h3>Auditoría de memoria</h3>
+          <p>Trazabilidad de creación de notas, snapshots y relaciones de grafo vinculadas al caso o a la organización.</p>
+          <div className="compact-list audit-list">
+            {mindAudit.slice(0, 12).map((entry) => (
+              <article key={entry.id}>
+                <strong>{prettySpanish(entry.action)}</strong>
+                <span>{entry.details || `${entry.entity_type} ${entry.entity_id}`}</span>
+                <small>{entry.severity} · {entry.created_at ? formatHistoryDate(entry.created_at) : ""}</small>
+              </article>
+            ))}
+            {!mindAudit.length && <EmptyState text="Sin eventos de auditoría de memoria para mostrar." />}
           </div>
         </div>
       </section>

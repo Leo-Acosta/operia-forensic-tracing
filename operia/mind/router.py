@@ -9,14 +9,16 @@ from operia.mind.models import MindAgent, MindAuditLog, MindGraphEdge, MindGraph
 from operia.mind.schemas import (
     MindAgentRead,
     MindAuditCreate,
+    MindAuditRead,
     MindGraphEdgeCreate,
     MindGraphNodeCreate,
     MindNoteCreate,
     MindNoteRead,
     MindPromptRead,
+    MindSearchResult,
     MindSnapshotRead,
 )
-from operia.mind.service import create_case_snapshot, create_edge, create_note, upsert_node, write_mind_audit
+from operia.mind.service import create_case_snapshot, create_edge, create_note, note_search_score, text_excerpt, upsert_node, write_mind_audit
 from operia.mind.vault import ensure_vault, vault_root
 
 router = APIRouter()
@@ -66,6 +68,47 @@ def list_mind_notes(
     if note_type:
         query = query.filter(MindNote.note_type == note_type)
     return query.order_by(MindNote.updated_at.desc()).limit(200).all()
+
+
+@router.get("/search", response_model=list[MindSearchResult])
+def search_mind(
+    q: str,
+    case_id: int | None = None,
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("cases:read")),
+):
+    query_text = q.strip()
+    if len(query_text) < 2:
+        return []
+    query = db.query(MindNote)
+    if current_user.organization_id:
+        query = query.filter(or_(MindNote.organization_id == current_user.organization_id, MindNote.organization_id.is_(None)))
+    if case_id is not None:
+        query = query.filter(MindNote.case_id == case_id)
+    candidates = query.order_by(MindNote.updated_at.desc()).limit(500).all()
+    ranked = []
+    for note in candidates:
+        score, matches = note_search_score(note, query_text)
+        if score:
+            ranked.append((score, note, matches))
+    ranked.sort(key=lambda item: (item[0], item[1].updated_at), reverse=True)
+    return [
+        MindSearchResult(
+            id=note.id,
+            case_id=note.case_id,
+            note_type=note.note_type,
+            title=note.title,
+            summary=note.summary,
+            content_excerpt=text_excerpt(note.content or note.summary, query_text),
+            vault_path=note.vault_path,
+            confidence=note.confidence,
+            review_status=note.review_status,
+            score=score,
+            matches=matches,
+        )
+        for score, note, matches in ranked[: max(1, min(limit, 50))]
+    ]
 
 
 @router.get("/notes/{note_id}", response_model=MindNoteRead)
@@ -235,7 +278,7 @@ def create_mind_audit(
     return as_dict(row)
 
 
-@router.get("/audit")
+@router.get("/audit", response_model=list[MindAuditRead])
 def list_mind_audit(
     case_id: int | None = None,
     db: Session = Depends(get_db),

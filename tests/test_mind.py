@@ -57,3 +57,14 @@ def test_mind_note_snapshot_and_graph(client, admin_headers):
     assert graph.status_code == 200
     assert len(graph.json()["nodes"]) >= 2
     assert len(graph.json()["edges"]) >= 1
+
+    search = client.get(f"/api/mind/search?q=controlado&case_id={case['id']}", headers=admin_headers)
+    assert search.status_code == 200
+    assert search.json()[0]["title"] == "Nota de prueba"
+    assert search.json()[0]["score"] > 0
+
+    audit = client.get(f"/api/mind/audit?case_id={case['id']}", headers=admin_headers)
+    assert audit.status_code == 200
+    actions = {item["action"] for item in audit.json()}
+    assert "create_note" in actions
+    assert "case_snapshot" in actions

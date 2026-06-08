@@ -19,6 +19,43 @@ def json_dump(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
+def text_excerpt(text: str, query: str, length: int = 220) -> str:
+    clean = " ".join((text or "").split())
+    if not clean:
+        return ""
+    index = clean.lower().find(query.lower())
+    if index < 0:
+        return clean[:length]
+    start = max(index - 70, 0)
+    end = min(start + length, len(clean))
+    prefix = "..." if start else ""
+    suffix = "..." if end < len(clean) else ""
+    return f"{prefix}{clean[start:end]}{suffix}"
+
+
+def note_search_score(note: MindNote, query: str) -> tuple[int, list[str]]:
+    terms = [term.strip().lower() for term in query.split() if term.strip()]
+    if not terms:
+        return 0, []
+    fields = {
+        "titulo": note.title or "",
+        "resumen": note.summary or "",
+        "contenido": note.content or "",
+        "tags": note.tags or "",
+        "tipo": note.note_type or "",
+    }
+    score = 0
+    matches: list[str] = []
+    for label, value in fields.items():
+        lowered = value.lower()
+        hits = sum(1 for term in terms if term in lowered)
+        if hits:
+            weight = 6 if label == "titulo" else 4 if label in ("resumen", "tags") else 2
+            score += hits * weight
+            matches.append(label)
+    return score, matches
+
+
 def frontmatter(data: dict[str, Any]) -> str:
     lines = ["---"]
     for key, value in data.items():
