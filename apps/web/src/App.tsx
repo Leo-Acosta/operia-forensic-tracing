@@ -1157,6 +1157,22 @@ const emptyIoTForm = {
 
 function prettySpanish(value = "") {
   return value
+    .replace(/Ã¡/g, "á")
+    .replace(/Ã©/g, "é")
+    .replace(/Ã­/g, "í")
+    .replace(/Ã³/g, "ó")
+    .replace(/Ãº/g, "ú")
+    .replace(/Ã±/g, "ñ")
+    .replace(/Ã/g, "Á")
+    .replace(/Ã‰/g, "É")
+    .replace(/Ã/g, "Í")
+    .replace(/Ã“/g, "Ó")
+    .replace(/Ãš/g, "Ú")
+    .replace(/Ã‘/g, "Ñ")
+    .replace(/Â·/g, "·")
+    .replace(/â†’/g, "→")
+    .replace(/âœ“/g, "✓")
+    .replace(/â€¢/g, "•")
     .replace(/\?ltima/g, "Última")
     .replace(/\?ltimo/g, "Último")
     .replace(/est\?/g, "está")
@@ -2094,13 +2110,21 @@ export function App() {
       setIdentitySession({ authenticated: true, user: result.user });
       setLoginForm({ email: "", password: "" });
       setModulePayload({ status: "sesion_iniciada", message: "Sesión iniciada correctamente." });
+      setIdentityState("success");
+      setIdentityMessage(`Sesión iniciada como ${result.user?.name || result.user?.email || "usuario autorizado"}.`);
       await refreshIdentity();
     } catch (err) {
       const message = err instanceof Error ? err.message : "No se pudo iniciar sesión.";
+      setIdentityState("error");
+      setIdentityMessage(
+        message.toLowerCase().includes("credencial")
+          ? "Credenciales inválidas. Si no recordás la clave local, usá Recuperar acceso local."
+          : extractReadableMessage(message, "No se pudo iniciar sesión.")
+      );
       setError(
         message.toLowerCase().includes("credencial")
           ? "Credenciales inválidas. Si no recordás la clave local, usá Recuperar acceso local."
-          : message
+          : extractReadableMessage(message, "No se pudo iniciar sesión.")
       );
     } finally {
       setLoading(false);
@@ -2117,9 +2141,14 @@ export function App() {
       setAuthTokenState(result.access_token);
       setIdentitySession({ authenticated: true, user: result.user });
       setModulePayload({ status: "admin_creado", message: "Administrador inicial creado y autenticado." });
+      setIdentityState("success");
+      setIdentityMessage("Administrador inicial creado. La sesión quedó activa para operar la plataforma.");
       await refreshIdentity();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo crear el administrador inicial.");
+      const message = extractReadableMessage(err instanceof Error ? err.message : err, "No se pudo crear el administrador inicial.");
+      setIdentityState("error");
+      setIdentityMessage(message);
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -2135,8 +2164,12 @@ export function App() {
       setIdentitySession({ authenticated: true, user: result.user });
       setLoginForm({ email: result.user?.email || "", password: "" });
       setModulePayload({ status: "acceso_local_recuperado", message: "Acceso local recuperado. Sesión iniciada correctamente." });
+      setIdentityState("success");
+      setIdentityMessage("Acceso local recuperado. Ya podés ejecutar acciones protegidas.");
       await refreshIdentity();
     } catch (err) {
+      setIdentityState("error");
+      setIdentityMessage(extractReadableMessage(err instanceof Error ? err.message : err, "No se pudo recuperar el acceso local."));
       handleUiError(err, "No se pudo recuperar el acceso local.");
     } finally {
       setLoading(false);
@@ -2214,6 +2247,8 @@ export function App() {
     setAuthToken("");
     setAuthTokenState("");
     setIdentitySession({ authenticated: false });
+    setIdentityState("success");
+    setIdentityMessage("Sesión cerrada correctamente.");
   }
 
   function startNewCaseDraft() {
@@ -4748,6 +4783,15 @@ export function App() {
     const emptySections = reportPreview?.sections.filter((section) => section.word_count <= 0) || [];
     const missingChecklist = reportPreview?.final_checklist.items.filter((item) => !item.ok) || [];
     const completedChecklist = reportPreview?.final_checklist.items.filter((item) => item.ok) || [];
+    const reportNextStep = !selectedCaseId
+      ? "Seleccioná o creá un caso antes de trabajar informes."
+      : !latestReport
+        ? "Generá el informe integral para activar revisión, vista previa y exportación."
+        : !reportPreview
+          ? "Abrí la vista previa profesional para ver qué incluye el PDF y qué falta."
+          : reportPreview.can_export_final
+            ? "El informe está listo para sellado final. Exportá solo cuando el analista lo haya validado."
+            : "Completá los controles pendientes antes de intentar el sellado final.";
 
     return (
       <section className="work-surface">
@@ -4758,11 +4802,29 @@ export function App() {
           </div>
           <button onClick={generateReport} disabled={!selectedCaseId}><FileText size={17} /> Generar informe</button>
         </div>
+        <div className="module-guidance">
+          <div>
+            <span>Próximo paso recomendado</span>
+            <strong>{reportNextStep}</strong>
+          </div>
+          <div>
+            <span>Caso activo</span>
+            <strong>{selectedCase ? selectedCase.case_code : "Sin caso seleccionado"}</strong>
+          </div>
+          <div>
+            <span>Estado documental</span>
+            <strong>{latestReport ? professionalReportStatus(latestReport.status) : "Sin informe"}</strong>
+          </div>
+        </div>
         {latestReport && (
           <div className="report-toolbar">
             <button onClick={() => loadReportPreview()}><FileCheck2 size={16} /> Vista previa profesional</button>
             <button onClick={reviewReport}><CheckCircle2 size={16} /> Revisar</button>
-            <button onClick={requestFinalExport} className={reportPreview?.can_export_final ? "" : "secondary"}>
+            <button
+              onClick={requestFinalExport}
+              className={reportPreview?.can_export_final ? "" : "secondary"}
+              title={reportPreview?.can_export_final ? "Exportar informe final sellado" : "Primero completá los controles pendientes"}
+            >
               <Download size={16} /> Sellar y exportar final
             </button>
             <button onClick={refreshReportAnnexes} className="secondary"><FileText size={16} /> Actualizar anexos</button>
@@ -5318,6 +5380,21 @@ export function App() {
 
         {deepfakeMessage && <div className={`action-feedback ${deepfakeState}`}>{deepfakeMessage}</div>}
 
+        <div className="module-guidance">
+          <div>
+            <span>Uso pericial</span>
+            <strong>Autenticar y documentar medios antes de afirmar manipulación o autoría.</strong>
+          </div>
+          <div>
+            <span>Próximo paso</span>
+            <strong>{deepfakeAnalyses.length ? "Crear hallazgo y aplicar normas si corresponde." : "Vincular evidencia y registrar origen, metadatos y límites."}</strong>
+          </div>
+          <div>
+            <span>Salida al informe</span>
+            <strong>{readyDeepfake ? `${readyDeepfake} análisis listo(s)` : "Pendiente de sustento"}</strong>
+          </div>
+        </div>
+
         <div className="risk-card medium blockchain-risk-row">
           <div><span>Análisis</span><strong>{deepfakeAnalyses.length}</strong></div>
           <div><span>Con evidencia</span><strong>{linkedDeepfake}</strong></div>
@@ -5420,7 +5497,7 @@ export function App() {
                 </div>
                 <div className="mini-readiness">
                   {quality.checks.map((check) => (
-                    <span className={check.ok ? "ok" : "missing"} key={check.key}>{check.ok ? "?" : "?"} {check.label}</span>
+                    <span className={check.ok ? "ok" : "missing"} key={check.key}>{check.ok ? "✓" : "•"} {check.label}</span>
                   ))}
                 </div>
                 <div className="mini-list">
@@ -5478,6 +5555,21 @@ export function App() {
         </div>
 
         {blockchainMessage && <div className={`action-feedback ${blockchainState}`}>{blockchainMessage}</div>}
+
+        <div className="module-guidance">
+          <div>
+            <span>Objetivo del laboratorio</span>
+            <strong>Reconstruir movimientos, wallets, saltos y fuentes preservadas.</strong>
+          </div>
+          <div>
+            <span>Próximo paso</span>
+            <strong>{blockchainTransactions.length ? "Ordenar saltos, crear hallazgos y vincular evidencia." : "Registrar hash, wallet, explorador, monto y captura preservada."}</strong>
+          </div>
+          <div>
+            <span>Límite pericial</span>
+            <strong>Una wallet no identifica por sí sola a una persona.</strong>
+          </div>
+        </div>
 
         <div className="risk-card medium blockchain-risk-row">
           <div><span>Transacciones</span><strong>{blockchainTransactions.length}</strong></div>
@@ -5898,6 +5990,21 @@ export function App() {
             Selecciona o crea un caso activo antes de registrar dispositivos IoT. Esta pantalla guarda el registro dentro del caso seleccionado.
           </div>
         )}
+
+        <div className="module-guidance">
+          <div>
+            <span>Objetivo pericial</span>
+            <strong>Preservar estado observable, identificadores, configuración, logs y límites.</strong>
+          </div>
+          <div>
+            <span>Próximo paso</span>
+            <strong>{iotDevices.length ? "Completar checklist, crear hallazgo y aplicar normas si corresponde." : "Registrar dispositivo y vincular evidencia preservada."}</strong>
+          </div>
+          <div>
+            <span>Control de seguridad</span>
+            <strong>No ejecutar escaneos reales sin autorización documentada.</strong>
+          </div>
+        </div>
 
         <div className="risk-card medium iot-risk-row">
           <div><span>Dispositivos</span><strong>{iotDevices.length}</strong></div>

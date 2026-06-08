@@ -1021,6 +1021,35 @@ h3 {
   grid-column: 1 / -1;
 }
 
+.module-guidance {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 14px 0;
+}
+
+.module-guidance > div {
+  background: #f7fafc;
+  border: 1px solid #d8e3ee;
+  border-left: 4px solid #0f766e;
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+}
+
+.module-guidance span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.module-guidance strong {
+  color: #10233f;
+  line-height: 1.35;
+}
+
 .panel-head {
   align-items: center;
   border-bottom: 1px solid #e7edf4;
