@@ -3,7 +3,10 @@ from hashlib import sha256
 from types import SimpleNamespace
 from typing import Any
 
+from sqlalchemy.orm import object_session
+
 from operia.cases.models import Case
+from operia.mind.models import MindGraphEdge, MindGraphNode, MindNote
 from operia.reports.models import Report, ReportSection, ReportVersion
 from operia.legal_report.services.text_service import normalize_spanish
 from operia.shared.time import utcnow
@@ -135,7 +138,80 @@ def _mapping_links_for_case(mapping: Any, case: Any | None = None) -> list[Any]:
     ]
 
 
+def _mind_case_context_markdown(case: Case) -> str:
+    """Public, case-scoped memory/graph summary for reports.
+
+    This intentionally avoids exposing prompts, agents, model names or internal
+    automation details. It only renders case notes and graph relations already
+    stored as forensic memory for the same case_id.
+    """
+    db = object_session(case)
+    case_id = getattr(case, "id", None)
+    if not db or not case_id:
+        return ""
+
+    nodes = (
+        db.query(MindGraphNode)
+        .filter(MindGraphNode.case_id == case_id)
+        .order_by(MindGraphNode.node_type.asc(), MindGraphNode.label.asc())
+        .limit(80)
+        .all()
+    )
+    edges = (
+        db.query(MindGraphEdge)
+        .filter(MindGraphEdge.case_id == case_id)
+        .order_by(MindGraphEdge.relation_type.asc(), MindGraphEdge.created_at.asc())
+        .limit(80)
+        .all()
+    )
+    notes = (
+        db.query(MindNote)
+        .filter(MindNote.case_id == case_id)
+        .order_by(MindNote.updated_at.desc())
+        .limit(12)
+        .all()
+    )
+    if not nodes and not edges and not notes:
+        return ""
+
+    labels = {node.node_key: node.label for node in nodes}
+    node_counts: dict[str, int] = {}
+    for node in nodes:
+        node_counts[node.node_type] = node_counts.get(node.node_type, 0) + 1
+
+    lines = [
+        "## Memoria forense y grafo relacional del caso",
+        "",
+        "La siguiente síntesis se limita a notas y relaciones registradas para este caso. No incorpora datos de otros expedientes.",
+        "",
+    ]
+    if node_counts:
+        lines.append("### Inventario relacional")
+        lines.append("")
+        for node_type, count in sorted(node_counts.items()):
+            lines.append(f"- {node_type}: {count}.")
+        lines.append("")
+    if edges:
+        lines.append("### Relaciones relevantes")
+        lines.append("")
+        for edge in edges[:20]:
+            source = labels.get(edge.source_node_key, edge.source_node_key)
+            target = labels.get(edge.target_node_key, edge.target_node_key)
+            label = f" ({edge.label})" if edge.label else ""
+            lines.append(f"- {source} --{edge.relation_type}--> {target}{label}. Confianza: {edge.confidence}.")
+        lines.append("")
+    if notes:
+        lines.append("### Notas persistentes del caso")
+        lines.append("")
+        for note in notes:
+            summary = note.summary or note.content[:180] or "Sin resumen cargado."
+            lines.append(f"- {note.note_type}: {note.title}. {summary}")
+        lines.append("")
+    return normalize_spanish("\n".join(lines)).strip()
+
+
 def build_integral_markdown(case: Case, legal_recommendations: list[Any] | None = None) -> str:
+    mind_context_lines = _mind_case_context_markdown(case)
     case = isolated_case_snapshot(case)
     total_damage = sum(item.amount for item in case.damage_items)
     case_narrative = _case_narrative_markdown(case)
@@ -303,6 +379,8 @@ Se preservaron datos técnicos, se registraron acciones de cadena de custodia, s
 ## Evidencia de analisis y trazabilidad del hallazgo
 
 {analysis_evidence}
+
+{mind_context_lines}
 
 ## Registro de cadena de custodia
 

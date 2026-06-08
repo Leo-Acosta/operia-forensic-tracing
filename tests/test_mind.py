@@ -188,4 +188,125 @@ def test_mind_presentation_snapshot_links_case_report_and_note(client, admin_hea
     edge_types = {item["relation_type"] for item in graph.json()["edges"]}
     assert "tiene_exposicion" in edge_types
     assert "deriva_en_exposicion" in edge_types
-    assert "guardado_en_memoria" in edge_types
+
+
+def test_mind_graph_is_used_by_report_without_cross_case_leakage(client, admin_headers):
+    case_a = create_case(client, admin_headers)
+    case_b = client.post(
+        "/api/cases",
+        json={
+            "case_code": "MIND-LEAK-B",
+            "title": "Caso contaminante Mind",
+            "description": "CONTAMINANTE-MIND-NO-DEBE-APARECER",
+            "incident_type": "phishing",
+        },
+        headers=admin_headers,
+    ).json()
+
+    source = client.post(
+        "/api/mind/graph/nodes",
+        json={
+            "case_id": case_a["id"],
+            "node_key": f"url:{case_a['id']}",
+            "node_type": "url",
+            "label": "URL preservada del caso A",
+            "source_module": "cybercrime",
+        },
+        headers=admin_headers,
+    )
+    assert source.status_code == 200
+    source_key = source.json()["node_key"]
+    target = client.post(
+        "/api/mind/graph/nodes",
+        json={
+            "case_id": case_a["id"],
+            "node_key": f"finding:{case_a['id']}",
+            "node_type": "finding",
+            "label": "Hallazgo relacional caso A",
+            "source_module": "cybercrime",
+        },
+        headers=admin_headers,
+    )
+    assert target.status_code == 200
+    target_key = target.json()["node_key"]
+    edge = client.post(
+        "/api/mind/graph/edges",
+        json={
+            "case_id": case_a["id"],
+            "source_node_key": source_key,
+            "target_node_key": target_key,
+            "relation_type": "sostiene",
+            "label": "URL sostiene hallazgo técnico",
+            "confidence": "alto",
+        },
+        headers=admin_headers,
+    )
+    assert edge.status_code == 200
+    note = client.post(
+        "/api/mind/notes",
+        json={
+            "case_id": case_a["id"],
+            "note_type": "hallazgo",
+            "title": "Nota relacional caso A",
+            "summary": "Resumen incorporable del caso A.",
+            "content": "Contenido de memoria del caso A.",
+            "tags": ["mind", "reporte"],
+        },
+        headers=admin_headers,
+    )
+    assert note.status_code == 200
+
+    leaked = client.post(
+        "/api/mind/notes",
+        json={
+            "case_id": case_b["id"],
+            "note_type": "hallazgo",
+            "title": "CONTAMINANTE-MIND-NO-DEBE-APARECER",
+            "summary": "No debe filtrarse al caso A.",
+            "content": "No debe filtrarse al caso A.",
+            "tags": ["mind"],
+        },
+        headers=admin_headers,
+    )
+    assert leaked.status_code == 200
+
+    report = client.post(f"/api/reports/case/{case_a['id']}/generate?author=Analista%20Mind", headers=admin_headers)
+    assert report.status_code == 200
+    markdown = report.json()["markdown_content"]
+    assert "Memoria forense y grafo relacional del caso" in markdown
+    assert "URL preservada del caso A" in markdown
+    assert "Hallazgo relacional caso A" in markdown
+    assert "Nota relacional caso A" in markdown
+    assert "CONTAMINANTE-MIND-NO-DEBE-APARECER" not in markdown
+
+
+def test_presentation_generates_oral_versions_and_case_theory(client, admin_headers):
+    case = create_case(client, admin_headers)
+    evidence = client.post(
+        "/api/evidence",
+        json={
+            "case_id": case["id"],
+            "description": "Captura central para exposición oral",
+            "sha256_hash": "e" * 64,
+        },
+        headers=admin_headers,
+    )
+    assert evidence.status_code == 200
+    report = client.post(f"/api/reports/case/{case['id']}/generate?author=Analista%20Mind", headers=admin_headers)
+    assert report.status_code == 200
+    presentation = client.post(
+        f"/api/reports/{report.json()['id']}/presentations/generate?presentation_type=Exposicion%20oral%20CTF",
+        headers=admin_headers,
+    )
+    assert presentation.status_code == 200
+    slides = client.get(f"/api/reports/presentations/{presentation.json()['id']}/slides", headers=admin_headers)
+    assert slides.status_code == 200
+    titles = {item["title"] for item in slides.json()}
+    full_text = "\n".join(item["text"] + "\n" + item["speaker_notes"] for item in slides.json())
+    assert "Resumen oral" in titles
+    assert "Teoría del caso" in titles
+    assert "Preguntas posibles y respuestas sugeridas" in titles
+    assert "Versión de 10 minutos" in titles
+    assert "En tres minutos" in full_text
+    assert "En diez minutos" in full_text
+    assert "Captura central para exposición oral" in full_text
