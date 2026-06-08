@@ -1213,13 +1213,14 @@ function isAuthenticationErrorMessage(message = "") {
 async function readExportOutcome(response: Response): Promise<ExportOutcome> {
   const contentType = response.headers.get("content-type") || "";
   const raw = await response.text();
-  if (contentType.includes("application/json")) {
+  const looksLikeJson = contentType.includes("application/json") || raw.trim().startsWith("{") || raw.trim().startsWith("[");
+  if (looksLikeJson) {
     try {
       const parsed = JSON.parse(raw);
       const detail = parsed.detail && typeof parsed.detail === "object" ? parsed.detail : parsed;
       return {
         status: "blocked",
-        message: detail.message || parsed.message || "La exportación final fue bloqueada por controles periciales.",
+        message: extractReadableMessage(detail.message || parsed.message || detail, "La exportación final fue bloqueada por controles periciales."),
         exportability: detail.exportability,
         contradictions: detail.contradictions,
         final_checklist: detail.final_checklist,
@@ -1229,7 +1230,7 @@ async function readExportOutcome(response: Response): Promise<ExportOutcome> {
       return { status: "blocked", message: "La exportación final fue bloqueada por controles periciales." };
     }
   }
-  return { status: "blocked", message: raw || "La exportación final fue bloqueada por controles periciales." };
+  return { status: "blocked", message: extractReadableMessage(raw, "La exportación final fue bloqueada por controles periciales.") };
 }
 
 function extractReadableMessage(value: unknown, fallback = "La acción no pudo completarse."): string {
@@ -1827,10 +1828,7 @@ export function App() {
       if (options.focusIdentity) setActive("identity");
       return;
     }
-    const message = raw.includes("Failed to fetch")
-      ? "No se pudo conectar con el backend local. Verificá que la API esté levantada y volvé a intentar."
-      : extractReadableMessage(raw || fallback, fallback);
-    setError(message);
+    setError(extractReadableMessage(raw || fallback, fallback));
   }
 
   function activePermissions() {
@@ -1862,10 +1860,7 @@ export function App() {
       setMindMessage("Acción protegida. Inicia sesión en Usuarios para guardar memoria, snapshots o auditoría.");
       return;
     }
-    const message = raw.includes("Failed to fetch")
-      ? "No se pudo conectar con el backend local. Verificá que la API esté levantada y volvé a intentar."
-      : extractReadableMessage(raw || fallback, fallback);
-    setMindMessage(message);
+    setMindMessage(extractReadableMessage(raw || fallback, fallback));
   }
 
   async function createMindNote(event: FormEvent) {

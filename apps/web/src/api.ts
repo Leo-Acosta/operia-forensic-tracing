@@ -17,7 +17,24 @@ export function authHeaders(extra: HeadersInit = {}) {
 
 function cleanMessage(value: unknown): string {
   if (!value) return "";
-  if (typeof value === "string") return value;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    if (trimmed === "Failed to fetch") {
+      return "No se pudo conectar con el backend local de OPERIA. Verificá que la API esté iniciada y volvé a intentar.";
+    }
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      try {
+        return cleanMessage(JSON.parse(trimmed));
+      } catch {
+        return trimmed;
+      }
+    }
+    if (trimmed.toLowerCase().includes("autenticacion requerida") || trimmed.toLowerCase().includes("autenticación requerida")) {
+      return "Iniciá sesión para realizar esta acción.";
+    }
+    return trimmed;
+  }
   if (Array.isArray(value)) return value.map(cleanMessage).filter(Boolean).join("; ");
   if (typeof value === "object") {
     const objectValue = value as Record<string, unknown>;
@@ -30,6 +47,9 @@ function cleanMessage(value: unknown): string {
     const checklist = objectValue.checklist as Record<string, unknown> | undefined;
     const checklistMissing = cleanMessage(checklist?.missing);
     if (checklistMissing) return `Faltan condiciones para completar la acción: ${checklistMissing}`;
+    if (objectValue.exportability || objectValue.final_checklist || objectValue.contradictions) {
+      return "La acción requiere completar controles periciales antes de continuar.";
+    }
   }
   return "";
 }
@@ -63,13 +83,24 @@ async function parseResponse(response: Response) {
   return response.text();
 }
 
+async function safeFetch(input: RequestInfo | URL, init?: RequestInit) {
+  try {
+    return await fetch(input, init);
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error("No se pudo conectar con el backend local de OPERIA. Verificá que la API esté iniciada y volvé a intentar.");
+    }
+    throw error;
+  }
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
+  const response = await safeFetch(`${API_BASE}${path}`, { headers: authHeaders() });
   return parseResponse(response) as Promise<T>;
 }
 
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await safeFetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: body === undefined ? undefined : JSON.stringify(body)
@@ -78,7 +109,7 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
 }
 
 export async function apiPostForm<T>(path: string, body: FormData): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await safeFetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: authHeaders(),
     body
@@ -87,7 +118,7 @@ export async function apiPostForm<T>(path: string, body: FormData): Promise<T> {
 }
 
 export async function apiPut<T>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await safeFetch(`${API_BASE}${path}`, {
     method: "PUT",
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body)
@@ -96,7 +127,7 @@ export async function apiPut<T>(path: string, body: unknown): Promise<T> {
 }
 
 export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await safeFetch(`${API_BASE}${path}`, {
     method: "PATCH",
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body)
@@ -105,7 +136,7 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
 }
 
 export async function apiDelete<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await safeFetch(`${API_BASE}${path}`, {
     method: "DELETE",
     headers: authHeaders()
   });
