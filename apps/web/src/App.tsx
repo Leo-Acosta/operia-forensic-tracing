@@ -1755,6 +1755,15 @@ export function App() {
     setError(raw || fallback);
   }
 
+  function handleMindError(err: unknown, fallback: string) {
+    const raw = err instanceof Error ? err.message : "";
+    if (isAuthenticationErrorMessage(raw)) {
+      setMindMessage("Acción protegida. Inicia sesión en Usuarios para guardar memoria, snapshots o auditoría.");
+      return;
+    }
+    setMindMessage(fallback);
+  }
+
   async function createMindNote(event: FormEvent) {
     event.preventDefault();
     if (!mindNoteForm.title.trim() || !mindNoteForm.content.trim()) {
@@ -1781,7 +1790,7 @@ export function App() {
       await refreshMind();
     } catch (err) {
       setMindState("error");
-      handleUiError(err, "No se pudo guardar la nota en memoria.", { focusIdentity: true });
+      handleMindError(err, "No se pudo guardar la nota. Verifica el caso activo y vuelve a intentar.");
     }
   }
 
@@ -1800,7 +1809,7 @@ export function App() {
       await refreshMind();
     } catch (err) {
       setMindState("error");
-      handleUiError(err, "No se pudo crear el snapshot del caso.", { focusIdentity: true });
+      handleMindError(err, "No se pudo crear el snapshot del caso. Verifica permisos y caso activo.");
     }
   }
 
@@ -1819,7 +1828,7 @@ export function App() {
       await refreshMind();
     } catch (err) {
       setMindState("error");
-      handleUiError(err, "No se pudo guardar el informe en memoria.", { focusIdentity: true });
+      handleMindError(err, "No se pudo guardar el informe en memoria. Genera o selecciona un informe válido.");
     }
   }
 
@@ -1841,7 +1850,7 @@ export function App() {
       await refreshMind();
     } catch (err) {
       setMindState("error");
-      handleUiError(err, "No se pudo guardar la exposicion en memoria.", { focusIdentity: true });
+      handleMindError(err, "No se pudo guardar la exposición en memoria. Genera primero una exposición válida.");
     }
   }
 
@@ -1864,7 +1873,7 @@ export function App() {
       setMindMessage(results.length ? `Memoria consultada: ${results.length} coincidencia(s) relevantes.` : "No se encontraron coincidencias en la memoria seleccionada.");
     } catch (err) {
       setMindState("error");
-      handleUiError(err, "No se pudo consultar la memoria.", { focusIdentity: true });
+      handleMindError(err, "No se pudo consultar la memoria en este momento.");
     }
   }
 
@@ -6707,18 +6716,19 @@ export function App() {
     const graphNodeCount = mindGraph?.nodes.length || 0;
     const graphEdgeCount = mindGraph?.edges.length || 0;
     const selectedPresentation = presentations.find((item) => item.id === Number(selectedPresentationId)) || presentations[0];
+    const caseScopedNotes = mindNotes.filter((note) => !selectedCaseId || note.case_id === Number(selectedCaseId));
+    const recentAudit = mindAudit.slice(0, 6);
+    const isWorking = mindState === "working";
     return (
       <section className="work-surface mind-workbench">
         <div className="section-head">
           <div>
             <h2>Cerebro / Memoria Forense</h2>
-            <p>Vault Markdown compatible con Obsidian, notas por caso, agentes, prompts y grafo de relaciones.</p>
+            <p>Memoria persistente del caso, notas Markdown, búsqueda local, snapshots, auditoría y grafo de relaciones.</p>
           </div>
           <div className="button-row">
-            <button className="secondary-button" onClick={refreshMind}><RefreshCcw size={16} /> Actualizar</button>
-            <button onClick={createMindSnapshot} disabled={!selectedCaseId || mindState === "working"}><BrainCircuit size={16} /> Crear snapshot del caso</button>
-            <button className="secondary-button" onClick={createReportMindSnapshot} disabled={!latestReport || mindState === "working"}><FileText size={16} /> Guardar informe en memoria</button>
-            <button className="secondary-button" onClick={createPresentationMindSnapshot} disabled={!selectedPresentation || mindState === "working"}><Presentation size={16} /> Guardar exposicion en memoria</button>
+            <button className="secondary-button" onClick={refreshMind} disabled={isWorking}><RefreshCcw size={16} /> Actualizar memoria</button>
+            <button onClick={createMindSnapshot} disabled={!selectedCaseId || isWorking}><BrainCircuit size={16} /> Snapshot del caso</button>
           </div>
         </div>
 
@@ -6733,12 +6743,26 @@ export function App() {
             <span className="eyebrow">Caso activo</span>
             <h3>{selectedCase ? `${selectedCase.case_code} - ${selectedCase.title}` : "Memoria general"}</h3>
             <p>{selectedCase ? selectedCase.description || "Caso sin narrativa inicial cargada." : "Selecciona un caso para generar memoria contextual, notas y grafo operativo."}</p>
+            {selectedCase && (
+              <div className="mind-case-tags">
+                <span>{prettySpanish(selectedCase.incident_type)}</span>
+                <span>{prettySpanish(selectedCase.status)}</span>
+              </div>
+            )}
           </div>
           <div className="mind-metrics">
-            <div><span>Notas</span><strong>{mindNotes.length}</strong></div>
+            <div><span>Notas del caso</span><strong>{caseScopedNotes.length}</strong></div>
             <div><span>Nodos</span><strong>{graphNodeCount}</strong></div>
             <div><span>Relaciones</span><strong>{graphEdgeCount}</strong></div>
+            <div><span>Auditoría</span><strong>{mindAudit.length}</strong></div>
           </div>
+        </div>
+
+        <div className="mind-action-strip">
+          <button onClick={createMindSnapshot} disabled={!selectedCaseId || isWorking}><BrainCircuit size={16} /> Guardar snapshot del caso</button>
+          <button className="secondary-button" onClick={createReportMindSnapshot} disabled={!latestReport || isWorking}><FileText size={16} /> Guardar último informe</button>
+          <button className="secondary-button" onClick={createPresentationMindSnapshot} disabled={!selectedPresentation || isWorking}><Presentation size={16} /> Guardar exposición</button>
+          <button className="secondary-button" onClick={() => setMindNoteForm({ ...mindNoteForm, note_type: "hallazgo", title: selectedCase ? `Hallazgo - ${selectedCase.case_code}` : "Hallazgo", content: "" })}><Save size={16} /> Preparar hallazgo</button>
         </div>
 
         {mindBrief && (
@@ -6796,13 +6820,13 @@ export function App() {
           </div>
           <div className="search-row">
             <input value={mindSearchQuery} onChange={(event) => setMindSearchQuery(event.target.value)} placeholder="Buscar concepto, evidencia, hipótesis, norma o decisión..." />
-            <button disabled={mindState === "working"}><Search size={16} /> Buscar</button>
+            <button disabled={isWorking}><Search size={16} /> Consultar</button>
           </div>
           <div className="mind-search-results">
             {mindSearchResults.map((result) => (
               <article key={result.id} className="mind-result-card">
                 <div>
-                  <span className="eyebrow">{prettySpanish(result.note_type)} · score {result.score}</span>
+                  <span className="eyebrow">{prettySpanish(result.note_type)} · relevancia {result.score}</span>
                   <h4>{result.title}</h4>
                   <p>{result.content_excerpt || result.summary || "Resultado sin extracto visible."}</p>
                   <small>{result.vault_path}</small>
@@ -6816,7 +6840,7 @@ export function App() {
 
         <div className="mind-grid">
           <form className="panel-card mind-note-form" onSubmit={createMindNote}>
-            <h3>Nueva nota de memoria</h3>
+            <h3>Crear nota rápida</h3>
             <p>Guarda una observación, hipótesis, hallazgo o contexto como archivo Markdown auditable.</p>
             <div className="form-grid two">
               <select value={mindNoteForm.note_type} onChange={(event) => setMindNoteForm({ ...mindNoteForm, note_type: event.target.value })}>
@@ -6832,31 +6856,41 @@ export function App() {
             </div>
             <input value={mindNoteForm.title} onChange={(event) => setMindNoteForm({ ...mindNoteForm, title: event.target.value })} placeholder="Título de la nota" />
             <textarea value={mindNoteForm.content} onChange={(event) => setMindNoteForm({ ...mindNoteForm, content: event.target.value })} placeholder="Contenido, contexto, fuente, límite probatorio o decisión del analista" />
-            <button disabled={mindState === "working"}><Save size={16} /> Guardar en memoria</button>
+            <button disabled={isWorking}><Save size={16} /> Guardar nota</button>
           </form>
 
           <div className="panel-card">
-            <h3>Agentes configurables</h3>
-            <p>Perfiles lógicos para coordinar memoria, documentación, grafo, redacción y auditoría.</p>
+            <h3>Prompts y agentes</h3>
+            <p>Accesos disponibles para próximas fases de memoria asistida y redacción controlada.</p>
+            <div className="mind-mini-columns">
+              <div>
+                <strong>Prompts</strong>
+                <span>{mindPrompts.length} cargado(s)</span>
+              </div>
+              <div>
+                <strong>Agentes</strong>
+                <span>{mindAgents.length} configurado(s)</span>
+              </div>
+            </div>
             <div className="compact-list">
-              {mindAgents.slice(0, 8).map((agent) => (
+              {mindAgents.slice(0, 4).map((agent) => (
                 <article key={agent.id}>
                   <strong>{agent.name}</strong>
                   <span>{agent.role}</span>
                   <small>{agent.scope}</small>
                 </article>
               ))}
-              {!mindAgents.length && <EmptyState text="Sin agentes cargados. Ejecuta actualización o revisa el backend." />}
+              {!mindAgents.length && <EmptyState text="Sin agentes cargados. Actualiza la memoria o verifica la sesión." />}
             </div>
           </div>
         </div>
 
         <div className="mind-grid">
           <div className="panel-card">
-            <h3>Notas recientes</h3>
+            <h3>Notas del caso</h3>
             <p>Memoria persistente del caso y notas generales del vault.</p>
             <div className="mind-note-list">
-              {mindNotes.map((note) => (
+              {caseScopedNotes.map((note) => (
                 <article className="mind-note-card" key={note.id}>
                   <div>
                     <span className="eyebrow">{prettySpanish(note.note_type)} · {prettySpanish(note.review_status)}</span>
@@ -6867,7 +6901,7 @@ export function App() {
                   <span className="pill">{prettySpanish(note.confidence)}</span>
                 </article>
               ))}
-              {!mindNotes.length && <EmptyState text="Todavía no hay notas en memoria para este contexto." />}
+              {!caseScopedNotes.length && <EmptyState text="Todavía no hay notas en memoria para este caso." />}
             </div>
           </div>
 
@@ -6895,7 +6929,7 @@ export function App() {
           <h3>Prompts base</h3>
           <p>Prompts internos para resumir, extraer conceptos, crear notas, vincular memoria, auditar conclusiones y generar informe.</p>
           <div className="prompt-grid">
-            {mindPrompts.map((prompt) => (
+            {mindPrompts.slice(0, 8).map((prompt) => (
               <article key={prompt.id}>
                 <strong>{prompt.title}</strong>
                 <span>{prompt.purpose}</span>
@@ -6907,17 +6941,17 @@ export function App() {
         </div>
 
         <div className="panel-card">
-          <h3>Auditoría de memoria</h3>
+          <h3>Auditoría reciente</h3>
           <p>Trazabilidad de creación de notas, snapshots y relaciones de grafo vinculadas al caso o a la organización.</p>
           <div className="compact-list audit-list">
-            {mindAudit.slice(0, 12).map((entry) => (
+            {recentAudit.map((entry) => (
               <article key={entry.id}>
                 <strong>{prettySpanish(entry.action)}</strong>
                 <span>{entry.details || `${entry.entity_type} ${entry.entity_id}`}</span>
                 <small>{entry.severity} · {entry.created_at ? formatHistoryDate(entry.created_at) : ""}</small>
               </article>
             ))}
-            {!mindAudit.length && <EmptyState text="Sin eventos de auditoría de memoria para mostrar." />}
+            {!recentAudit.length && <EmptyState text="Sin eventos de auditoría de memoria para mostrar." />}
           </div>
         </div>
       </section>

@@ -3905,7 +3905,45 @@ pre {
 .mind-metrics {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(3, minmax(96px, 1fr));
+  grid-template-columns: repeat(4, minmax(96px, 1fr));
+}
+
+.mind-case-tags,
+.mind-action-strip,
+.mind-mini-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mind-case-tags span,
+.mind-mini-columns div {
+  background: #ffffff;
+  border: 1px solid #d8e3ee;
+  border-radius: 8px;
+  color: #223850;
+  padding: 8px 10px;
+}
+
+.mind-action-strip {
+  background: #f7fbff;
+  border: 1px solid #d8e5ef;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.mind-action-strip button {
+  flex: 1 1 220px;
+}
+
+.mind-mini-columns div {
+  display: grid;
+  flex: 1 1 160px;
+  gap: 4px;
+}
+
+.mind-mini-columns span {
+  color: #5b6f86;
 }
 
 .mind-metrics div,
