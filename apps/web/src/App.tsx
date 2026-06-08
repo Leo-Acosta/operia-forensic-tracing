@@ -738,30 +738,34 @@ type MindCaseBrief = {
   graph_summary: Record<string, number>;
 };
 
-const modules: Array<{ key: ModuleKey; label: string; icon: typeof BarChart3 }> = [
-  { key: "workflow", label: "Flujo Operativo", icon: CheckCircle2 },
-  { key: "dashboard", label: "Dashboard", icon: BarChart3 },
-  { key: "caseDetail", label: "Detalle del Caso", icon: FileCheck2 },
-  { key: "cases", label: "Casos", icon: Briefcase },
-  { key: "evidence", label: "Evidencia", icon: Fingerprint },
-  { key: "reports", label: "Informes", icon: FileText },
-  { key: "casePresentation", label: "Exposición del Caso", icon: MonitorPlay },
-  { key: "mind", label: "Cerebro / Memoria", icon: BrainCircuit },
-  { key: "legalKnowledge", label: "Biblioteca Legal", icon: BookOpen },
-  { key: "ai", label: "Asistente IA", icon: Bot },
-  { key: "cybercrime", label: "Cybercrime", icon: Shield },
-  { key: "deepfakeMedia", label: "Deepfake / Medios", icon: FileCheck2 },
-  { key: "blockchainForensics", label: "Blockchain Investigation Lab", icon: Globe2 },
-  { key: "iotForensics", label: "IoT Forensics", icon: Shield },
-  { key: "externalTools", label: "Herramientas Externas", icon: Wrench },
-  { key: "aiSecurity", label: "AI Security", icon: BrainCircuit },
-  { key: "geoTrace", label: "Geo Trace", icon: Map },
-  { key: "geoProximity", label: "Geo Proximity", icon: Navigation },
-  { key: "identity", label: "Usuarios", icon: Users },
-  { key: "exports", label: "Exportaciones", icon: Download },
-  { key: "history", label: "Historial", icon: History },
-  { key: "settings", label: "Configuración", icon: Settings }
+type NavigationSection = "Operación" | "Forense" | "Inteligencia" | "Administración";
+
+const modules: Array<{ key: ModuleKey; label: string; icon: typeof BarChart3; section: NavigationSection }> = [
+  { key: "workflow", label: "Flujo Operativo", icon: CheckCircle2, section: "Operación" },
+  { key: "dashboard", label: "Dashboard", icon: BarChart3, section: "Operación" },
+  { key: "caseDetail", label: "Detalle del Caso", icon: FileCheck2, section: "Operación" },
+  { key: "cases", label: "Casos", icon: Briefcase, section: "Operación" },
+  { key: "evidence", label: "Evidencia", icon: Fingerprint, section: "Operación" },
+  { key: "reports", label: "Informes", icon: FileText, section: "Operación" },
+  { key: "casePresentation", label: "Exposición del Caso", icon: MonitorPlay, section: "Operación" },
+  { key: "mind", label: "Cerebro / Memoria", icon: BrainCircuit, section: "Inteligencia" },
+  { key: "legalKnowledge", label: "Biblioteca Legal", icon: BookOpen, section: "Inteligencia" },
+  { key: "ai", label: "Asistente IA", icon: Bot, section: "Inteligencia" },
+  { key: "cybercrime", label: "Cybercrime", icon: Shield, section: "Forense" },
+  { key: "deepfakeMedia", label: "Deepfake / Medios", icon: FileCheck2, section: "Forense" },
+  { key: "blockchainForensics", label: "Blockchain Investigation Lab", icon: Globe2, section: "Forense" },
+  { key: "iotForensics", label: "IoT Forensics", icon: Shield, section: "Forense" },
+  { key: "externalTools", label: "Herramientas Externas", icon: Wrench, section: "Forense" },
+  { key: "aiSecurity", label: "AI Security", icon: BrainCircuit, section: "Forense" },
+  { key: "geoTrace", label: "Geo Trace", icon: Map, section: "Forense" },
+  { key: "geoProximity", label: "Geo Proximity", icon: Navigation, section: "Forense" },
+  { key: "identity", label: "Usuarios", icon: Users, section: "Administración" },
+  { key: "exports", label: "Exportaciones", icon: Download, section: "Administración" },
+  { key: "history", label: "Historial", icon: History, section: "Administración" },
+  { key: "settings", label: "Configuración", icon: Settings, section: "Administración" }
 ];
+
+const navigationSections: NavigationSection[] = ["Operación", "Forense", "Inteligencia", "Administración"];
 
 const emptyCase = {
   case_code: "",
@@ -803,13 +807,13 @@ const damagePresets = [
   {
     label: "Indisponibilidad operativa",
     concept: "Indisponibilidad operativa",
-    formula_used: "Indisponibilidad = horas de interrupci?n x costo operativo/hora documentado.",
+    formula_used: "Indisponibilidad = horas de interrupción x costo operativo/hora documentado.",
     value_source: "Registro de caída, ticket, informe de continuidad, métrica de facturación o declaración contable verificable."
   },
   {
     label: "Reposición y mitigación",
     concept: "Reposición y mitigación",
-    formula_used: "Reposición/mitigación = costo de restauraci?n, hardening, licencias, reposición o servicios necesarios directamente vinculados.",
+    formula_used: "Reposición/mitigación = costo de restauración, hardening, licencias, reposición o servicios necesarios directamente vinculados.",
     value_source: "Factura, presupuesto, ticket de soporte, orden de compra o constancia de servicio."
   }
 ];
@@ -821,7 +825,7 @@ const attackTypes = [
   { value: "fraude digital", label: "Fraude digital", query: "fraude estafa manipulación informática consumidor" },
   { value: "dano informatico", label: "Daño informático", query: "daño informático sistemas datos" },
   { value: "filtracion de datos", label: "Filtración de datos", query: "filtración datos personales confidencialidad" },
-  { value: "extorsion", label: "Extorsi?n", query: "extorsión intimidaci?n datos ransomware" },
+  { value: "extorsion", label: "Extorsión", query: "extorsión intimidación datos ransomware" },
   { value: "deepfake", label: "Deepfake / autenticación de medios", query: "deepfake autenticación medios imagen voz identidad propiedad intelectual" },
   { value: "blockchain", label: "Blockchain / criptoactivos", query: "blockchain criptoactivos wallet fraude estafa extorsión" },
   { value: "iot", label: "IoT / dispositivos conectados", query: "iot dispositivos conectados acceso ilegítimo comunicaciones daño informático" },
@@ -929,7 +933,7 @@ const emptyBlockchainForm = {
   route_order: "",
   include_in_report: true,
   preservation_checklist: "",
-  limitations: "Una wallet no identifica por s? sola a una persona sin evidencia externa corroborante."
+  limitations: "Una wallet no identifica por sí sola a una persona sin evidencia externa corroborante."
 };
 
 const blockchainExplorerCatalog = [
@@ -1156,7 +1160,7 @@ function prettySpanish(value = "") {
     .replace(/\bDano\b/g, "Daño")
     .replace(/\bdano\b/g, "daño")
     .replace(/\bdanino\b/g, "dañino")
-    .replace(/\bDanino\b/g, "Da?ino")
+    .replace(/\bDanino\b/g, "Dañino")
     .replace(/\bengano\b/g, "engaño")
     .replace(/\bEngano\b/g, "Engaño")
     .replace(/\bilegitimo\b/g, "ilegítimo")
@@ -1291,8 +1295,31 @@ function EmptyState({ text }: { text: string }) {
   return <div className="empty">{text}</div>;
 }
 
-function JsonPanel({ data }: { data: unknown }) {
-  return <pre>{data ? JSON.stringify(data, null, 2) : "Sin resultados todavia."}</pre>;
+function formatPayloadValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "Sin dato";
+  if (typeof value === "boolean") return value ? "Sí" : "No";
+  if (typeof value === "number") return String(value);
+  if (typeof value === "string") return prettySpanish(value.replace(/_/g, " "));
+  if (Array.isArray(value)) return value.length ? value.map(formatPayloadValue).join(", ") : "Sin registros";
+  if (typeof value === "object") return "Información disponible";
+  return String(value);
+}
+
+function DataPanel({ data, empty = "Sin resultados todavía." }: { data: unknown; empty?: string }) {
+  if (!data) return <EmptyState text={empty} />;
+  if (typeof data !== "object") return <div className="readable-panel">{formatPayloadValue(data)}</div>;
+  const entries = Object.entries(data as Record<string, unknown>).filter(([, value]) => value !== undefined && value !== null);
+  if (!entries.length) return <EmptyState text={empty} />;
+  return (
+    <div className="readable-panel">
+      {entries.slice(0, 12).map(([key, value]) => (
+        <div className="readable-row" key={key}>
+          <span>{prettySpanish(key.replace(/_/g, " "))}</span>
+          <strong>{formatPayloadValue(value)}</strong>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function StepCard({
@@ -1763,7 +1790,10 @@ export function App() {
       if (options.focusIdentity) setActive("identity");
       return;
     }
-    setError(raw || fallback);
+    const message = raw.includes("Failed to fetch")
+      ? "No se pudo conectar con el backend local. Verificá que la API esté levantada y volvé a intentar."
+      : prettySpanish(raw || fallback);
+    setError(message);
   }
 
   function handleMindError(err: unknown, fallback: string) {
@@ -1772,7 +1802,10 @@ export function App() {
       setMindMessage("Acción protegida. Inicia sesión en Usuarios para guardar memoria, snapshots o auditoría.");
       return;
     }
-    setMindMessage(fallback);
+    const message = raw.includes("Failed to fetch")
+      ? "No se pudo conectar con el backend local. Verificá que la API esté levantada y volvé a intentar."
+      : prettySpanish(raw || fallback);
+    setMindMessage(message);
   }
 
   async function createMindNote(event: FormEvent) {
@@ -2238,7 +2271,7 @@ export function App() {
   }
 
   async function deleteParticipant(id: number) {
-    if (!confirm("Eliminar participante del caso?")) return;
+    if (!confirm("?¿¿Eliminar participante del caso?")) return;
     await apiDelete(`/cases/participants/${id}`);
     await refreshCaseCollections(selectedCaseId);
   }
@@ -2270,7 +2303,7 @@ export function App() {
   }
 
   async function deleteEvidence(id: number) {
-    if (!confirm("Eliminar evidencia? Esta accion debe quedar reservada a correcciones controladas.")) return;
+    if (!confirm("¿Eliminar evidencia? Esta acción debe quedar reservada a correcciones controladas.")) return;
     await apiDelete(`/evidence/${id}`);
     await refreshCaseCollections(selectedCaseId);
   }
@@ -2312,7 +2345,7 @@ export function App() {
   }
 
   async function deleteCustodyAction(id: number) {
-    if (!confirm("Eliminar accion de custodia? Usar solo para correcciones controladas.")) return;
+    if (!confirm("¿Eliminar acción de custodia? Usar solo para correcciones controladas.")) return;
     await apiDelete(`/evidence/custody-actions/${id}`);
     await refreshCaseCollections(selectedCaseId);
   }
@@ -2386,7 +2419,7 @@ export function App() {
         technical_finding: indicatorResult.findings.join("\n"),
         explanation: `El indicador ${indicatorResult.indicator} fue clasificado con riesgo ${prettySpanish(indicatorResult.risk_level)} y confianza ${prettySpanish(indicatorResult.confidence)}.`,
         confidence_level: indicatorResult.confidence,
-        weaknesses_or_limitations: "El análisis de indicador no prueba autoría por si solo; requiere correlaci?n con evidencia preservada, fuentes externas verificables y revisión humana.",
+        weaknesses_or_limitations: "El análisis de indicador no prueba autoría por sí solo; requiere correlación con evidencia preservada, fuentes externas verificables y revisión humana.",
         tools_used: "OPERIA Cybercrime Indicator Analyzer",
         supporting_evidence: latestEvidence ? `Evidencia #${latestEvidence.id}: ${latestEvidence.description}` : "Pendiente de vincular con evidencia preservada.",
         preliminary_legal_relevance: indicatorResult.legal_relevance,
@@ -2439,7 +2472,7 @@ export function App() {
   async function createCyberProofRow(event: FormEvent) {
     event.preventDefault();
     if (!selectedCaseId) {
-      setError("Selecciona un caso antes de guardar una conclusi?n cybercrime.");
+      setError("Selecciona un caso antes de guardar una conclusión cybercrime.");
       return;
     }
     await apiPost<CyberProofRow>("/cybercrime/proof-matrix", {
@@ -2448,7 +2481,7 @@ export function App() {
       defensible_conclusion:
         cyberProofForm.defensible_conclusion ||
         `El indicador ${indicator} fue clasificado como ${indicatorResult?.indicator_type || "dato técnico"} con riesgo ${indicatorResult?.risk_level || "medio"}.`,
-      legal_framing: cyberProofForm.legal_framing || "Requiere vinculaci?n con evidencia preservada y encuadre legal aprobado por analista."
+      legal_framing: cyberProofForm.legal_framing || "Requiere vinculación con evidencia preservada y encuadre legal aprobado por analista."
     });
     setCyberProofForm({ defensible_conclusion: "", legal_framing: "", confidence_level: "medio", weakness: "" });
     await refreshCybercrime();
@@ -2510,7 +2543,7 @@ export function App() {
         analyst_name: analystName || identitySession.user?.name || "Analista local",
         fraud: text.includes("fraude") || text.includes("estafa") || text.includes("transferencia"),
         document_falsity: analysis.media_type === "documento" || text.includes("documento") || text.includes("certificado"),
-        honor_affectation: text.includes("honor") || text.includes("reputaci?n") || text.includes("reputacion"),
+        honor_affectation: text.includes("honor") || text.includes("reputación") || text.includes("reputacion"),
         personal_data: true,
         intellectual_property: true
       });
@@ -2585,10 +2618,10 @@ export function App() {
       route_order: String(transaction.route_order || ""),
       include_in_report: transaction.include_in_report !== false,
       preservation_checklist: transaction.preservation_checklist || "",
-      limitations: transaction.limitations || "Una wallet no identifica por s? sola a una persona sin evidencia externa corroborante."
+      limitations: transaction.limitations || "Una wallet no identifica por sí sola a una persona sin evidencia externa corroborante."
     });
     setBlockchainState("idle");
-    setBlockchainMessage(`Editando salto blockchain #${transaction.id}. Guardar actualizar? el registro y asentar? custodia.`);
+    setBlockchainMessage(`Editando salto blockchain #${transaction.id}. Al guardar, se actualizará el registro y se asentará custodia.`);
   }
 
   function cancelBlockchainEdit() {
@@ -2807,7 +2840,7 @@ export function App() {
       analyst_rationale:
         decision_status === "aprobado"
           ? "Norma reactivada por el analista luego de revisión."
-          : "Norma retirada del encuadre por correcci?n del analista.",
+          : "Norma retirada del encuadre por corrección del analista.",
       legal_role: mapping.legal_role,
       applicability_to_case: mapping.applicability_to_case,
       probatory_limits: mapping.probatory_limits,
@@ -3052,7 +3085,7 @@ export function App() {
     try {
       await updateRubricEvaluation();
       setCtfDashboardState("success");
-      setCtfDashboardMessage("Rúbrica evaluada. Revisa el semáforo de preparaci?n.");
+      setCtfDashboardMessage("Rúbrica evaluada. Revisa el semáforo de preparación.");
     } catch (error) {
       setCtfDashboardState("error");
       setCtfDashboardMessage(error instanceof Error ? error.message : "No se pudo evaluar la rúbrica.");
@@ -3131,7 +3164,7 @@ export function App() {
       return;
     }
     setLegalApplyState(createSuggestions ? "applying" : "idle");
-    setLegalApplyMessage(createSuggestions ? "Aplicando tipificacion al caso..." : "");
+    setLegalApplyMessage(createSuggestions ? "Aplicando tipificación al caso..." : "");
     try {
       const result = await apiPost<LegalTypificationResult>(`/ai/case/${selectedCaseId}/legal-typification`, {
         focus: focusOverride || aiPrompt,
@@ -3144,12 +3177,12 @@ export function App() {
         setLegalApplyState("applied");
         setLegalApplyMessage(
           result.suggested_mapping_ids.length
-            ? `Tipificacion aplicada: ${result.suggested_mapping_ids.length} norma(s) sugerida(s) incorporada(s) al caso.`
-            : "La tipificacion ya estaba incorporada al caso; no se duplicaron normas."
+            ? `Tipificación aplicada: ${result.suggested_mapping_ids.length} norma(s) sugerida(s) incorporada(s) al caso.`
+            : "La tipificación ya estaba incorporada al caso; no se duplicaron normas."
         );
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "No se pudo aplicar la tipificacion al caso.";
+      const message = error instanceof Error ? error.message : "No se pudo aplicar la tipificación al caso.";
       setLegalApplyState("error");
       setLegalApplyMessage(message);
     }
@@ -3364,7 +3397,7 @@ export function App() {
         ) : null}
         {result.status && !result.response && (
           <div className="notice">
-            No se gener? texto adicional. Us? la tipificaci?n legal y la matriz probatoria para sostener el informe.
+            No se generó texto adicional. Usá la tipificación legal y la matriz probatoria para sostener el informe.
           </div>
         )}
         {legalApplyMessage && (
@@ -3517,7 +3550,7 @@ export function App() {
             </div>
           </div>
           <div className="inline-grid">
-            <input placeholder="Fecha base o per?odo" value={damageForm.base_date} onChange={(e) => setDamageForm({ ...damageForm, base_date: e.target.value })} />
+            <input placeholder="Fecha base o período" value={damageForm.base_date} onChange={(e) => setDamageForm({ ...damageForm, base_date: e.target.value })} />
             <select value={damageForm.certainty_level} onChange={(e) => setDamageForm({ ...damageForm, certainty_level: e.target.value })}>
               <option value="alto">Certeza alta</option>
               <option value="medio">Certeza media</option>
@@ -3525,7 +3558,7 @@ export function App() {
             </select>
           </div>
           <textarea placeholder="Fuente del valor: comprobante, factura, extracto, presupuesto, ticket o declaración documentada" value={damageForm.value_source} onChange={(e) => setDamageForm({ ...damageForm, value_source: e.target.value })} />
-          <textarea placeholder="F?rmula o criterio de c?lculo utilizado" value={damageForm.formula_used} onChange={(e) => setDamageForm({ ...damageForm, formula_used: e.target.value })} />
+          <textarea placeholder="Fórmula o criterio de cálculo utilizado" value={damageForm.formula_used} onChange={(e) => setDamageForm({ ...damageForm, formula_used: e.target.value })} />
           <textarea placeholder="Evidencia que sostiene el rubro: hash, archivo, captura, transacción, factura o constancia" value={damageForm.supporting_evidence} onChange={(e) => setDamageForm({ ...damageForm, supporting_evidence: e.target.value })} />
           <textarea placeholder="Observaciones, límites o datos faltantes" value={damageForm.observations} onChange={(e) => setDamageForm({ ...damageForm, observations: e.target.value })} />
           <button disabled={!selectedCaseId || damageState === "saving"}><Calculator size={17} /> Registrar daño económico</button>
@@ -3539,13 +3572,13 @@ export function App() {
               <div>
                 <strong>{prettySpanish(item.concept)}</strong>
                 <span>{formatMoney(Number(item.amount || 0), item.currency)} ? Certeza {prettySpanish(item.certainty_level)}</span>
-                {item.formula_used && <small>F?rmula: {prettySpanish(item.formula_used)}</small>}
+                {item.formula_used && <small>Fórmula: {prettySpanish(item.formula_used)}</small>}
                 {item.value_source && <small>Fuente: {prettySpanish(item.value_source)}</small>}
                 {item.supporting_evidence && <small>Soporte: {prettySpanish(item.supporting_evidence)}</small>}
               </div>
             </article>
           ))}
-          {!damageItems.length && <EmptyState text="Todavía no hay rubros económicos cargados. El informe mostrar? 0.00 ARS hasta que registres al menos un concepto." />}
+          {!damageItems.length && <EmptyState text="Todavía no hay rubros económicos cargados. El informe mostrará 0.00 ARS hasta que registres al menos un concepto." />}
         </div>
       </div>
     );
@@ -3586,8 +3619,8 @@ export function App() {
         <div className="step-grid">
           <StepCard number={1} title="Crear un caso" done={Boolean(selectedCase)}>
             <form className="compact-form" onSubmit={createCase}>
-              <input placeholder="C?digo del caso" value={caseForm.case_code} onChange={(e) => setCaseForm({ ...caseForm, case_code: e.target.value })} required />
-              <input placeholder="T?tulo" value={caseForm.title} onChange={(e) => setCaseForm({ ...caseForm, title: e.target.value })} required />
+              <input placeholder="Código del caso" value={caseForm.case_code} onChange={(e) => setCaseForm({ ...caseForm, case_code: e.target.value })} required />
+              <input placeholder="Título" value={caseForm.title} onChange={(e) => setCaseForm({ ...caseForm, title: e.target.value })} required />
               <select
                 value={caseForm.incident_type}
                 onChange={(e) => {
@@ -3598,7 +3631,7 @@ export function App() {
               >
                 {attackTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
               </select>
-              <textarea placeholder="Descripci?n inicial" value={caseForm.description} onChange={(e) => setCaseForm({ ...caseForm, description: e.target.value })} />
+              <textarea placeholder="Descripción inicial" value={caseForm.description} onChange={(e) => setCaseForm({ ...caseForm, description: e.target.value })} />
               <button><Briefcase size={17} /> Crear caso</button>
             </form>
           </StepCard>
@@ -3648,7 +3681,7 @@ export function App() {
 
           <StepCard number={3} title="Cargar evidencia y calcular hash" done={Boolean(latestEvidence?.sha256_hash)}>
             <form className="compact-form" onSubmit={uploadEvidence}>
-              <textarea placeholder="Descripci?n de evidencia" value={evidenceForm.description} onChange={(e) => setEvidenceForm({ ...evidenceForm, description: e.target.value })} required />
+              <textarea placeholder="Descripción de evidencia" value={evidenceForm.description} onChange={(e) => setEvidenceForm({ ...evidenceForm, description: e.target.value })} required />
               <input placeholder="Responsable" value={evidenceForm.responsible} onChange={(e) => setEvidenceForm({ ...evidenceForm, responsible: e.target.value })} />
               <input placeholder="Custodio" value={evidenceForm.custodian} onChange={(e) => setEvidenceForm({ ...evidenceForm, custodian: e.target.value })} />
               <input type="file" onChange={(e) => setEvidenceFile(e.target.files?.[0] || null)} />
@@ -3661,7 +3694,7 @@ export function App() {
             <form className="compact-form" onSubmit={createCustodyAction}>
               <input placeholder="Accion" value={custodyForm.action_type} onChange={(e) => setCustodyForm({ ...custodyForm, action_type: e.target.value })} />
               <input placeholder="Responsable" value={custodyForm.user_responsible} onChange={(e) => setCustodyForm({ ...custodyForm, user_responsible: e.target.value })} />
-              <textarea placeholder="Detalle de la accion" value={custodyForm.detailed_description} onChange={(e) => setCustodyForm({ ...custodyForm, detailed_description: e.target.value })} required />
+              <textarea placeholder="Detalle de la acción" value={custodyForm.detailed_description} onChange={(e) => setCustodyForm({ ...custodyForm, detailed_description: e.target.value })} required />
               <button disabled={!selectedCaseId}><Fingerprint size={17} /> Registrar custodia</button>
             </form>
           </StepCard>
@@ -3689,16 +3722,16 @@ export function App() {
             )}
             {legalTypification?.principal_typification ? (
               <div className="typification-card compact">
-                <span>{legalTypification.profile?.label || "Tipificacion asistida"}</span>
+                <span>{legalTypification.profile?.label || "Tipificación asistida"}</span>
                 <h3>{legalTypification.principal_typification.reference} ? {prettySpanish(legalTypification.principal_typification.title)}</h3>
                 <p>{prettySpanish(legalTypification.principal_typification.applicability_to_case)}</p>
                 <small>Elementos: {prettySpanish(legalTypification.principal_typification.why)}</small>
-                <small>L?mites: {prettySpanish(legalTypification.principal_typification.probatory_limits)}</small>
+                <small>Límites: {prettySpanish(legalTypification.principal_typification.probatory_limits)}</small>
                 <div className="readiness-bar"><div style={{ width: `${legalTypification.readiness_score}%` }} /></div>
                 <small>Confianza {prettySpanish(legalTypification.confidence)} ? {prettySpanish(legalTypification.decision_level)}</small>
               </div>
             ) : (
-              <EmptyState text="Describe el incidente y ejecuta la tipificacion. OPERIA sugerira la norma principal y conexas." />
+              <EmptyState text="Describe el incidente y ejecuta la tipificación. OPERIA sugerirá la norma principal y conexas." />
             )}
             {legalTypification?.connected_typifications?.length ? (
               <div className="mini-list">
@@ -3715,11 +3748,11 @@ export function App() {
           </StepCard>
 
           <StepCard number={7} title="Cuantificar daño económico" done={damageItems.length > 0}>
-            <p className="muted">Carga rubros, fuentes y f?rmulas. El informe final usa ?nicamente conceptos asociados a este caso.</p>
+            <p className="muted">Carga rubros, fuentes y f?rmulas. El informe final usa únicamente conceptos asociados a este caso.</p>
             {renderDamagePanel()}
           </StepCard>
 
-          <StepCard number={8} title="Ampliar análisis técnico-jur?dico" done={Boolean(aiResult)}>
+          <StepCard number={8} title="Ampliar análisis técnico-jurídico" done={Boolean(aiResult)}>
             <div className="compact-form">
               <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} />
               <button onClick={runAiAssist}><Bot size={17} /> {latestReport ? "Ampliar informe" : "Analizar caso"}</button>
@@ -3824,28 +3857,28 @@ export function App() {
       { key: "evidence", label: "Evidencia cargada", value: `${evidence.length}`, status: evidence.length ? "listo" : "incompleto", detail: evidence.length ? "Hay evidencia asociada al caso." : "Carga evidencia y preserva el archivo o fuente." },
       { key: "hashes", label: "Hashes completos", value: `${hashedEvidence}/${evidence.length || 0}`, status: evidence.length && hashedEvidence === evidence.length ? "listo" : evidence.length ? "parcial" : "incompleto", detail: evidence.length ? "Verifica SHA-256 en cada evidencia." : "Primero carga evidencia." },
       { key: "custody", label: "Cadena de custodia", value: `${custody.length}`, status: custody.length ? "listo" : "incompleto", detail: custody.length ? "Acciones de custodia registradas." : "Registra preservación, responsable y procedimiento." },
-      { key: "deepfake", label: "Deepfake / medios", value: `${deepfakeAnalyses.length}`, status: deepfakeAnalyses.length ? "listo" : "parcial", detail: deepfakeAnalyses.length ? "Hay análisis de autenticación de medios." : "Opcional seg?n el caso; ?salo si hay imagen, video o audio." },
-      { key: "blockchain", label: "Blockchain", value: `${blockchainTransactions.length}`, status: blockchainTransactions.length ? "listo" : "parcial", detail: blockchainTransactions.length ? "Hay transacciones registradas." : "Opcional seg?n el caso; ?salo si hay wallets, pagos o tx hash." },
-      { key: "iot", label: "IoT", value: `${iotDevices.length}`, status: iotDevices.length ? "listo" : "parcial", detail: iotDevices.length ? "Hay dispositivos IoT registrados." : "Opcional seg?n el caso; ?salo si hay cámaras, sensores o dispositivos." },
+      { key: "deepfake", label: "Deepfake / medios", value: `${deepfakeAnalyses.length}`, status: deepfakeAnalyses.length ? "listo" : "parcial", detail: deepfakeAnalyses.length ? "Hay análisis de autenticación de medios." : "Opcional según el caso; úsalo si hay imagen, video o audio." },
+      { key: "blockchain", label: "Blockchain", value: `${blockchainTransactions.length}`, status: blockchainTransactions.length ? "listo" : "parcial", detail: blockchainTransactions.length ? "Hay transacciones registradas." : "Opcional según el caso; úsalo si hay wallets, pagos o tx hash." },
+      { key: "iot", label: "IoT", value: `${iotDevices.length}`, status: iotDevices.length ? "listo" : "parcial", detail: iotDevices.length ? "Hay dispositivos IoT registrados." : "Opcional según el caso; úsalo si hay cámaras, sensores o dispositivos." },
       { key: "legal", label: "Normas aplicadas", value: `${approvedLegalMappings}`, status: approvedLegalMappings ? "listo" : "incompleto", detail: approvedLegalMappings ? "Existe encuadre legal aprobado o sugerido." : "Tipifica el incidente desde biblioteca legal registrada." },
       { key: "findings", label: "Hallazgos", value: `${technicalFindingCount}`, status: hasTechnicalFindings ? "listo" : "incompleto", detail: hasTechnicalFindings ? "Hay hallazgos o matriz técnica/probatoria." : "Guarda hallazgos desde Cybercrime o laboratorios." },
-      { key: "report", label: "Informe generado", value: reports.length ? "S?" : "No", status: reports.length ? "listo" : "incompleto", detail: reports.length ? latestReport?.title || "Informe disponible." : "Genera el informe integral." },
+      { key: "report", label: "Informe generado", value: reports.length ? "Sí" : "No", status: reports.length ? "listo" : "incompleto", detail: reports.length ? latestReport?.title || "Informe disponible." : "Genera el informe integral." },
       { key: "review", label: "Informe revisado", value: latestReport ? `${latestReport.review_score}/100` : "Sin revisión", status: reportReviewed ? "listo" : latestReport ? "parcial" : "incompleto", detail: reportReviewed ? "La revisión supera el umbral operativo." : "Ejecuta revisión y corrige advertencias." },
       { key: "export", label: "PDF exportado", value: `${pdfExports.length}`, status: pdfExports.length ? "listo" : "incompleto", detail: pdfExports.length ? "Hay exportación registrada." : "Exporta PDF con manifiesto antes de entregar." },
-      { key: "rubric", label: "Rúbrica completada", value: rubricEvaluation ? `${rubricEvaluation.percentage}%` : "Sin evaluar", status: rubricEvaluation ? (rubricPercent >= 80 ? "listo" : rubricPercent >= 50 ? "parcial" : "crítico") : "incompleto", detail: rubricEvaluation ? rubricEvaluation.summary : "Eval?a la rúbrica del desaf?o." },
+      { key: "rubric", label: "Rúbrica completada", value: rubricEvaluation ? `${rubricEvaluation.percentage}%` : "Sin evaluar", status: rubricEvaluation ? (rubricPercent >= 80 ? "listo" : rubricPercent >= 50 ? "parcial" : "crítico") : "incompleto", detail: rubricEvaluation ? rubricEvaluation.summary : "Eval?a la rúbrica del desafío." },
     ];
     const statusWeight: Record<string, number> = { listo: 1, parcial: 0.55, incompleto: 0, ["crítico"]: 0 };
     const ctfScore = Math.round((ctfItems.reduce((total, item) => total + statusWeight[item.status], 0) / ctfItems.length) * 100);
     const criticalCount = ctfItems.filter((item) => item.status === "crítico").length;
     const incompleteCount = ctfItems.filter((item) => item.status === "incompleto").length;
-    const ctfLevel = criticalCount ? "Cr?tico" : ctfScore >= 82 ? "Listo" : ctfScore >= 52 ? "Parcial" : "Incompleto";
+    const ctfLevel = criticalCount ? "Crítico" : ctfScore >= 82 ? "Listo" : ctfScore >= 52 ? "Parcial" : "Incompleto";
     const ctfLevelClass = criticalCount ? "critical" : ctfScore >= 82 ? "ready" : ctfScore >= 52 ? "partial" : "incomplete";
     const ctfMissing = ctfItems.filter((item) => item.status === "crítico" || item.status === "incompleto").slice(0, 6);
     const currentCaseReadiness = [
       { label: "Caso seleccionado", ok: Boolean(selectedCase), detail: selectedCase?.case_code || "Sin caso" },
       { label: "Evidencia preservada", ok: evidence.length > 0, detail: `${evidence.length} evidencia(s)` },
       { label: "Custodia", ok: custody.length > 0, detail: `${custody.length} accion(es)` },
-      { label: "Tipificacion legal", ok: legalMappings.some((item) => item.decision_status !== "descartado"), detail: `${legalMappings.length} mapeo(s)` },
+      { label: "Tipificación legal", ok: legalMappings.some((item) => item.decision_status !== "descartado"), detail: `${legalMappings.length} mapeo(s)` },
       { label: "Informe", ok: reports.length > 0, detail: latestReport ? professionalReportStatus(latestReport.status) : "Sin informe" },
       { label: "Revision", ok: Boolean(latestReport && latestReport.review_score >= 80), detail: latestReport ? `Score ${latestReport.review_score}` : "Sin revisión" },
     ];
@@ -3930,7 +3963,7 @@ export function App() {
             ))}
           </div>
           <div className={`ctf-guidance ${ctfLevelClass}`}>
-            <strong>{ctfLevel === "Listo" ? "El caso est? cerca de una entrega defendible." : "Qué falta para mejorar la entrega"}</strong>
+            <strong>{ctfLevel === "Listo" ? "El caso está cerca de una entrega defendible." : "Qué falta para mejorar la entrega"}</strong>
             {ctfMissing.length ? (
               ctfMissing.map((item) => <span key={item.key}>{item.label}: {item.detail}</span>)
             ) : (
@@ -3980,7 +4013,7 @@ export function App() {
         </div>
         <div className="case-list">
           <div className="case-list-header">
-            <span>C?digo</span>
+            <span>Código</span>
             <span>Expediente</span>
             <span>Tipo</span>
             <span>Estado</span>
@@ -4062,7 +4095,7 @@ export function App() {
                     <span>{prettySpanish(item.incident_type)}</span>
                     <span>?ltima actividad: {formatHistoryDate(item.updated_at || item.created_at)}</span>
                   </div>
-                  <p>{item.description ? prettySpanish(item.description) : "Sin descripci?n inicial registrada."}</p>
+                  <p>{item.description ? prettySpanish(item.description) : "Sin descripción inicial registrada."}</p>
                   <div className="history-footnote">
                     <span>Flujo de trabajo, informes y exportaciones permanecen asociados a este caso.</span>
                   </div>
@@ -4106,7 +4139,7 @@ export function App() {
     const legalRows = legalProbatoryMatrix?.rows || [];
     const latestAudit = auditLogs[0];
     const readinessItems = [
-      { label: "Narrativa del caso", ok: Boolean(selectedCase?.description), detail: selectedCase?.description ? "Cargada" : "Falta descripci?n inicial" },
+      { label: "Narrativa del caso", ok: Boolean(selectedCase?.description), detail: selectedCase?.description ? "Cargada" : "Falta descripción inicial" },
       { label: "Participantes", ok: participants.length > 0, detail: `${participants.length} registro(s)` },
       { label: "Evidencia preservada", ok: evidence.length > 0, detail: `${evidence.length} evidencia(s)` },
       { label: "Hashes", ok: evidence.length > 0 && evidence.every((item) => Boolean(item.sha256_hash)), detail: evidence.length ? "Integridad verificable" : "Sin archivos" },
@@ -4137,7 +4170,7 @@ export function App() {
             <div>
               <strong>{prettySpanish(item.display_name)}</strong>
               <span>{prettySpanish(item.participant_type)} | {prettySpanish(item.person_type)} | {prettySpanish(item.sensitivity_level)}</span>
-              <small>{prettySpanish(item.relationship_to_case || item.role_description || "Relaci?n pendiente")}</small>
+              <small>{prettySpanish(item.relationship_to_case || item.role_description || "Relación pendiente")}</small>
             </div>
             <div className="record-actions">
               <button className="icon-button" onClick={() => setEditingParticipant(item)} title="Editar"><Save size={15} /></button>
@@ -4211,7 +4244,7 @@ export function App() {
             <div>
               <strong>{item.norm_reference} ? {prettySpanish(item.legal_element)}</strong>
               <span>{prettySpanish(item.element_status)} | fuerza {prettySpanish(item.probatory_strength)} | riesgo {prettySpanish(item.contradiction_risk)}</span>
-              <small>{item.evidence_description || item.missing_evidence || "Sin v?nculo probatorio registrado."}</small>
+              <small>{item.evidence_description || item.missing_evidence || "Sin vínculo probatorio registrado."}</small>
             </div>
           </div>
         ))}
@@ -4532,7 +4565,7 @@ export function App() {
                     </button>
                   ))}
                 </div>
-                <p className="notice">La versi?n final solo se permite si el checklist pericial est? completo.</p>
+                <p className="notice">La versión final solo se permite si el checklist pericial está completo.</p>
               </div>
             </div>
             <div className="preview-grid">
@@ -4564,7 +4597,7 @@ export function App() {
                 {reportPreview.annexes.items.map((item, index) => (
                   <div className="preview-section" key={`${item.type}-${index}`}>
                     <strong>{prettySpanish(item.title)}</strong>
-                    <span>{prettySpanish(item.type)} {item.sha256 ? `? SHA-256 ${item.sha256}` : ""}</span>
+                    <span>{prettySpanish(item.type)} {item.sha256 ? ` ? SHA-256 ${item.sha256}` : ""}</span>
                     <small>{prettySpanish(item.detail || item.integrity_status || `Elementos: ${item.rows || 1}`)}</small>
                   </div>
                 ))}
@@ -4896,11 +4929,11 @@ export function App() {
                 {item.warning && <div className="notice sensitive-warning">{prettySpanish(item.warning)}</div>}
                 <div className="legal-card-grid">
                   <small><strong>Aplicaci?n:</strong> {prettySpanish(item.applicability_to_case)}</small>
-                  <small><strong>L?mites:</strong> {prettySpanish(item.probatory_limits)}</small>
+                  <small><strong>Límites:</strong> {prettySpanish(item.probatory_limits)}</small>
                   <small><strong>Elementos objetivos:</strong> {prettySpanish(item.why)}</small>
                   <small><strong>Elemento subjetivo:</strong> {prettySpanish(item.subjective_elements)}</small>
                   <small><strong>Evidencia necesaria:</strong> {prettySpanish(item.evidence_needed)}</small>
-                  <small><strong>Relaci?n con incidente:</strong> {prettySpanish(item.incident_relations || legalRecommendation.profile?.label || "")}</small>
+                  <small><strong>Relación con incidente:</strong> {prettySpanish(item.incident_relations || legalRecommendation.profile?.label || "")}</small>
                   <small><strong>Fuente:</strong> {prettySpanish(item.source_title || "Fuente oficial registrada")} ? <a href={item.source_url} target="_blank" rel="noreferrer">ver oficial</a></small>
                 </div>
                 {item.precedents.length > 0 && <small>Jurisprudencia registrada: {item.precedents.length}</small>}
@@ -4921,7 +4954,7 @@ export function App() {
           <div className="section-head compact-head">
             <div>
               <h3>Mapeo legal aprobado por analista</h3>
-              <p>Normas aceptadas o descartadas para el caso seleccionado. Pod?s corregir art?culos y v?nculos sin borrar evidencia.</p>
+              <p>Normas aceptadas o descartadas para el caso seleccionado. Pod?s corregir art?culos y vínculos sin borrar evidencia.</p>
             </div>
             {legalQualityControl && (
               <span className={`badge ${legalQualityControl.risk_level === "bajo" ? "success" : ""}`}>
@@ -5002,7 +5035,7 @@ export function App() {
                       <input value={current.missing_evidence || ""} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, missing_evidence: event.target.value } })} placeholder="Evidencia faltante" />
                       <input value={current.recommended_measure || ""} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, recommended_measure: event.target.value } })} placeholder="Medida recomendada" />
                       <div className="button-row">
-                        <button onClick={() => saveLegalLink(link)}><Save size={16} /> Guardar v?nculo</button>
+                        <button onClick={() => saveLegalLink(link)}><Save size={16} /> Guardar vínculo</button>
                         <button className="secondary-button" onClick={() => unlinkLegalEvidence(link.id)}><Trash2 size={16} /> Desvincular</button>
                       </div>
                     </div>
@@ -5024,7 +5057,7 @@ export function App() {
               <div className="record" key={`${row.mapping_id}-${row.legal_element}-${index}`}>
                 <strong>{row.norm_reference} ? {row.legal_element}</strong>
                 <span>{row.element_status} ? fuerza {row.probatory_strength} ? riesgo {row.contradiction_risk}</span>
-                {row.evidence_id && <small>#{row.evidence_id} {row.evidence_description} {row.evidence_hash ? `? SHA-256 ${row.evidence_hash}` : ""}</small>}
+                {row.evidence_id && <small>#{row.evidence_id} {row.evidence_description} {row.evidence_hash ? ` ? SHA-256 ${row.evidence_hash}` : ""}</small>}
                 {row.missing_evidence && <small>{prettySpanish(row.missing_evidence)}</small>}
                 {row.recommended_measure && <em>{prettySpanish(row.recommended_measure)}</em>}
               </div>
@@ -5132,7 +5165,7 @@ export function App() {
             </div>
             <input placeholder="Título de sesión" value={cyberLabForm.title} onChange={(e) => setCyberLabForm({ ...cyberLabForm, title: e.target.value })} />
             <div className="inline-grid">
-              <input placeholder="Prop?sito" value={cyberLabForm.purpose} onChange={(e) => setCyberLabForm({ ...cyberLabForm, purpose: e.target.value })} />
+              <input placeholder="Propósito" value={cyberLabForm.purpose} onChange={(e) => setCyberLabForm({ ...cyberLabForm, purpose: e.target.value })} />
               <select value={cyberLabForm.risk_level} onChange={(e) => setCyberLabForm({ ...cyberLabForm, risk_level: e.target.value })}>
                 <option value="bajo">Riesgo bajo</option>
                 <option value="medio">Riesgo medio</option>
@@ -5247,9 +5280,9 @@ export function App() {
             <textarea placeholder="Hallazgos técnicos observados" value={deepfakeForm.findings} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, findings: e.target.value })} />
             <textarea placeholder="Limitaciones del análisis" value={deepfakeForm.limitations} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, limitations: e.target.value })} />
             <select value={deepfakeForm.classification} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, classification: e.target.value })}>
-              <option value="aut?ntico preliminar">Aut?ntico preliminar</option>
+              <option value="auténtico preliminar">Auténtico preliminar</option>
               <option value="manipulado probable">Manipulado probable</option>
-              <option value="indicios de edici?n">Indicios de edici?n</option>
+              <option value="indicios de edición">Indicios de edición</option>
               <option value="no concluyente">No concluyente</option>
               <option value="requiere pericia especializada">Requiere pericia especializada</option>
             </select>
@@ -5276,7 +5309,7 @@ export function App() {
                 </label>
               ))}
             </div>
-            <p className="notice">La clasificaci?n es preliminar: no prueba por s? sola autenticidad, falsedad, autor?a ni origen del archivo.</p>
+            <p className="notice">La clasificación es preliminar: no prueba por sí sola autenticidad, falsedad, autor?a ni origen del archivo.</p>
           </div>
         </div>
 
@@ -5288,7 +5321,7 @@ export function App() {
                 <div className="panel-head">
                   <div>
                     <span>{analysis.media_type} ? {analysis.classification}</span>
-                    <h3>Análisis #{analysis.id} {analysis.evidence_id ? `? Evidencia #${analysis.evidence_id}` : ""}</h3>
+                    <h3>Análisis #{analysis.id} {analysis.evidence_id ? ` ? Evidencia #${analysis.evidence_id}` : ""}</h3>
                   </div>
                   <div className="route-status-stack">
                     <span className={`readiness-badge ${quality.status}`}>{quality.score}/100 ? {quality.status}</span>
@@ -5302,12 +5335,12 @@ export function App() {
                     <span>Preserva una observaci?n técnica sobre imagen, video, audio, documento o captura vinculada al caso.</span>
                   </div>
                   <div>
-                    <strong>Qué no acredita por s? solo</strong>
+                    <strong>Qué no acredita por sí solo</strong>
                     <span>Autor?a, autenticidad definitiva, falsedad penal o identidad del generador sin pericia y corroboración externa.</span>
                   </div>
                   <div>
                     <strong>Qué hacer ahora</strong>
-                    <span>{quality.status === "listo" ? "Puede pasar al informe con límites periciales." : `Completar: ${quality.missing.slice(0, 3).join(", ") || "validaci?n"}.`}</span>
+                    <span>{quality.status === "listo" ? "Puede pasar al informe con límites periciales." : `Completar: ${quality.missing.slice(0, 3).join(", ") || "validación"}.`}</span>
                   </div>
                 </div>
                 <div className="legal-card-grid">
@@ -5416,7 +5449,7 @@ export function App() {
             </div>
             {editingBlockchainId && (
               <div className="notice">
-                Est?s editando una transacción existente. Al guardar, OPERIA registrar? la actualizaci?n en custodia.
+                Estás editando una transacción existente. Al guardar, OPERIA registrará la actualización en custodia.
               </div>
             )}
             <div className="inline-grid">
@@ -5475,7 +5508,7 @@ export function App() {
                 <Globe2 size={16} /> Usar URL sugerida
               </button>
             </div>
-            <input placeholder="Herramienta usada / explorador / m?todo" value={blockchainForm.tool_used} onChange={(e) => setBlockchainForm({ ...blockchainForm, tool_used: e.target.value })} />
+            <input placeholder="Herramienta usada / explorador / método" value={blockchainForm.tool_used} onChange={(e) => setBlockchainForm({ ...blockchainForm, tool_used: e.target.value })} />
             <div className="preservation-card">
               <strong>Acta m?nima de consulta</strong>
               <span>Fuente: {blockchainForm.explorer_url || "URL del explorador pendiente"}</span>
@@ -5491,7 +5524,7 @@ export function App() {
               </button>
               {editingBlockchainId && (
                 <button className="secondary-button" type="button" onClick={cancelBlockchainEdit}>
-                  Cancelar edici?n
+                  Cancelar edición
                 </button>
               )}
             </div>
@@ -5580,7 +5613,7 @@ export function App() {
           <div className="panel-head">
             <div>
               <h3>Anexo blockchain para informe</h3>
-              <p>Resumen de los elementos que OPERIA incorporar? al informe final si est?n vinculados al caso activo.</p>
+              <p>Resumen de los elementos que OPERIA incorporará al informe final si están vinculados al caso activo.</p>
             </div>
             <span className={`readiness-badge ${moduleStatus}`}>{moduleScore}/100</span>
           </div>
@@ -5602,7 +5635,7 @@ export function App() {
               <span>{formatMoneyARS(routeOverview.totalARS)}</span>
             </div>
           </div>
-          <p className="notice">El anexo no atribuye identidad personal por s? solo: documenta trazabilidad económica, fuente consultada, límites y medidas pendientes.</p>
+          <p className="notice">El anexo no atribuye identidad personal por sí solo: documenta trazabilidad económica, fuente consultada, límites y medidas pendientes.</p>
         </div>
 
         <div className="detail-panel blockchain-intel-panel">
@@ -5625,7 +5658,7 @@ export function App() {
               <h4>Requerimientos sugeridos</h4>
               <div className="summary-list">
                 {routeOverview.recommendedRequests.map((item) => <span key={item}>{item}</span>)}
-                {!routeOverview.recommendedRequests.length && <span>La ruta registrada no exige requerimientos adicionales autom?ticos.</span>}
+                {!routeOverview.recommendedRequests.length && <span>La ruta registrada no exige requerimientos adicionales automáticos.</span>}
               </div>
             </div>
             <div>
@@ -5690,7 +5723,7 @@ export function App() {
               )}
             </>
           ) : (
-            <EmptyState text="Registra dos o m?s transacciones para visualizar una ruta multi-salto." />
+            <EmptyState text="Registra dos o más transacciones para visualizar una ruta multi-salto." />
           )}
         </div>
 
@@ -5735,12 +5768,12 @@ export function App() {
                     <span>Movimiento o indicador económico observado en una red blockchain, condicionado por la fuente preservada.</span>
                   </div>
                   <div>
-                    <strong>Qué no acredita por s? solo</strong>
+                    <strong>Qué no acredita por sí solo</strong>
                     <span>Identidad civil, autor?a penal, dolo o control humano efectivo de la wallet.</span>
                   </div>
                   <div>
                     <strong>Qué hacer ahora</strong>
-                    <span>{quality.status === "listo" ? "Puede integrarse al informe con sus límites." : `Completar: ${quality.missing.slice(0, 3).join(", ") || "validaci?n pericial"}.`}</span>
+                    <span>{quality.status === "listo" ? "Puede integrarse al informe con sus límites." : `Completar: ${quality.missing.slice(0, 3).join(", ") || "validación pericial"}.`}</span>
                   </div>
                 </div>
                 <p>{item.route_hypothesis || "Hipótesis de ruta pendiente."}</p>
@@ -5999,24 +6032,24 @@ export function App() {
       {
         area: "Deepfake / Media",
         title: "Deepfake / Media Forensics",
-        text: "Autenticaci?n de imagen, video, audio, metadatos, compresi?n, frames y origen del contenido.",
-        warning: "Usar para verificaci?n, autenticación, investigaci?n leg?tima y preservación de evidencia. No usar para crear o difundir contenido engañoso."
+        text: "Autenticación de imagen, video, audio, metadatos, compresión, frames y origen del contenido.",
+        warning: "Usar para verificaci?n, autenticación, investigación legítima y preservación de evidencia. No usar para crear o difundir contenido engañoso."
       },
       {
         area: "Blockchain Transactions",
         title: "Blockchain Transactions",
         text: "Exploradores, wallets, contratos, grafos, trazabilidad de fondos y análisis de smart contracts.",
-        warning: "Respetar legislaci?n aplicable, privacidad, reglas probatorias y límites de investigaci?n autorizada."
+        warning: "Respetar legislación aplicable, privacidad, reglas probatorias y límites de investigación autorizada."
       },
       {
         area: "IoT Devices",
         title: "IoT Devices Forensics",
-        text: "Firmware, dispositivos, tr?fico, puertos, servicios, sistemas embebidos y análisis de laboratorio.",
-        warning: "Analizar ?nicamente dispositivos propios, entornos de laboratorio o sistemas con autorización expresa."
+        text: "Firmware, dispositivos, tráfico, puertos, servicios, sistemas embebidos y análisis de laboratorio.",
+        warning: "Analizar únicamente dispositivos propios, entornos de laboratorio o sistemas con autorización expresa."
       }
     ];
     const openExternalLink = (url: string, item: InventoryCyberTool, action: string) => {
-      const notice = item.externalExecutionNotice || "Vas a salir de Operia. El análisis, descarga o consulta se realizar? en una plataforma externa. Operia no procesa ni almacena tus datos.";
+      const notice = item.externalExecutionNotice || "Vas a salir de Operia. El análisis, descarga o consulta se realizará en una plataforma externa. Operia no procesa ni almacena tus datos.";
       const ok = window.confirm(`${notice}\n\nAcción: ${action}\nHerramienta: ${item.name}`);
       if (ok) window.open(url, "_blank", "noopener,noreferrer");
     };
@@ -6104,7 +6137,7 @@ export function App() {
           <div className="search-box">
             <Search size={18} />
             <input
-              placeholder="Buscar por herramienta, categor?a, descripci?n, tags o uso forense"
+              placeholder="Buscar por herramienta, categoría, descripción, tags o uso forense"
               value={externalToolQuery}
               onChange={(event) => setExternalToolQuery(event.target.value)}
             />
@@ -6117,7 +6150,7 @@ export function App() {
               {operatingSystems.map((os) => <option key={os}>{os}</option>)}
             </select>
             <select value={externalToolDifficulty} onChange={(event) => setExternalToolDifficulty(event.target.value)}>
-              {["Todas", "B?sico", "Intermedio", "Avanzado", "Experto"].map((level) => <option key={level}>{level}</option>)}
+              {["Todas", "Básico", "Intermedio", "Avanzado", "Experto"].map((level) => <option key={level}>{level}</option>)}
             </select>
             <select value={externalToolSpecialArea} onChange={(event) => setExternalToolSpecialArea(event.target.value)}>
               {specialAreas.map((area) => <option key={area}>{area}</option>)}
@@ -6180,13 +6213,13 @@ export function App() {
             </div>
             <div className="inventory-grid">
               {filteredTools.map(renderToolCard)}
-              {!filteredTools.length && <EmptyState text="No hay herramientas para esos filtros. Limpia filtros o busca por otra categor?a." />}
+              {!filteredTools.length && <EmptyState text="No hay herramientas para esos filtros. Limpia filtros o busca por otra categoría." />}
             </div>
           </div>
         </div>
 
         <footer className="inventory-footer">
-          Este inventario est? destinado a fines de informática forense, investigaci?n defensiva, respuesta a incidentes, auditoría autorizada, preservación de evidencia, docencia y análisis técnico-jur?dico. No debe utilizarse para acceder, interferir, explotar o analizar sistemas sin autorización expresa.
+          Este inventario est? destinado a fines de informática forense, investigación defensiva, respuesta a incidentes, auditoría autorizada, preservación de evidencia, docencia y análisis técnico-jurídico. No debe utilizarse para acceder, interferir, explotar o analizar sistemas sin autorización expresa.
         </footer>
       </section>
     );
@@ -6197,7 +6230,7 @@ export function App() {
       <section className="work-surface ai-legal-workbench">
         <div className="section-head">
           <div>
-            <h2>Asistente de Analisis y Tipificacion</h2>
+            <h2>Asistente de An?lisis y Tipificación</h2>
             <p>Asistencia local para vincular incidente, evidencia y biblioteca legal argentina registrada.</p>
           </div>
         </div>
@@ -6206,7 +6239,7 @@ export function App() {
           <div>
             <span className="tool-kicker">Caso seleccionado</span>
             <h3>{selectedCase ? `${selectedCase.case_code} ? ${selectedCase.title}` : "Selecciona un caso para iniciar"}</h3>
-            <p>{selectedCase ? prettySpanish(selectedCase.incident_type) : "La tipificacion requiere un caso, una narrativa y biblioteca legal registrada."}</p>
+            <p>{selectedCase ? prettySpanish(selectedCase.incident_type) : "La tipificación requiere un caso, una narrativa y biblioteca legal registrada."}</p>
           </div>
           <div className="ai-score-card">
             <span>Modo</span>
@@ -6244,7 +6277,7 @@ export function App() {
           <div className="detail-panel">
             <div className="panel-head">
               <div>
-                <h3>2. Resultado de tipificacion</h3>
+                <h3>2. Resultado de tipificación</h3>
                 <p>Delito sugerido, articulos conexos, confianza y evidencia faltante.</p>
               </div>
               {legalTypification && <span className={`badge ${legalTypification.confidence === "alto" ? "success" : ""}`}>Confianza {prettySpanish(legalTypification.confidence)}</span>}
@@ -6273,7 +6306,7 @@ export function App() {
                 <span>Elementos objetivos: {prettySpanish(legalTypification.principal_typification?.why || "sin norma principal")}</span>
                 <span>Elemento subjetivo: {prettySpanish(legalTypification.principal_typification?.subjective_elements || "requiere revisión")}</span>
                 <span>Evidencia requerida: {prettySpanish(legalTypification.principal_typification?.evidence_needed || "pendiente")}</span>
-                <span>L?mites: {prettySpanish(legalTypification.principal_typification?.probatory_limits || "requiere validacion humana")}</span>
+                <span>Límites: {prettySpanish(legalTypification.principal_typification?.probatory_limits || "requiere validación humana")}</span>
               </div>
             </div>
             <div className="detail-panel">
@@ -6309,8 +6342,8 @@ export function App() {
         <div className="detail-panel">
           <div className="panel-head">
             <div>
-              <h3>3. Analisis operativo del caso</h3>
-              <p>Lectura accionable del incidente, sin exponer salida tecnica cruda.</p>
+              <h3>3. An?lisis operativo del caso</h3>
+              <p>Lectura accionable del incidente, sin exponer salida t?cnica cruda.</p>
             </div>
           </div>
           {renderCaseAnalysisOutcome()}
@@ -6332,21 +6365,21 @@ export function App() {
         </div>
         <div className="ai-security-grid">
           <div className="ai-security-card primary">
-            <h3>Función del m?dulo</h3>
+            <h3>Función del módulo</h3>
             <p>
               AI Security no investiga personas ni resuelve casos. Su función es auditar el modelo IA que OPERIA usa como asistente:
-              privacidad, fuga de datos, alucinaci?n jurídica, obediencia ante instrucciones maliciosas y uso seguro en entorno forense.
+              privacidad, fuga de datos, alucinación jurídica, obediencia ante instrucciones maliciosas y uso seguro en entorno forense.
             </p>
           </div>
           <div className="ai-security-card">
             <h3>Resultado esperado</h3>
             <p>
-              La conclusi?n correcta no es â€œmodelo seguro al 100%â€, sino: bajo condiciones locales, aisladas y auditadas,
+              La conclusión correcta no es "modelo seguro al 100%", sino: bajo condiciones locales, aisladas y auditadas,
               el riesgo observado es bajo, medio, alto o crítico.
             </p>
           </div>
           <div className="ai-security-card">
-            <h3>Qué eval?a</h3>
+            <h3>Qué evalúa</h3>
             <ul>
               <li>Privacidad y posible fuga de información.</li>
               <li>Prompt injection, jailbreak y obediencia maliciosa.</li>
@@ -6386,7 +6419,7 @@ export function App() {
             {evaluation.recommendation && <p>{evaluation.recommendation}</p>}
           </div>
         ) : (
-          <EmptyState text="Todavía no hay evaluación registrada. Ejecuta una evaluación para obtener riesgo observado, recomendaci?n y conclusi?n auditable." />
+          <EmptyState text="Todavía no hay evaluación registrada. Ejecuta una evaluación para obtener riesgo observado, recomendación y conclusión auditable." />
         )}
       </section>
     );
@@ -7073,10 +7106,10 @@ export function App() {
         <div className="section-head">
           <div>
             <h2>{title}</h2>
-            <p>Modulo conectado a la API canonica.</p>
+            <p>Módulo conectado a la API canónica. Esta vista resume el estado disponible sin exponer datos técnicos internos.</p>
           </div>
         </div>
-        <JsonPanel data={modulePayload} />
+        <DataPanel data={modulePayload} empty="Todavía no hay actividad registrada para este módulo." />
       </section>
     );
   }
@@ -7111,15 +7144,20 @@ export function App() {
           <img src="/assets/operia-forensic-tracing.png" alt="Operia Forensic Tracing" />
         </div>
         <nav>
-          {modules.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button key={item.key} className={active === item.key ? "active" : ""} onClick={() => setActive(item.key)}>
-                <Icon size={18} />
-                {item.label}
-              </button>
-            );
-          })}
+          {navigationSections.map((section) => (
+            <div className="nav-section" key={section}>
+              <span>{section}</span>
+              {modules.filter((item) => item.section === section).map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button key={item.key} className={active === item.key ? "active" : ""} onClick={() => setActive(item.key)}>
+                    <Icon size={18} />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </nav>
       </aside>
 

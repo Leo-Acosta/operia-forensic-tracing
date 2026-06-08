@@ -80,7 +80,11 @@ textarea {
 .sidebar {
   background: #ffffff;
   border-right: 1px solid #d9e2ec;
+  max-height: 100vh;
+  overflow-y: auto;
   padding: 20px;
+  position: sticky;
+  top: 0;
 }
 
 .brand {
@@ -104,20 +108,37 @@ textarea {
 
 nav {
   display: grid;
-  gap: 6px;
+  gap: 16px;
+}
+
+.nav-section {
+  display: grid;
+  gap: 5px;
+}
+
+.nav-section > span {
+  color: #7a8aa0;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  padding: 0 10px;
+  text-transform: uppercase;
 }
 
 nav button {
   background: transparent;
+  border: 1px solid transparent;
   color: #33445a;
   justify-content: flex-start;
-  min-height: 37px;
+  line-height: 1.2;
+  min-height: 39px;
   padding: 9px 10px;
 }
 
 nav button:hover,
 nav button.active {
   background: #16324f;
+  border-color: #0e263f;
   color: #ffffff;
 }
 
@@ -173,6 +194,39 @@ h3 {
   border: 1px solid #d9e2ec;
   border-radius: 8px;
   padding: 20px;
+}
+
+.readable-panel {
+  background: #f7f9fc;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.readable-row {
+  align-items: start;
+  background: #ffffff;
+  border: 1px solid #e1e8f0;
+  border-radius: 7px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(150px, 0.35fr) 1fr;
+  padding: 10px 12px;
+}
+
+.readable-row span {
+  color: #607187;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.readable-row strong {
+  color: #172033;
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .workflow {
@@ -4222,6 +4276,38 @@ pre {
 }
 
 @media (max-width: 1100px) {
+  .app-shell {
+    grid-template-columns: 220px 1fr;
+  }
+
+  main {
+    padding: 18px;
+  }
+
+  .sidebar {
+    padding: 16px;
+  }
+
+  .brand img {
+    height: 92px;
+  }
+
+  .case-selector,
+  .step-grid,
+  .dashboard-grid,
+  .case-detail-grid,
+  .settings-grid,
+  .identity-login-grid,
+  .identity-admin-grid,
+  .reports-grid,
+  .lab-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .readable-row {
+    grid-template-columns: 1fr;
+  }
+
   .mind-hero,
   .mind-grid,
   .mind-brief-head,
@@ -4234,5 +4320,26 @@ pre {
   .form-grid.two,
   .search-row {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    display: block;
+  }
+
+  .sidebar {
+    max-height: none;
+    position: static;
+  }
+
+  nav {
+    grid-template-columns: 1fr;
+  }
+
+  header {
+    align-items: flex-start;
+    display: grid;
+    gap: 10px;
   }
 }
