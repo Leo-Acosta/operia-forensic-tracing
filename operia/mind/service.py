@@ -9,6 +9,7 @@ from operia.identity.dependencies import CurrentUser
 from operia.mind.models import MindAuditLog, MindGraphEdge, MindGraphNode, MindNote
 from operia.mind.schemas import MindNoteCreate
 from operia.mind.vault import note_folder, slugify, write_note
+from operia.reports.models import Report
 
 
 def utc_iso() -> str:
@@ -314,6 +315,70 @@ def create_case_snapshot(db: Session, case: Case, current_user: CurrentUser | No
         edge_count += 1
     write_mind_audit(db, "case_snapshot", current_user, case.id, "case", str(case.id), details=note.title)
     return note, node_count, edge_count
+
+
+def report_snapshot_markdown(report: Report) -> str:
+    sections = list(getattr(report, "sections", []) or [])
+    lines = [
+        "## Identificación del informe",
+        "",
+        f"- Título: {report.title}",
+        f"- Versión: {report.version}",
+        f"- Estado: {report.status}",
+        f"- Autor: {report.author or 'No consignado'}",
+        f"- Puntaje de revisión: {report.review_score}",
+        "",
+        "## Observaciones",
+        "",
+        report.observations or "Sin observaciones registradas.",
+        "",
+        "## Contenido principal",
+        "",
+        report.markdown_content or "Sin contenido principal cargado.",
+    ]
+    if sections:
+        lines.extend(["", "## Secciones estructuradas", ""])
+        for section in sorted(sections, key=lambda item: item.order_index)[:80]:
+            lines.extend(
+                [
+                    f"### {section.order_index}. {section.title}",
+                    "",
+                    section.content or "Sin contenido.",
+                    "",
+                ]
+            )
+    return "\n".join(lines)
+
+
+def create_report_snapshot(db: Session, report: Report, current_user: CurrentUser | None = None) -> tuple[MindNote, int, int]:
+    payload = MindNoteCreate(
+        case_id=report.case_id,
+        note_type="informe",
+        title=f"Informe #{report.id} - {report.title}",
+        summary=f"Memoria persistente del informe {report.title} v{report.version}.",
+        content=report_snapshot_markdown(report),
+        source_module="reports",
+        source_entity_type="report",
+        source_entity_id=str(report.id),
+        tags=["informe", "reporte", "memoria", "operia"],
+        linked_reports=[report.id],
+        confidence="medio",
+        review_status=report.status or "borrador",
+    )
+    note = create_note(db, payload, current_user)
+    case_key = f"case:{report.case_id}"
+    report_key = f"report:{report.id}"
+    note_key = f"note:{note.id}"
+    case_label = f"Caso #{report.case_id}"
+    if getattr(report, "case", None):
+        case_label = f"{report.case.case_code} - {report.case.title}"
+    upsert_node(db, case_key, "case", case_label, report.case_id, current_user, "cases", "case", str(report.case_id))
+    upsert_node(db, report_key, "report", report.title, report.case_id, current_user, "reports", "report", str(report.id))
+    upsert_node(db, note_key, "note", note.title, report.case_id, current_user, "mind", "mind_note", str(note.id))
+    create_edge(db, case_key, report_key, "tiene_informe", report.case_id, current_user)
+    create_edge(db, report_key, note_key, "guardado_en_memoria", report.case_id, current_user)
+    write_mind_audit(db, "report_snapshot", current_user, report.case_id, "report", str(report.id), details=report.title)
+    return note, 3, 2
 
 
 def write_mind_audit(

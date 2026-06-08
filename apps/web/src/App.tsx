@@ -1785,6 +1785,25 @@ export function App() {
     }
   }
 
+  async function createReportMindSnapshot() {
+    if (!latestReport) {
+      setMindState("error");
+      setMindMessage("Genera primero un informe para guardarlo en memoria.");
+      return;
+    }
+    setMindState("working");
+    setMindMessage("");
+    try {
+      const result = await apiPost<{ message: string; graph_nodes: number; graph_edges: number }>(`/mind/reports/${latestReport.id}/snapshot`);
+      setMindState("success");
+      setMindMessage(`${result.message} Grafo actualizado: ${result.graph_nodes} nodos y ${result.graph_edges} relaciones.`);
+      await refreshMind();
+    } catch (err) {
+      setMindState("error");
+      handleUiError(err, "No se pudo guardar el informe en memoria.", { focusIdentity: true });
+    }
+  }
+
   async function searchMind(event?: FormEvent) {
     event?.preventDefault();
     const query = mindSearchQuery.trim();
@@ -6656,6 +6675,7 @@ export function App() {
           <div className="button-row">
             <button className="secondary-button" onClick={refreshMind}><RefreshCcw size={16} /> Actualizar</button>
             <button onClick={createMindSnapshot} disabled={!selectedCaseId || mindState === "working"}><BrainCircuit size={16} /> Crear snapshot del caso</button>
+            <button className="secondary-button" onClick={createReportMindSnapshot} disabled={!latestReport || mindState === "working"}><FileText size={16} /> Guardar informe en memoria</button>
           </div>
         </div>
 

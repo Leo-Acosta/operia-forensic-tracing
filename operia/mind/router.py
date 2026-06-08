@@ -18,8 +18,9 @@ from operia.mind.schemas import (
     MindSearchResult,
     MindSnapshotRead,
 )
-from operia.mind.service import create_case_snapshot, create_edge, create_note, note_search_score, text_excerpt, upsert_node, write_mind_audit
+from operia.mind.service import create_case_snapshot, create_edge, create_note, create_report_snapshot, note_search_score, text_excerpt, upsert_node, write_mind_audit
 from operia.mind.vault import ensure_vault, vault_root
+from operia.reports.models import Report
 
 router = APIRouter()
 
@@ -156,6 +157,31 @@ def snapshot_case(
         graph_edges=edges,
         vault_path=note.vault_path,
         message="Snapshot del caso guardado en memoria forense.",
+    )
+
+
+@router.post("/reports/{report_id}/snapshot", response_model=MindSnapshotRead)
+def snapshot_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("reports:write")),
+):
+    report = db.get(Report, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Informe no encontrado.")
+    if current_user.organization_id and report.organization_id not in (None, current_user.organization_id):
+        raise HTTPException(status_code=403, detail="No tenés permisos para este informe.")
+    db.expire(report, ["case", "sections"])
+    note, nodes, edges = create_report_snapshot(db, report, current_user)
+    db.commit()
+    db.refresh(note)
+    return MindSnapshotRead(
+        case_id=report.case_id,
+        note_id=note.id,
+        graph_nodes=nodes,
+        graph_edges=edges,
+        vault_path=note.vault_path,
+        message="Informe guardado en memoria forense.",
     )
 
 

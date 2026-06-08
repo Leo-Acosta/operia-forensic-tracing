@@ -68,3 +68,25 @@ def test_mind_note_snapshot_and_graph(client, admin_headers):
     actions = {item["action"] for item in audit.json()}
     assert "create_note" in actions
     assert "case_snapshot" in actions
+
+
+def test_mind_report_snapshot_is_searchable(client, admin_headers):
+    case = create_case(client, admin_headers, "MIND-003")
+    report = client.post(f"/api/reports/case/{case['id']}/generate?author=Analista%20Mind", headers=admin_headers)
+    assert report.status_code == 200
+    report_id = report.json()["id"]
+
+    snapshot = client.post(f"/api/mind/reports/{report_id}/snapshot", headers=admin_headers)
+    assert snapshot.status_code == 200
+    assert snapshot.json()["case_id"] == case["id"]
+    assert snapshot.json()["vault_path"].endswith(".md")
+
+    search = client.get(f"/api/mind/search?q=informe&case_id={case['id']}", headers=admin_headers)
+    assert search.status_code == 200
+    assert any(item["note_type"] == "informe" for item in search.json())
+
+    graph = client.get(f"/api/mind/cases/{case['id']}/graph", headers=admin_headers)
+    assert graph.status_code == 200
+    edge_types = {item["relation_type"] for item in graph.json()["edges"]}
+    assert "tiene_informe" in edge_types
+    assert "guardado_en_memoria" in edge_types
