@@ -90,3 +90,33 @@ def test_mind_report_snapshot_is_searchable(client, admin_headers):
     edge_types = {item["relation_type"] for item in graph.json()["edges"]}
     assert "tiene_informe" in edge_types
     assert "guardado_en_memoria" in edge_types
+
+
+def test_mind_presentation_snapshot_links_case_report_and_note(client, admin_headers):
+    case = create_case(client, admin_headers, "MIND-004")
+    report = client.post(f"/api/reports/case/{case['id']}/generate?author=Analista%20Mind", headers=admin_headers)
+    assert report.status_code == 200
+    report_id = report.json()["id"]
+
+    presentation = client.post(
+        f"/api/reports/{report_id}/presentations/generate?presentation_type=Exposicion%20ejecutiva",
+        headers=admin_headers,
+    )
+    assert presentation.status_code == 200
+    presentation_id = presentation.json()["id"]
+
+    snapshot = client.post(f"/api/mind/presentations/{presentation_id}/snapshot", headers=admin_headers)
+    assert snapshot.status_code == 200
+    assert snapshot.json()["case_id"] == case["id"]
+    assert snapshot.json()["vault_path"].endswith(".md")
+
+    search = client.get(f"/api/mind/search?q=exposicion&case_id={case['id']}", headers=admin_headers)
+    assert search.status_code == 200
+    assert any(item["note_type"] == "exposicion" for item in search.json())
+
+    graph = client.get(f"/api/mind/cases/{case['id']}/graph", headers=admin_headers)
+    assert graph.status_code == 200
+    edge_types = {item["relation_type"] for item in graph.json()["edges"]}
+    assert "tiene_exposicion" in edge_types
+    assert "deriva_en_exposicion" in edge_types
+    assert "guardado_en_memoria" in edge_types

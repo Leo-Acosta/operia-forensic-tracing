@@ -9,7 +9,7 @@ from operia.identity.dependencies import CurrentUser
 from operia.mind.models import MindAuditLog, MindGraphEdge, MindGraphNode, MindNote
 from operia.mind.schemas import MindNoteCreate
 from operia.mind.vault import note_folder, slugify, write_note
-from operia.reports.models import Report
+from operia.reports.models import Presentation, Report
 
 
 def utc_iso() -> str:
@@ -379,6 +379,121 @@ def create_report_snapshot(db: Session, report: Report, current_user: CurrentUse
     create_edge(db, report_key, note_key, "guardado_en_memoria", report.case_id, current_user)
     write_mind_audit(db, "report_snapshot", current_user, report.case_id, "report", str(report.id), details=report.title)
     return note, 3, 2
+
+
+def presentation_snapshot_markdown(presentation: Presentation) -> str:
+    slides = sorted(list(getattr(presentation, "slides", []) or []), key=lambda item: item.slide_number)
+    lines = [
+        "## Identificacion de la exposicion",
+        "",
+        f"- Titulo: {presentation.title}",
+        f"- Tipo: {presentation.presentation_type}",
+        f"- Version: {presentation.version}",
+        f"- Estado: {presentation.status}",
+        f"- Autor: {presentation.author or 'No consignado'}",
+        f"- Informe fuente: {presentation.source_report_id or 'No vinculado'}",
+        f"- Puntaje de revision oral: {presentation.review_score}",
+        "",
+        "## Fragmentos seleccionados",
+        "",
+        presentation.selected_fragments or "Sin fragmentos seleccionados.",
+    ]
+    if slides:
+        lines.extend(["", "## Guion y diapositivas", ""])
+        for slide in slides[:80]:
+            lines.extend(
+                [
+                    f"### {slide.slide_number}. {slide.title}",
+                    "",
+                    slide.text or "Sin texto visible.",
+                    "",
+                    f"- Tipo de contenido: {slide.content_type}",
+                    f"- Nivel de confidencialidad: {slide.confidentiality_level}",
+                    f"- Evidencia vinculada: {slide.evidence_id or 'No vinculada'}",
+                    f"- Hallazgo vinculado: {slide.finding_id or 'No vinculado'}",
+                    "",
+                    "**Notas del expositor**",
+                    "",
+                    slide.speaker_notes or "Sin notas del expositor.",
+                    "",
+                ]
+            )
+    return "\n".join(lines)
+
+
+def create_presentation_snapshot(
+    db: Session,
+    presentation: Presentation,
+    current_user: CurrentUser | None = None,
+) -> tuple[MindNote, int, int]:
+    payload = MindNoteCreate(
+        case_id=presentation.case_id,
+        note_type="exposicion",
+        title=f"Exposicion #{presentation.id} - {presentation.title}",
+        summary=f"Memoria persistente de la exposicion {presentation.title} v{presentation.version}.",
+        content=presentation_snapshot_markdown(presentation),
+        source_module="reports",
+        source_entity_type="presentation",
+        source_entity_id=str(presentation.id),
+        tags=["exposicion", "presentacion", "oralidad", "memoria", "operia"],
+        linked_reports=[presentation.source_report_id] if presentation.source_report_id else [],
+        confidence="medio",
+        review_status=presentation.status or "borrador",
+    )
+    note = create_note(db, payload, current_user)
+    case_key = f"case:{presentation.case_id}"
+    presentation_key = f"presentation:{presentation.id}"
+    note_key = f"note:{note.id}"
+    case_label = f"Caso #{presentation.case_id}"
+    if getattr(presentation, "case", None):
+        case_label = f"{presentation.case.case_code} - {presentation.case.title}"
+    upsert_node(db, case_key, "case", case_label, presentation.case_id, current_user, "cases", "case", str(presentation.case_id))
+    upsert_node(
+        db,
+        presentation_key,
+        "presentation",
+        presentation.title,
+        presentation.case_id,
+        current_user,
+        "reports",
+        "presentation",
+        str(presentation.id),
+        metadata={"presentation_type": presentation.presentation_type, "review_score": presentation.review_score},
+    )
+    upsert_node(db, note_key, "note", note.title, presentation.case_id, current_user, "mind", "mind_note", str(note.id))
+    edge_count = 0
+    create_edge(db, case_key, presentation_key, "tiene_exposicion", presentation.case_id, current_user)
+    edge_count += 1
+    create_edge(db, presentation_key, note_key, "guardado_en_memoria", presentation.case_id, current_user)
+    edge_count += 1
+    if presentation.source_report_id:
+        report_key = f"report:{presentation.source_report_id}"
+        upsert_node(
+            db,
+            report_key,
+            "report",
+            f"Informe #{presentation.source_report_id}",
+            presentation.case_id,
+            current_user,
+            "reports",
+            "report",
+            str(presentation.source_report_id),
+        )
+        create_edge(db, report_key, presentation_key, "deriva_en_exposicion", presentation.case_id, current_user)
+        edge_count += 1
+        node_count = 4
+    else:
+        node_count = 3
+    write_mind_audit(
+        db,
+        "presentation_snapshot",
+        current_user,
+        presentation.case_id,
+        "presentation",
+        str(presentation.id),
+        details=presentation.title,
+    )
+    return note, node_count, edge_count
 
 
 def write_mind_audit(

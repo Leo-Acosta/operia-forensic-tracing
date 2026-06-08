@@ -18,9 +18,19 @@ from operia.mind.schemas import (
     MindSearchResult,
     MindSnapshotRead,
 )
-from operia.mind.service import create_case_snapshot, create_edge, create_note, create_report_snapshot, note_search_score, text_excerpt, upsert_node, write_mind_audit
+from operia.mind.service import (
+    create_case_snapshot,
+    create_edge,
+    create_note,
+    create_presentation_snapshot,
+    create_report_snapshot,
+    note_search_score,
+    text_excerpt,
+    upsert_node,
+    write_mind_audit,
+)
 from operia.mind.vault import ensure_vault, vault_root
-from operia.reports.models import Report
+from operia.reports.models import Presentation, Report
 
 router = APIRouter()
 
@@ -182,6 +192,31 @@ def snapshot_report(
         graph_edges=edges,
         vault_path=note.vault_path,
         message="Informe guardado en memoria forense.",
+    )
+
+
+@router.post("/presentations/{presentation_id}/snapshot", response_model=MindSnapshotRead)
+def snapshot_presentation(
+    presentation_id: int,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("reports:write")),
+):
+    presentation = db.get(Presentation, presentation_id)
+    if not presentation:
+        raise HTTPException(status_code=404, detail="Exposicion no encontrada.")
+    if current_user.organization_id and presentation.organization_id not in (None, current_user.organization_id):
+        raise HTTPException(status_code=403, detail="No tenes permisos para esta exposicion.")
+    db.expire(presentation, ["case", "slides"])
+    note, nodes, edges = create_presentation_snapshot(db, presentation, current_user)
+    db.commit()
+    db.refresh(note)
+    return MindSnapshotRead(
+        case_id=presentation.case_id,
+        note_id=note.id,
+        graph_nodes=nodes,
+        graph_edges=edges,
+        vault_path=note.vault_path,
+        message="Exposicion guardada en memoria forense.",
     )
 
 

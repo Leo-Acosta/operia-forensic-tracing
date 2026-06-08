@@ -18,6 +18,7 @@ import {
   Map,
   MonitorPlay,
   Navigation,
+  Presentation,
   RefreshCcw,
   Save,
   Search,
@@ -1801,6 +1802,28 @@ export function App() {
     } catch (err) {
       setMindState("error");
       handleUiError(err, "No se pudo guardar el informe en memoria.", { focusIdentity: true });
+    }
+  }
+
+  async function createPresentationMindSnapshot() {
+    const selectedPresentation = presentations.find((item) => item.id === Number(selectedPresentationId)) || presentations[0];
+    if (!selectedPresentation) {
+      setMindState("error");
+      setMindMessage("Genera primero una exposicion del caso para guardarla en memoria.");
+      return;
+    }
+    setMindState("working");
+    setMindMessage("");
+    try {
+      const result = await apiPost<{ message: string; graph_nodes: number; graph_edges: number }>(
+        `/mind/presentations/${selectedPresentation.id}/snapshot`
+      );
+      setMindState("success");
+      setMindMessage(`${result.message} Grafo actualizado: ${result.graph_nodes} nodos y ${result.graph_edges} relaciones.`);
+      await refreshMind();
+    } catch (err) {
+      setMindState("error");
+      handleUiError(err, "No se pudo guardar la exposicion en memoria.", { focusIdentity: true });
     }
   }
 
@@ -6665,6 +6688,7 @@ export function App() {
   function renderMind() {
     const graphNodeCount = mindGraph?.nodes.length || 0;
     const graphEdgeCount = mindGraph?.edges.length || 0;
+    const selectedPresentation = presentations.find((item) => item.id === Number(selectedPresentationId)) || presentations[0];
     return (
       <section className="work-surface mind-workbench">
         <div className="section-head">
@@ -6676,6 +6700,7 @@ export function App() {
             <button className="secondary-button" onClick={refreshMind}><RefreshCcw size={16} /> Actualizar</button>
             <button onClick={createMindSnapshot} disabled={!selectedCaseId || mindState === "working"}><BrainCircuit size={16} /> Crear snapshot del caso</button>
             <button className="secondary-button" onClick={createReportMindSnapshot} disabled={!latestReport || mindState === "working"}><FileText size={16} /> Guardar informe en memoria</button>
+            <button className="secondary-button" onClick={createPresentationMindSnapshot} disabled={!selectedPresentation || mindState === "working"}><Presentation size={16} /> Guardar exposicion en memoria</button>
           </div>
         </div>
 
