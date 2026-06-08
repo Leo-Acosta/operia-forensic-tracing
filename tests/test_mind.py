@@ -69,6 +69,13 @@ def test_mind_note_snapshot_and_graph(client, admin_headers):
     assert "create_note" in actions
     assert "case_snapshot" in actions
 
+    brief = client.get(f"/api/mind/cases/{case['id']}/brief", headers=admin_headers)
+    assert brief.status_code == 200
+    payload = brief.json()
+    assert payload["case_code"] == "MIND-002"
+    assert payload["graph_summary"]["notes"] >= 1
+    assert any("Evidencia" in item or "evidencia" in item for item in payload["missing_information"])
+
 
 def test_mind_report_snapshot_is_searchable(client, admin_headers):
     case = create_case(client, admin_headers, "MIND-003")

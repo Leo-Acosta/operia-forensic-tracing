@@ -719,6 +719,21 @@ type MindAuditEntry = {
   created_at?: string;
 };
 
+type MindCaseBrief = {
+  case_id: number;
+  case_code: string;
+  title: string;
+  readiness: string;
+  confidence: string;
+  known_facts: string[];
+  missing_information: string[];
+  risks: string[];
+  contradictions: string[];
+  recommended_next_steps: string[];
+  memory_highlights: string[];
+  graph_summary: Record<string, number>;
+};
+
 const modules: Array<{ key: ModuleKey; label: string; icon: typeof BarChart3 }> = [
   { key: "workflow", label: "Flujo Operativo", icon: CheckCircle2 },
   { key: "dashboard", label: "Dashboard", icon: BarChart3 },
@@ -1335,6 +1350,7 @@ export function App() {
   const [mindAgents, setMindAgents] = useState<MindAgent[]>([]);
   const [mindGraph, setMindGraph] = useState<MindGraphPayload | null>(null);
   const [mindAudit, setMindAudit] = useState<MindAuditEntry[]>([]);
+  const [mindBrief, setMindBrief] = useState<MindCaseBrief | null>(null);
   const [mindSearchQuery, setMindSearchQuery] = useState("");
   const [mindSearchResults, setMindSearchResults] = useState<MindSearchResult[]>([]);
   const [mindMessage, setMindMessage] = useState("");
@@ -1608,18 +1624,20 @@ export function App() {
 
   async function refreshMind() {
     const caseQuery = selectedCaseId ? `?case_id=${selectedCaseId}` : "";
-    const [notesData, promptsData, agentsData, graphData, auditData] = await Promise.all([
+    const [notesData, promptsData, agentsData, graphData, auditData, briefData] = await Promise.all([
       apiGet<MindNote[]>(`/mind/notes${caseQuery}`).catch(() => []),
       apiGet<MindPrompt[]>("/mind/prompts").catch(() => []),
       apiGet<MindAgent[]>("/mind/agents").catch(() => []),
       selectedCaseId ? apiGet<MindGraphPayload>(`/mind/cases/${selectedCaseId}/graph`).catch(() => null) : Promise.resolve(null),
-      apiGet<MindAuditEntry[]>(`/mind/audit${caseQuery}`).catch(() => [])
+      apiGet<MindAuditEntry[]>(`/mind/audit${caseQuery}`).catch(() => []),
+      selectedCaseId ? apiGet<MindCaseBrief>(`/mind/cases/${selectedCaseId}/brief`).catch(() => null) : Promise.resolve(null)
     ]);
     setMindNotes(notesData);
     setMindPrompts(promptsData);
     setMindAgents(agentsData);
     setMindGraph(graphData);
     setMindAudit(auditData);
+    setMindBrief(briefData);
   }
 
   async function loadModule(key: ModuleKey) {
@@ -6722,6 +6740,54 @@ export function App() {
             <div><span>Relaciones</span><strong>{graphEdgeCount}</strong></div>
           </div>
         </div>
+
+        {mindBrief && (
+          <div className="panel-card mind-brief-panel">
+            <div className="mind-brief-head">
+              <div>
+                <span className="eyebrow">Lectura ejecutiva local</span>
+                <h3>Estado cognitivo del caso</h3>
+                <p>Resumen operativo construido desde evidencia, notas, grafo, informes y módulos del caso. No reemplaza revisión humana.</p>
+              </div>
+              <div className="mind-brief-badges">
+                <span className="pill">Preparación: {prettySpanish(mindBrief.readiness)}</span>
+                <span className="pill">Confianza: {prettySpanish(mindBrief.confidence)}</span>
+              </div>
+            </div>
+            <div className="mind-brief-grid">
+              <article>
+                <h4>Qué sabemos</h4>
+                <ul>{mindBrief.known_facts.slice(0, 7).map((item) => <li key={item}>{item}</li>)}</ul>
+              </article>
+              <article>
+                <h4>Qué falta</h4>
+                <ul>{(mindBrief.missing_information.length ? mindBrief.missing_information : ["Sin brechas críticas detectadas por la lectura local."]).slice(0, 7).map((item) => <li key={item}>{item}</li>)}</ul>
+              </article>
+              <article>
+                <h4>Riesgos y contradicciones</h4>
+                <ul>
+                  {[...mindBrief.risks, ...mindBrief.contradictions].length
+                    ? [...mindBrief.risks, ...mindBrief.contradictions].slice(0, 7).map((item) => <li key={item}>{item}</li>)
+                    : <li>No se detectaron contradicciones operativas relevantes.</li>}
+                </ul>
+              </article>
+              <article>
+                <h4>Próximos pasos</h4>
+                <ul>{mindBrief.recommended_next_steps.slice(0, 7).map((item) => <li key={item}>{item}</li>)}</ul>
+              </article>
+            </div>
+            <div className="mind-brief-footer">
+              <div>
+                <strong>Memoria destacada</strong>
+                <span>{mindBrief.memory_highlights.slice(0, 4).join(" | ")}</span>
+              </div>
+              <div>
+                <strong>Grafo</strong>
+                <span>{mindBrief.graph_summary.nodes || 0} nodos, {mindBrief.graph_summary.edges || 0} relaciones, {mindBrief.graph_summary.notes || 0} notas.</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         <form className="panel-card mind-search-panel" onSubmit={searchMind}>
           <div>

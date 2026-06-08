@@ -10,6 +10,7 @@ from operia.mind.schemas import (
     MindAgentRead,
     MindAuditCreate,
     MindAuditRead,
+    MindCaseBrief,
     MindGraphEdgeCreate,
     MindGraphNodeCreate,
     MindNoteCreate,
@@ -24,6 +25,7 @@ from operia.mind.service import (
     create_note,
     create_presentation_snapshot,
     create_report_snapshot,
+    build_case_brief,
     note_search_score,
     text_excerpt,
     upsert_node,
@@ -294,6 +296,36 @@ def case_graph(
         "nodes": [as_dict(row) for row in node_query.order_by(MindGraphNode.node_type, MindGraphNode.label).all()],
         "edges": [as_dict(row) for row in edge_query.order_by(MindGraphEdge.relation_type).all()],
     }
+
+
+@router.get("/cases/{case_id}/brief", response_model=MindCaseBrief)
+def case_brief(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("cases:read")),
+):
+    case = db.get(Case, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="Caso no encontrado.")
+    if current_user.organization_id and case.organization_id not in (None, current_user.organization_id):
+        raise HTTPException(status_code=403, detail="No tenes permisos para este caso.")
+    db.expire(
+        case,
+        [
+            "evidence",
+            "actions",
+            "findings",
+            "hypotheses",
+            "legal_mappings",
+            "reports",
+            "presentations",
+            "damage_items",
+            "deepfake_analyses",
+            "blockchain_transactions",
+            "iot_devices",
+        ],
+    )
+    return build_case_brief(db, case, current_user)
 
 
 @router.get("/prompts", response_model=list[MindPromptRead])

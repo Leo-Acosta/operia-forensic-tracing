@@ -2,12 +2,13 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from operia.cases.models import Case
 from operia.identity.dependencies import CurrentUser
 from operia.mind.models import MindAuditLog, MindGraphEdge, MindGraphNode, MindNote
-from operia.mind.schemas import MindNoteCreate
+from operia.mind.schemas import MindCaseBrief, MindNoteCreate
 from operia.mind.vault import note_folder, slugify, write_note
 from operia.reports.models import Presentation, Report
 
@@ -494,6 +495,141 @@ def create_presentation_snapshot(
         details=presentation.title,
     )
     return note, node_count, edge_count
+
+
+def _append_if(items: list[str], condition: bool, text: str) -> None:
+    if condition:
+        items.append(text)
+
+
+def build_case_brief(db: Session, case: Case, current_user: CurrentUser | None = None) -> MindCaseBrief:
+    evidence = list(getattr(case, "evidence", []) or [])
+    custody = list(getattr(case, "actions", []) or [])
+    findings = list(getattr(case, "findings", []) or [])
+    hypotheses = list(getattr(case, "hypotheses", []) or [])
+    legal = list(getattr(case, "legal_mappings", []) or [])
+    reports = list(getattr(case, "reports", []) or [])
+    presentations = list(getattr(case, "presentations", []) or [])
+    damage_items = list(getattr(case, "damage_items", []) or [])
+    deepfake = list(getattr(case, "deepfake_analyses", []) or [])
+    blockchain = list(getattr(case, "blockchain_transactions", []) or [])
+    iot = list(getattr(case, "iot_devices", []) or [])
+
+    note_query = db.query(MindNote).filter(MindNote.case_id == case.id)
+    node_query = db.query(MindGraphNode).filter(MindGraphNode.case_id == case.id)
+    edge_query = db.query(MindGraphEdge).filter(MindGraphEdge.case_id == case.id)
+    if current_user and current_user.organization_id:
+        note_query = note_query.filter(or_(MindNote.organization_id == current_user.organization_id, MindNote.organization_id.is_(None)))
+        node_query = node_query.filter(or_(MindGraphNode.organization_id == current_user.organization_id, MindGraphNode.organization_id.is_(None)))
+        edge_query = edge_query.filter(or_(MindGraphEdge.organization_id == current_user.organization_id, MindGraphEdge.organization_id.is_(None)))
+    notes = note_query.order_by(MindNote.updated_at.desc()).limit(12).all()
+    nodes = node_query.all()
+    edges = edge_query.all()
+
+    hashed_evidence = [item for item in evidence if getattr(item, "sha256_hash", "")]
+    approved_legal = [
+        item
+        for item in legal
+        if (getattr(item, "decision_status", "") or "").lower() in {"aprobado", "accepted", "validado"}
+    ]
+    supported_findings = [item for item in findings if getattr(item, "evidence_id", None) or getattr(item, "supporting_evidence", "")]
+
+    known_facts = [
+        f"Caso {case.case_code}: {case.title}.",
+        f"Tipo de incidente registrado: {case.incident_type}.",
+    ]
+    _append_if(known_facts, bool(case.description), f"Narrativa inicial cargada: {case.description[:220]}.")
+    _append_if(known_facts, bool(evidence), f"Evidencia registrada: {len(evidence)} item(s), {len(hashed_evidence)} con SHA-256.")
+    _append_if(known_facts, bool(custody), f"Cadena de custodia: {len(custody)} accion(es) documentada(s).")
+    _append_if(known_facts, bool(findings), f"Hallazgos tecnicos: {len(findings)} item(s), {len(supported_findings)} con soporte directo.")
+    _append_if(known_facts, bool(approved_legal), f"Mapeo legal aprobado: {len(approved_legal)} norma(s) o criterio(s).")
+    _append_if(known_facts, bool(reports), f"Informes generados: {len(reports)}.")
+    _append_if(known_facts, bool(presentations), f"Exposiciones generadas: {len(presentations)}.")
+    _append_if(known_facts, bool(damage_items), f"Rubros economicos cargados: {len(damage_items)}.")
+    _append_if(known_facts, bool(deepfake), f"Analisis de medios/deepfake: {len(deepfake)} registro(s).")
+    _append_if(known_facts, bool(blockchain), f"Transacciones blockchain registradas: {len(blockchain)}.")
+    _append_if(known_facts, bool(iot), f"Dispositivos IoT registrados: {len(iot)}.")
+
+    missing = []
+    _append_if(missing, not evidence, "Cargar evidencia digital preservada y asociarla al caso.")
+    _append_if(missing, bool(evidence) and len(hashed_evidence) < len(evidence), "Completar hashes SHA-256 de toda la evidencia.")
+    _append_if(missing, not custody, "Registrar cadena de custodia con responsable, fecha y accion.")
+    _append_if(missing, not findings, "Convertir analisis tecnicos relevantes en hallazgos estructurados.")
+    _append_if(missing, bool(findings) and len(supported_findings) < len(findings), "Vincular cada hallazgo critico con evidencia concreta.")
+    _append_if(missing, not approved_legal, "Aprobar un mapeo legal desde biblioteca registrada.")
+    _append_if(missing, not reports, "Generar informe preliminar para control de calidad.")
+    _append_if(missing, not presentations, "Generar exposicion del caso si se requiere defensa oral.")
+    _append_if(missing, not notes, "Guardar al menos una nota o snapshot en memoria para trazabilidad cognitiva.")
+
+    risks = []
+    _append_if(risks, not evidence, "Riesgo alto: conclusiones sin evidencia preservada.")
+    _append_if(risks, bool(evidence) and len(hashed_evidence) < len(evidence), "Riesgo de integridad: hay evidencia sin hash completo.")
+    _append_if(risks, not custody, "Riesgo probatorio: no hay cadena de custodia documentada.")
+    _append_if(risks, not approved_legal, "Riesgo juridico: no hay normas validadas por analista.")
+    _append_if(risks, bool(blockchain) and not any(getattr(item, "evidence_id", None) for item in blockchain), "Riesgo blockchain: trazabilidad sin evidencia vinculada.")
+    _append_if(risks, case.status == "cerrado" and missing, "Caso cerrado con brechas operativas pendientes de revisar.")
+
+    contradictions = []
+    _append_if(contradictions, case.status == "cerrado" and not reports, "El caso figura cerrado pero no tiene informe generado.")
+    _append_if(contradictions, bool(approved_legal) and not evidence, "Existe encuadre legal aprobado sin evidencia cargada.")
+    _append_if(contradictions, bool(findings) and not evidence, "Existen hallazgos sin inventario de evidencia digital.")
+    _append_if(contradictions, bool(presentations) and not reports, "Existe exposicion oral sin informe fuente asociado al caso.")
+    _append_if(contradictions, bool(damage_items) and not any(getattr(item, "supporting_evidence", "") for item in damage_items), "Hay rubros de dano sin soporte documental indicado.")
+
+    next_steps = []
+    if missing:
+        next_steps.extend(missing[:5])
+    else:
+        next_steps.extend(
+            [
+                "Revisar consistencia entre hallazgos, normas y conclusion final.",
+                "Guardar snapshot actualizado del caso, informe y exposicion.",
+                "Preparar exportacion final con manifiesto y anexos.",
+            ]
+        )
+    _append_if(next_steps, bool(notes) and not edges, "Construir grafo del caso para conectar notas, evidencia e informes.")
+
+    memory_highlights = [
+        f"{note.note_type}: {note.title}" for note in notes[:8]
+    ]
+    if not memory_highlights:
+        memory_highlights.append("Todavia no hay memoria persistente asociada al caso.")
+
+    readiness_score = 0
+    readiness_score += 15 if case.description else 0
+    readiness_score += 20 if evidence else 0
+    readiness_score += 15 if evidence and len(hashed_evidence) == len(evidence) else 0
+    readiness_score += 15 if custody else 0
+    readiness_score += 15 if approved_legal else 0
+    readiness_score += 10 if reports else 0
+    readiness_score += 10 if notes else 0
+    if contradictions:
+        readiness_score -= min(20, len(contradictions) * 5)
+    readiness_score = max(0, min(100, readiness_score))
+    readiness = "listo" if readiness_score >= 85 else "parcial" if readiness_score >= 55 else "incompleto"
+    confidence = "alta" if readiness_score >= 80 and not contradictions else "media" if readiness_score >= 50 else "baja"
+
+    return MindCaseBrief(
+        case_id=case.id,
+        case_code=case.case_code,
+        title=case.title,
+        readiness=f"{readiness} ({readiness_score}/100)",
+        confidence=confidence,
+        known_facts=known_facts,
+        missing_information=missing,
+        risks=risks,
+        contradictions=contradictions,
+        recommended_next_steps=next_steps,
+        memory_highlights=memory_highlights,
+        graph_summary={
+            "nodes": len(nodes),
+            "edges": len(edges),
+            "notes": len(notes),
+            "evidence": len(evidence),
+            "findings": len(findings),
+            "legal_mappings": len(legal),
+        },
+    )
 
 
 def write_mind_audit(

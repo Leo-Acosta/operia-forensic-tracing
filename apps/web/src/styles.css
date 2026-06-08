@@ -3937,6 +3937,78 @@ pre {
   font-size: 26px;
 }
 
+.mind-brief-panel {
+  background: #ffffff;
+  border-color: #cfdde9;
+}
+
+.mind-brief-head {
+  align-items: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.mind-brief-head h3 {
+  margin: 3px 0 6px;
+}
+
+.mind-brief-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.mind-brief-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.mind-brief-grid article {
+  background: #f8fbfd;
+  border: 1px solid #dce7f1;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.mind-brief-grid h4 {
+  color: #0f2238;
+  margin: 0;
+}
+
+.mind-brief-grid ul {
+  color: #40546b;
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.mind-brief-footer {
+  border-top: 1px solid #e0e8f0;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-top: 12px;
+}
+
+.mind-brief-footer div {
+  background: #f4f8fb;
+  border: 1px solid #dce7f1;
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+}
+
+.mind-brief-footer span {
+  color: #50657c;
+}
+
 .mind-grid {
   display: grid;
   gap: 16px;
@@ -4097,7 +4169,10 @@ pre {
 
 @media (max-width: 1100px) {
   .mind-hero,
-  .mind-grid {
+  .mind-grid,
+  .mind-brief-head,
+  .mind-brief-grid,
+  .mind-brief-footer {
     grid-template-columns: 1fr;
   }
 

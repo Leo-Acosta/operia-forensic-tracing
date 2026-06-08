@@ -143,3 +143,18 @@ class MindSnapshotRead(BaseModel):
     graph_edges: int
     vault_path: str
     message: str
+
+
+class MindCaseBrief(BaseModel):
+    case_id: int
+    case_code: str
+    title: str
+    readiness: str
+    confidence: str
+    known_facts: list[str]
+    missing_information: list[str]
+    risks: list[str]
+    contradictions: list[str]
+    recommended_next_steps: list[str]
+    memory_highlights: list[str]
+    graph_summary: dict[str, int]
