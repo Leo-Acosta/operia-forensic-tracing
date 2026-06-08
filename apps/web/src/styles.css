@@ -3946,6 +3946,22 @@ pre {
   color: #5b6f86;
 }
 
+.mind-relation-form {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+  margin: 12px 0 14px;
+}
+
+.mind-relation-form input,
+.mind-relation-form select {
+  min-height: 40px;
+}
+
+.mind-relation-form button {
+  width: 100%;
+}
+
 .mind-metrics div,
 .panel-card,
 .mind-note-card,

@@ -5,7 +5,10 @@ from sqlalchemy.orm import Session
 from operia.cases.models import Case
 from operia.core.database import get_db
 from operia.identity.dependencies import CurrentUser, require_permission
-from operia.mind.models import MindAgent, MindAuditLog, MindGraphEdge, MindGraphNode, MindNote, MindPrompt
+from operia.mind.agent_service import AgentService
+from operia.mind.graph_service import GraphService, NODE_TYPES, RELATION_TYPES
+from operia.mind.models import MindAuditLog, MindNote
+from operia.mind.prompt_service import PromptService
 from operia.mind.schemas import (
     MindAgentRead,
     MindAuditCreate,
@@ -21,14 +24,12 @@ from operia.mind.schemas import (
 )
 from operia.mind.service import (
     create_case_snapshot,
-    create_edge,
     create_note,
     create_presentation_snapshot,
     create_report_snapshot,
     build_case_brief,
     note_search_score,
     text_excerpt,
-    upsert_node,
     write_mind_audit,
 )
 from operia.mind.vault import ensure_vault, vault_root
@@ -237,20 +238,15 @@ def create_graph_node(
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(require_permission("cases:write")),
 ):
-    node_key = f"{payload.node_type}:{payload.case_id or 'global'}:{payload.source_entity_type or payload.label}:{payload.source_entity_id or payload.label}"
-    node = upsert_node(
-        db,
-        node_key=node_key,
+    node = GraphService(db, current_user).create_node(
         node_type=payload.node_type,
         label=payload.label,
         case_id=payload.case_id,
-        current_user=current_user,
         source_module=payload.source_module,
         source_entity_type=payload.source_entity_type,
         source_entity_id=payload.source_entity_id,
         metadata=payload.metadata,
     )
-    write_mind_audit(db, "create_graph_node", current_user, payload.case_id, "mind_graph_node", str(node.id), details=node.label)
     db.commit()
     db.refresh(node)
     return as_dict(node)
@@ -262,22 +258,44 @@ def create_graph_edge(
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(require_permission("cases:write")),
 ):
-    edge = create_edge(
-        db,
-        payload.source_node_key,
-        payload.target_node_key,
-        payload.relation_type,
-        payload.case_id,
-        current_user,
-        payload.label,
-        payload.confidence,
-        payload.evidence_id,
-        payload.metadata,
+    edge = GraphService(db, current_user).create_relation(
+        source_node_key=payload.source_node_key,
+        target_node_key=payload.target_node_key,
+        relation_type=payload.relation_type,
+        case_id=payload.case_id,
+        label=payload.label,
+        confidence=payload.confidence,
+        evidence_id=payload.evidence_id,
+        metadata=payload.metadata,
     )
-    write_mind_audit(db, "create_graph_edge", current_user, payload.case_id, "mind_graph_edge", str(edge.id), details=payload.relation_type)
     db.commit()
     db.refresh(edge)
     return as_dict(edge)
+
+
+@router.get("/graph/catalog")
+def graph_catalog(
+    current_user: CurrentUser = Depends(require_permission("cases:read")),
+):
+    return {
+        "node_types": NODE_TYPES,
+        "relation_types": RELATION_TYPES,
+        "description": "Catálogo controlado para grafo de memoria forense.",
+    }
+
+
+@router.get("/graph")
+def list_graph(
+    case_id: int | None = None,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("cases:read")),
+):
+    payload = GraphService(db, current_user).list_graph(case_id)
+    return {
+        **payload,
+        "nodes": [as_dict(row) for row in payload["nodes"]],
+        "edges": [as_dict(row) for row in payload["edges"]],
+    }
 
 
 @router.get("/cases/{case_id}/graph")
@@ -286,15 +304,13 @@ def case_graph(
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(require_permission("cases:read")),
 ):
-    node_query = db.query(MindGraphNode).filter(MindGraphNode.case_id == case_id)
-    edge_query = db.query(MindGraphEdge).filter(MindGraphEdge.case_id == case_id)
-    if current_user.organization_id:
-        node_query = node_query.filter(or_(MindGraphNode.organization_id == current_user.organization_id, MindGraphNode.organization_id.is_(None)))
-        edge_query = edge_query.filter(or_(MindGraphEdge.organization_id == current_user.organization_id, MindGraphEdge.organization_id.is_(None)))
+    payload = GraphService(db, current_user).list_graph(case_id)
     return {
         "case_id": case_id,
-        "nodes": [as_dict(row) for row in node_query.order_by(MindGraphNode.node_type, MindGraphNode.label).all()],
-        "edges": [as_dict(row) for row in edge_query.order_by(MindGraphEdge.relation_type).all()],
+        "nodes": [as_dict(row) for row in payload["nodes"]],
+        "edges": [as_dict(row) for row in payload["edges"]],
+        "node_types": payload["node_types"],
+        "relation_types": payload["relation_types"],
     }
 
 
@@ -333,10 +349,7 @@ def list_prompts(
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(require_permission("cases:read")),
 ):
-    query = db.query(MindPrompt)
-    if current_user.organization_id:
-        query = query.filter(or_(MindPrompt.organization_id == current_user.organization_id, MindPrompt.organization_id.is_(None)))
-    return query.order_by(MindPrompt.title).all()
+    return PromptService(db, current_user).list_prompts()
 
 
 @router.get("/agents", response_model=list[MindAgentRead])
@@ -344,10 +357,7 @@ def list_agents(
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(require_permission("cases:read")),
 ):
-    query = db.query(MindAgent)
-    if current_user.organization_id:
-        query = query.filter(or_(MindAgent.organization_id == current_user.organization_id, MindAgent.organization_id.is_(None)))
-    return query.order_by(MindAgent.name).all()
+    return AgentService(db, current_user).list_agents()
 
 
 @router.post("/audit")

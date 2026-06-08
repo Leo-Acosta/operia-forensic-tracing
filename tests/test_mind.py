@@ -25,6 +25,68 @@ def test_mind_status_and_catalogs(client, admin_headers):
     agents = client.get("/api/mind/agents", headers=admin_headers)
     assert agents.status_code == 200
     assert len(agents.json()) >= 5
+    agent_keys = {item["key"] for item in agents.json()}
+    assert {"agente_deepfake", "agente_iot", "agente_blockchain"}.issubset(agent_keys)
+
+    prompt_keys = {item["key"] for item in prompts.json()}
+    assert {"construir_grafo", "auditar_grafo", "analisis_deepfake", "analisis_blockchain", "analisis_iot"}.issubset(prompt_keys)
+
+    catalog = client.get("/api/mind/graph/catalog", headers=admin_headers)
+    assert catalog.status_code == 200
+    assert "wallet" in catalog.json()["node_types"]
+    assert "sostiene" in catalog.json()["relation_types"]
+
+
+def test_mind_manual_graph_relation(client, admin_headers):
+    case = create_case(client, admin_headers, "MIND-GRAPH-001")
+
+    source = client.post(
+        "/api/mind/graph/nodes",
+        headers=admin_headers,
+        json={
+            "case_id": case["id"],
+            "node_type": "url",
+            "label": "https://example.test/login",
+            "source_module": "cybercrime",
+            "source_entity_type": "indicator",
+            "source_entity_id": "url-1",
+        },
+    )
+    assert source.status_code == 200
+
+    target = client.post(
+        "/api/mind/graph/nodes",
+        headers=admin_headers,
+        json={
+            "case_id": case["id"],
+            "node_type": "finding",
+            "label": "URL compatible con phishing",
+            "source_module": "cybercrime",
+            "source_entity_type": "finding",
+            "source_entity_id": "finding-1",
+        },
+    )
+    assert target.status_code == 200
+
+    relation = client.post(
+        "/api/mind/graph/edges",
+        headers=admin_headers,
+        json={
+            "case_id": case["id"],
+            "source_node_key": source.json()["node_key"],
+            "target_node_key": target.json()["node_key"],
+            "relation_type": "sostiene",
+            "label": "Indicador preservado sostiene hallazgo técnico",
+            "confidence": "alto",
+        },
+    )
+    assert relation.status_code == 200
+    assert relation.json()["relation_type"] == "sostiene"
+
+    graph = client.get(f"/api/mind/graph?case_id={case['id']}", headers=admin_headers)
+    assert graph.status_code == 200
+    assert len(graph.json()["nodes"]) == 2
+    assert len(graph.json()["edges"]) == 1
 
 
 def test_mind_note_snapshot_and_graph(client, admin_headers):

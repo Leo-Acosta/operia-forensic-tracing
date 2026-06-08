@@ -18,6 +18,7 @@ import {
   Map,
   MonitorPlay,
   Navigation,
+  Network,
   Presentation,
   RefreshCcw,
   Save,
@@ -684,14 +685,17 @@ type MindAgent = {
   name: string;
   role: string;
   scope: string;
-  allowed_tools: string;
-  guardrails: string;
+  allowed_modules?: string;
+  restrictions?: string;
+  risk_level?: string;
 };
 
 type MindGraphPayload = {
-  case_id: number;
+  case_id?: number;
   nodes: Array<{ id: number; node_key: string; node_type: string; label: string; source_module?: string }>;
   edges: Array<{ id: number; source_node_key: string; target_node_key: string; relation_type: string; label?: string; confidence?: string }>;
+  node_types?: string[];
+  relation_types?: string[];
 };
 
 type MindSearchResult = {
@@ -1361,6 +1365,13 @@ export function App() {
     content: "",
     tags: "operia, memoria"
   });
+  const [mindRelationForm, setMindRelationForm] = useState({
+    source_node_key: "",
+    target_node_key: "",
+    relation_type: "vinculado_con",
+    label: "",
+    confidence: "medio"
+  });
   const [articles, setArticles] = useState<LegalArticle[]>([]);
   const [modulePayload, setModulePayload] = useState<unknown>(null);
   const [authToken, setAuthTokenState] = useState(getAuthToken());
@@ -1851,6 +1862,45 @@ export function App() {
     } catch (err) {
       setMindState("error");
       handleMindError(err, "No se pudo guardar la exposición en memoria. Genera primero una exposición válida.");
+    }
+  }
+
+  async function createMindRelation(event: FormEvent) {
+    event.preventDefault();
+    if (!selectedCaseId) {
+      setMindState("error");
+      setMindMessage("Selecciona un caso antes de crear relaciones de grafo.");
+      return;
+    }
+    if (!mindRelationForm.source_node_key || !mindRelationForm.target_node_key) {
+      setMindState("error");
+      setMindMessage("Selecciona nodo origen y nodo destino para crear la relación.");
+      return;
+    }
+    if (mindRelationForm.source_node_key === mindRelationForm.target_node_key) {
+      setMindState("error");
+      setMindMessage("La relación necesita dos nodos distintos.");
+      return;
+    }
+    setMindState("working");
+    setMindMessage("");
+    try {
+      await apiPost("/mind/graph/edges", {
+        case_id: Number(selectedCaseId),
+        source_node_key: mindRelationForm.source_node_key,
+        target_node_key: mindRelationForm.target_node_key,
+        relation_type: mindRelationForm.relation_type,
+        label: mindRelationForm.label,
+        confidence: mindRelationForm.confidence,
+        metadata: { source: "frontend_mind" }
+      });
+      setMindState("success");
+      setMindMessage("Relación guardada en el grafo de memoria forense.");
+      setMindRelationForm({ source_node_key: "", target_node_key: "", relation_type: "vinculado_con", label: "", confidence: "medio" });
+      await refreshMind();
+    } catch (err) {
+      setMindState("error");
+      handleMindError(err, "No se pudo crear la relación. Verifica permisos y nodos seleccionados.");
     }
   }
 
@@ -6908,6 +6958,65 @@ export function App() {
           <div className="panel-card">
             <h3>Grafo de relaciones</h3>
             <p>Relaciones entre caso, evidencia, hallazgos, fuentes legales, informes y notas.</p>
+            <form className="mind-relation-form" onSubmit={createMindRelation}>
+              <select
+                value={mindRelationForm.source_node_key}
+                onChange={(event) => setMindRelationForm({ ...mindRelationForm, source_node_key: event.target.value })}
+              >
+                <option value="">Nodo origen</option>
+                {(mindGraph?.nodes || []).map((node) => (
+                  <option key={node.node_key} value={node.node_key}>
+                    {prettySpanish(node.node_type)}: {node.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={mindRelationForm.relation_type}
+                onChange={(event) => setMindRelationForm({ ...mindRelationForm, relation_type: event.target.value })}
+              >
+                {(mindGraph?.relation_types || [
+                  "pertenece_a",
+                  "vinculado_con",
+                  "sostiene",
+                  "limita",
+                  "contradice",
+                  "deriva_de",
+                  "analizado_por",
+                  "citado_en",
+                  "exportado_en",
+                  "requiere_revision",
+                  "tiene_fuente_legal",
+                  "tiene_hash"
+                ]).map((relation) => (
+                  <option key={relation} value={relation}>{prettySpanish(relation)}</option>
+                ))}
+              </select>
+              <select
+                value={mindRelationForm.target_node_key}
+                onChange={(event) => setMindRelationForm({ ...mindRelationForm, target_node_key: event.target.value })}
+              >
+                <option value="">Nodo destino</option>
+                {(mindGraph?.nodes || []).map((node) => (
+                  <option key={node.node_key} value={node.node_key}>
+                    {prettySpanish(node.node_type)}: {node.label}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={mindRelationForm.label}
+                onChange={(event) => setMindRelationForm({ ...mindRelationForm, label: event.target.value })}
+                placeholder="Nota breve de la relación"
+              />
+              <select
+                value={mindRelationForm.confidence}
+                onChange={(event) => setMindRelationForm({ ...mindRelationForm, confidence: event.target.value })}
+              >
+                <option value="bajo">Confianza baja</option>
+                <option value="medio">Confianza media</option>
+                <option value="alto">Confianza alta</option>
+              </select>
+              <button disabled={isWorking || !mindGraph?.nodes.length}><Network size={16} /> Crear relación</button>
+            </form>
             <div className="graph-summary">
               {(mindGraph?.nodes || []).slice(0, 12).map((node) => (
                 <span key={node.node_key}>{prettySpanish(node.node_type)}: {node.label}</span>
