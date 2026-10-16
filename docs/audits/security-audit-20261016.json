@@ -1,0 +1,430 @@
+{
+  "schema": "operia.security-audit/1",
+  "date": "2026-10-16",
+  "scope": "Windows x64 CPython 3.12.14, installed Python including development, entire npm lock, operia/apps/api static analysis; no infrastructure pentest",
+  "python": {
+    "scanner": "pip-audit 2.10.1",
+    "before_entries": 32,
+    "before_unique_ids": 16,
+    "remediated": [
+      {
+        "name": "markdown",
+        "before": "3.7",
+        "after": "3.11.1",
+        "advisories": [
+          {
+            "id": "PYSEC-2026-89",
+            "aliases": [
+              "CVE-2025-69534",
+              "GHSA-5wmx-573v-2qwq"
+            ],
+            "fix_versions": [
+              "3.8.1"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "python-multipart",
+        "before": "0.0.20",
+        "after": "0.0.32",
+        "advisories": [
+          {
+            "id": "PYSEC-2026-1852",
+            "aliases": [
+              "CVE-2026-24486",
+              "GHSA-wp53-j4wj-2cfg"
+            ],
+            "fix_versions": [
+              "0.0.22"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-3038",
+            "aliases": [
+              "CVE-2026-40347",
+              "GHSA-mj87-hwqh-73pj"
+            ],
+            "fix_versions": [
+              "0.0.26"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-3039",
+            "aliases": [
+              "CVE-2026-42561",
+              "GHSA-pp6c-gr5w-3c5g"
+            ],
+            "fix_versions": [
+              "0.0.27"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-3040",
+            "aliases": [
+              "CVE-2026-53540",
+              "GHSA-v9pg-7xvm-68hf"
+            ],
+            "fix_versions": [
+              "0.0.31"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-3036",
+            "aliases": [
+              "CVE-2026-53539",
+              "GHSA-5rvq-cxj2-64vf"
+            ],
+            "fix_versions": [
+              "0.0.30"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-3037",
+            "aliases": [
+              "CVE-2026-53538",
+              "GHSA-6jv3-5f52-599m"
+            ],
+            "fix_versions": [
+              "0.0.30"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "requests",
+        "before": "2.32.3",
+        "after": "2.34.2",
+        "advisories": [
+          {
+            "id": "PYSEC-2026-1872",
+            "aliases": [
+              "CVE-2024-47081",
+              "GHSA-9hjg-9r4m-mvj7"
+            ],
+            "fix_versions": [
+              "2.32.4"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-2275",
+            "aliases": [
+              "CVE-2026-25645",
+              "GHSA-gc5v-m9x4-r6x2"
+            ],
+            "fix_versions": [
+              "2.33.0"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "starlette",
+        "before": "0.41.3",
+        "after": "1.8.0",
+        "advisories": [
+          {
+            "id": "PYSEC-2026-1941",
+            "aliases": [
+              "CVE-2025-54121",
+              "GHSA-2c2j-9gv5-cj73"
+            ],
+            "fix_versions": [
+              "0.47.2"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-1942",
+            "aliases": [
+              "CVE-2025-62727",
+              "GHSA-7f5h-v6xp-fcq8"
+            ],
+            "fix_versions": [
+              "0.49.1"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-161",
+            "aliases": [
+              "CVE-2026-48710",
+              "GHSA-86qp-5c8j-p5mr",
+              "X41-2026-002"
+            ],
+            "fix_versions": [
+              "1.0.1"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-2281",
+            "aliases": [
+              "CVE-2026-48818",
+              "GHSA-wqp7-x3pw-xc5r"
+            ],
+            "fix_versions": [
+              "1.1.0"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-2280",
+            "aliases": [
+              "CVE-2026-48817",
+              "GHSA-x746-7m8f-x49c"
+            ],
+            "fix_versions": [
+              "1.1.0"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-249",
+            "aliases": [
+              "CVE-2026-54283",
+              "GHSA-82w8-qh3p-5jfq"
+            ],
+            "fix_versions": [
+              "1.3.1"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-248",
+            "aliases": [
+              "CVE-2026-54282",
+              "GHSA-jp82-jpqv-5vv3"
+            ],
+            "fix_versions": [
+              "1.3.0"
+            ]
+          }
+        ]
+      }
+    ],
+    "after_entries": 0,
+    "after_distributions": 50,
+    "feed": "PyPI advisory service"
+  },
+  "npm": {
+    "before": {
+      "info": 0,
+      "low": 0,
+      "moderate": 1,
+      "high": 5,
+      "critical": 0,
+      "total": 6
+    },
+    "after": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "remediated": [
+      {
+        "name": "baseline-browser-mapping",
+        "severity": "moderate",
+        "after": "2.11.29",
+        "advisories": [
+          {
+            "title": "baseline-browser-mapping process termination on invalid input causes denial of service",
+            "url": "https://github.com/advisories/GHSA-w5vr-8v7q-w6rv",
+            "range": ">=2.0.0 <2.11.0"
+          }
+        ]
+      },
+      {
+        "name": "browserslist",
+        "severity": "high",
+        "after": "4.29.3",
+        "advisories": [
+          {
+            "title": "Browserslist: Unbounded memory growth (no cache eviction) via distinct query results, leading to eventual OOM",
+            "url": "https://github.com/advisories/GHSA-c83g-rgw3-j3cx",
+            "range": "<=4.28.6"
+          },
+          {
+            "title": "Browserslist: Uncaught crash / prototype write via untrusted browserslist-stats.json custom stats (normalizeStats)",
+            "url": "https://github.com/advisories/GHSA-73wf-gq98-2v4g",
+            "range": "<=4.28.6"
+          }
+        ]
+      },
+      {
+        "name": "nanoid",
+        "severity": "high",
+        "after": "3.3.20",
+        "advisories": [
+          {
+            "title": "nanoid: non-secure generators can loop indefinitely with negative size",
+            "url": "https://github.com/advisories/GHSA-28wg-ghj8-5hjv",
+            "range": "<3.3.16"
+          },
+          {
+            "title": "nanoid: custom generators can loop indefinitely when size is zero",
+            "url": "https://github.com/advisories/GHSA-2v37-7h3g-55p8",
+            "range": "<3.3.18"
+          }
+        ]
+      },
+      {
+        "name": "postcss",
+        "severity": "high",
+        "after": "8.5.30",
+        "advisories": [
+          {
+            "title": "PostCSS: incomplete fix of GHSA-6g55-p6wh-862q â€” attacker-controlled sourceMappingURL reads arbitrary .map files when `from` is unset",
+            "url": "https://github.com/advisories/GHSA-fxqj-rqcc-2cmp",
+            "range": "<=8.5.22"
+          },
+          {
+            "title": "PostCSS: Path Traversal in Previous Source Map Auto-Loading (sourceMappingURL) leads to Arbitrary .map File Disclosure",
+            "url": "https://github.com/advisories/GHSA-r28c-9q8g-f849",
+            "range": "<=8.5.17"
+          }
+        ]
+      },
+      {
+        "name": "source-map-js",
+        "severity": "high",
+        "after": "1.2.2",
+        "advisories": [
+          {
+            "title": "source-map-js allows event-loop denial of service through indexed source-map section offsets",
+            "url": "https://github.com/advisories/GHSA-68fv-2mgg-jv7q",
+            "range": ">=1.0.0 <1.2.2"
+          }
+        ]
+      },
+      {
+        "name": "vite",
+        "severity": "high",
+        "after": "6.4.4",
+        "advisories": [
+          {
+            "title": "launch-editor: NTLMv2 hash disclosure via UNC path handling on Windows",
+            "url": "https://github.com/advisories/GHSA-v6wh-96g9-6wx3",
+            "range": "<=6.4.2"
+          },
+          {
+            "title": "vite: `server.fs.deny` bypass on Windows alternate paths",
+            "url": "https://github.com/advisories/GHSA-fx2h-pf6j-xcff",
+            "range": "<=6.4.2"
+          }
+        ]
+      }
+    ],
+    "scanner": "npm 11.6.2 (Node v24.11.1)"
+  },
+  "bandit": {
+    "scanner": "1.9.4",
+    "metrics": {
+      "CONFIDENCE.HIGH": 5,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 8,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 13,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 19180,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "errors": [],
+    "remaining": [
+      {
+        "test_id": "B105",
+        "file": "operia/core/bootstrap.py",
+        "line": 35,
+        "severity": "LOW"
+      },
+      {
+        "test_id": "B404",
+        "file": "operia/forensic_jobs/worker.py",
+        "line": 10,
+        "severity": "LOW"
+      },
+      {
+        "test_id": "B105",
+        "file": "operia/forensic_jobs/worker.py",
+        "line": 90,
+        "severity": "LOW"
+      },
+      {
+        "test_id": "B603",
+        "file": "operia/forensic_jobs/worker.py",
+        "line": 100,
+        "severity": "LOW"
+      },
+      {
+        "test_id": "B105",
+        "file": "operia/forensic_jobs/worker.py",
+        "line": 152,
+        "severity": "LOW"
+      },
+      {
+        "test_id": "B603",
+        "file": "operia/forensic_jobs/worker.py",
+        "line": 171,
+        "severity": "LOW"
+      },
+      {
+        "test_id": "B105",
+        "file": "operia/forensic_jobs/worker.py",
+        "line": 253,
+        "severity": "LOW"
+      },
+      {
+        "test_id": "B105",
+        "file": "operia/geo_trace/services.py",
+        "line": 15,
+        "severity": "LOW"
+      },
+      {
+        "test_id": "B105",
+        "file": "operia/identity/router.py",
+        "line": 125,
+        "severity": "LOW"
+      },
+      {
+        "test_id": "B105",
+        "file": "operia/identity/router.py",
+        "line": 188,
+        "severity": "LOW"
+      },
+      {
+        "test_id": "B105",
+        "file": "operia/identity/router.py",
+        "line": 217,
+        "severity": "LOW"
+      },
+      {
+        "test_id": "B404",
+        "file": "operia/security/outbound.py",
+        "line": 9,
+        "severity": "LOW"
+      },
+      {
+        "test_id": "B603",
+        "file": "operia/security/outbound.py",
+        "line": 52,
+        "severity": "LOW"
+      }
+    ]
+  },
+  "reconstruction": {
+    "python_distributions": 50,
+    "wheel_hash_verification": true,
+    "offline_install": true,
+    "pip_check": "passed",
+    "frontend": "npm ci --ignore-scripts; TypeScript and Vite 6.4.4 build passed (1582 modules)",
+    "historical_tables_identical": 72,
+    "sqlite_restore_integrity_check": "ok"
+  },
+  "tests": {
+    "passed": 164,
+    "warnings": 4,
+    "seconds": 216.16,
+    "runtime": "fresh Windows x64 CPython 3.12.14 hash-verified lock environment",
+    "additional_password_reset_tenant_test": "1 passed, 2.70s"
+  }
+}

@@ -79,11 +79,18 @@ def note_folder(note_type: str) -> str:
     return NOTE_FOLDERS.get(note_type.lower().strip(), "04_Notas")
 
 
-def write_note(relative_path: str, markdown: str) -> Path:
+def write_note(relative_path: str, markdown: str, exclusive: bool = False) -> Path:
     root = ensure_vault()
-    path = root / relative_path
+    from fastapi import HTTPException
+    relative = Path(relative_path)
+    path = root / relative
+    if relative.is_absolute() or relative.drive or ".." in relative.parts or not path.resolve().is_relative_to(root.resolve()):
+        raise HTTPException(422, "Ruta de memoria invalida")
+    if any(parent.is_symlink() for parent in (path, *path.parents) if parent != root.parent):
+        raise HTTPException(403, "Enlaces simbolicos no admitidos en memoria")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(markdown, encoding="utf-8")
+    with path.open("x" if exclusive else "w", encoding="utf-8") as handle:
+        handle.write(markdown)
     return path
 
 

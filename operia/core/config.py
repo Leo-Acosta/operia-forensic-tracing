@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
+from pydantic import Field, SecretStr
 
 
 class Settings(BaseSettings):
@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     mobile_job_timeout_seconds: int = Field(default=30, ge=1, le=300)
     mobile_storage_quota_bytes: int = Field(default=128 * 1024 * 1024, ge=5 * 1024 * 1024, le=2 * 1024 * 1024 * 1024)
     connector_allowed_hosts: list[str] = []
+    auth_signing_key: SecretStr | None = None
     local_ai_enabled: bool = False
     local_recovery_enabled: bool = False
     http_max_concurrent_requests: int = Field(default=8, ge=1, le=64)

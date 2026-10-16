@@ -29,6 +29,7 @@ class SecurityBoundary:
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
         request_id = uuid4().hex
+        scope.setdefault("state", {})["request_id"] = request_id
         async def safe_send(message):
             if message["type"] == "http.response.start":
                 message["headers"] = list(message.get("headers", [])) + [(b"x-content-type-options", b"nosniff"),

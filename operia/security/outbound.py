@@ -1,94 +1,140 @@
-"""HTTPS only, explicit destinations, pinned public DNS answers, bounded responses."""
-import http.client
-import ipaddress
+"""Tenant/purpose grants, process isolation, per-tenant budgets and bounded output."""
+import base64
+from contextlib import contextmanager
 import json
-import socket
-import ssl
+import logging
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+from threading import Lock
 import time
 from urllib.parse import urlsplit
 from operia.core.config import settings
+from operia.security.context import connector_scope
+from operia.security.errors import ConnectorRejected
+from operia.forensic_engine.canonical import read_json
 
-class ConnectorRejected(RuntimeError):
-    pass
+_lock = Lock()
+_active = {}
+_calls = {}
+
+@contextmanager
+def connector_slot(scope):
+    now = time.monotonic()
+    with _lock:
+        for key in list(_calls):
+            if now - _calls[key][0] >= 60:
+                del _calls[key]
+        if sum(_active.values()) >= 4 or _active.get(scope.organization_id, 0) >= 1:
+            raise ConnectorRejected("connector_capacity_exceeded")
+        if len(_calls) >= 1024 and scope.organization_id not in _calls:
+            raise ConnectorRejected("connector_capacity_exceeded")
+        since, count = _calls.get(scope.organization_id, (now, 0))
+        if count >= 20:
+            raise ConnectorRejected("connector_rate_exceeded")
+        _calls[scope.organization_id] = (since, count + 1)
+        _active[scope.organization_id] = _active.get(scope.organization_id, 0) + 1
+    try:
+        yield
+    finally:
+        with _lock:
+            _active[scope.organization_id] -= 1
+            if not _active[scope.organization_id]:
+                del _active[scope.organization_id]
 
 
-def approved_destination(url):
+def _run_transport(payload, timeout, maximum):
+    env = {key: os.environ[key] for key in ("SystemRoot", "WINDIR", "TEMP", "TMP") if key in os.environ}
+    env.update({"PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"})
+    process = subprocess.Popen([sys.executable, "-m", "operia.security.connector_worker"],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, shell=False,
+        cwd=str(Path(__file__).resolve().parents[2]), env=env,
+        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+    try:
+        output, _ = process.communicate(json.dumps(payload, ensure_ascii=True).encode(), timeout=timeout)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.communicate(timeout=2)
+        raise ConnectorRejected("connector_deadline_exceeded") from None
+    except BaseException:
+        process.kill()
+        process.communicate(timeout=2)
+        raise
+    if process.returncode != 0 or len(output) > maximum * 2 + 4096:
+        raise ConnectorRejected("connector_worker_error")
+    try:
+        result = read_json(output, limit=maximum * 2 + 4096)
+        if "error" in result:
+            code = result["error"]
+            raise ConnectorRejected(code if isinstance(code, str) and re.fullmatch(r"connector_[a-z_]{1,60}", code) else "connector_worker_error")
+        raw = base64.b64decode(result["body_base64"], validate=True)
+        status = result["status"]
+        if len(raw) > maximum or not isinstance(status, int) or not 100 <= status <= 599:
+            raise ValueError()
+        return status, raw
+    except (ValueError, KeyError, TypeError):
+        raise ConnectorRejected("connector_invalid_response") from None
+
+
+def _invoke(payload, maximum):
+    scope = connector_scope.get()
+    if scope is None or not scope.organization_id or not scope.actor_id:
+        raise ConnectorRejected("connector_scope_required")
+    remaining = min(scope.deadline - time.monotonic(), float(payload.get("timeout", 8)) + 2, 12)
+    if remaining <= 0:
+        raise ConnectorRejected("connector_deadline_exceeded")
+    outcome = "rejected"
+    try:
+        with connector_slot(scope):
+            result = _run_transport(payload, remaining, maximum)
+        outcome = "completed"
+        return result
+    finally:
+        logging.getLogger("operia.security").info("connector_operation org=%s actor=%s case=%s purpose=%s outcome=%s request_id=%s", scope.organization_id, scope.actor_id, scope.case_id, payload["kind"], outcome, scope.request_id)
+
+
+def fetch_bytes(url, timeout=8, maximum=256 * 1024, *, purpose="generic"):
+    scope = connector_scope.get()
+    if scope is None:
+        raise ConnectorRejected("connector_scope_required")
     try:
         parsed = urlsplit(url)
         host = (parsed.hostname or "").encode("idna").decode("ascii").lower()
-        if len(url) > 4096 or any(ord(c) < 33 or ord(c) == 127 for c in url) or "\\" in url or parsed.scheme != "https" or parsed.username or parsed.password or parsed.fragment or parsed.port not in (None, 443):
+        if len(url) > 4096 or parsed.scheme != "https" or parsed.username or parsed.password or parsed.fragment or parsed.port not in (None, 443) or "\\" in url or any(ord(c) < 33 or ord(c) == 127 for c in url):
             raise ValueError()
-        if not host or host not in settings.connector_allowed_hosts or host.endswith("."):
+        if host not in settings.connector_allowed_hosts or (purpose, host) not in scope.grants or not 1 <= maximum <= 256 * 1024:
             raise ValueError()
-        # Do not resolve unapproved destinations or trust HTTP proxy environment variables.
-        addresses = sorted({record[4][0] for record in socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)})
-        if not addresses:
-            raise ValueError()
-        for address in addresses:
-            ip = ipaddress.ip_address(address)
-            if not ip.is_global or ip.is_multicast or ip.is_reserved:
-                raise ValueError()
-            if isinstance(ip, ipaddress.IPv6Address) and (ip.ipv4_mapped or ip.sixtofour or ip.teredo or ip.scope_id):
-                raise ValueError()
-        return host, addresses, parsed.path or "/", parsed.query
-    except (ValueError, UnicodeError, OSError):
+    except (ValueError, UnicodeError, TypeError):
         raise ConnectorRejected("connector_destination_rejected") from None
+    return _invoke({"kind": "https", "url": url, "timeout": timeout, "maximum": maximum, "allowed_hosts": [host]}, maximum)
 
 
-class PinnedHTTPS(http.client.HTTPSConnection):
-    def __init__(self, host, address, timeout):
-        super().__init__(host, 443, timeout=timeout, context=ssl.create_default_context())
-        self.address = address
-
-    def connect(self):
-        raw = socket.create_connection((self.address, 443), self.timeout)
-        try:
-            self.sock = self._context.wrap_socket(raw, server_hostname=self.host)
-        except BaseException:
-            raw.close()
-            raise
-
-
-def fetch_bytes(url, timeout=8, maximum=256 * 1024):
-    host, addresses, path, query = approved_destination(url)
-    connection = PinnedHTTPS(host, addresses[0], min(max(timeout, 1), 10))
-    started = time.monotonic()
-    try:
-        connection.request("GET", path + ("?" + query if query else ""), headers={"Accept": "application/json, text/plain", "Accept-Encoding": "identity", "User-Agent": "OPERIA-Connector/1"})
-        response = connection.getresponse()
-        if 300 <= response.status < 400:
-            raise ConnectorRejected("connector_redirect_rejected")
-        if response.getheader("Content-Encoding", "identity").lower() != "identity":
-            raise ConnectorRejected("connector_encoding_rejected")
-        chunks = bytearray()
-        while True:
-            remaining = 10 - (time.monotonic() - started)
-            if remaining <= 0:
-                raise ConnectorRejected("connector_deadline_exceeded")
-            if connection.sock:
-                connection.sock.settimeout(min(remaining, 5))
-            chunk = response.read1(min(16384, maximum + 1 - len(chunks)))
-            if not chunk:
-                break
-            chunks.extend(chunk)
-            if len(chunks) > maximum:
-                raise ConnectorRejected("connector_response_too_large")
-        return response.status, bytes(chunks)
-    except (OSError, http.client.HTTPException):
-        raise ConnectorRejected("connector_unavailable") from None
-    finally:
-        connection.close()
-
-
-def fetch_json(url, timeout=8):
-    status, raw = fetch_bytes(url, timeout)
+def fetch_json(url, timeout=8, *, purpose="generic"):
+    status, raw = fetch_bytes(url, timeout, purpose=purpose)
     if status != 200:
         raise ConnectorRejected("connector_http_error")
-    from operia.forensic_engine.canonical import read_json
     try:
-        data = read_json(raw, limit=256 * 1024)
+        result = read_json(raw, limit=256 * 1024)
+        if not isinstance(result, dict):
+            raise ValueError()
+        return result
     except ValueError:
         raise ConnectorRejected("connector_invalid_json") from None
-    if not isinstance(data, dict):
-        raise ConnectorRejected("connector_invalid_schema")
-    return data
+
+
+def local_ai(prompt, model, timeout):
+    scope = connector_scope.get()
+    if not settings.local_ai_enabled or scope is None or not scope.local_ai:
+        raise ConnectorRejected("connector_local_ai_rejected")
+    if not isinstance(prompt, str) or not isinstance(model, str) or len(model) > 160 or len(prompt.encode()) > 2 * 1024 * 1024:
+        raise ConnectorRejected("connector_request_too_large")
+    status, raw = _invoke({"kind": "local_ai", "prompt": prompt, "model": model, "timeout": min(timeout, 10)}, 1024 * 1024)
+    try:
+        result = read_json(raw, limit=1024 * 1024)
+        if not isinstance(result.get("response"), str):
+            raise ValueError()
+        return result["response"]
+    except (ValueError, AttributeError):
+        raise ConnectorRejected("connector_invalid_json") from None

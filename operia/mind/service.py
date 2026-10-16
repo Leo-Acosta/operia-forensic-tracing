@@ -1,4 +1,6 @@
 import json
+from uuid import uuid4
+from fastapi import HTTPException
 from datetime import datetime, timezone
 from typing import Any
 
@@ -102,15 +104,18 @@ def note_markdown(payload: MindNoteCreate, slug: str, case: Case | None = None) 
 
 def create_note(db: Session, payload: MindNoteCreate, current_user: CurrentUser | None = None) -> MindNote:
     case = db.get(Case, payload.case_id) if payload.case_id else None
-    base_slug = slugify(f"{payload.note_type}-{payload.case_id or 'global'}-{payload.title}")
-    slug = base_slug
-    counter = 2
-    while db.query(MindNote).filter(MindNote.slug == slug).first():
-        slug = f"{base_slug}-{counter}"
-        counter += 1
-    relative_path = f"{note_folder(payload.note_type)}/{slug}.md"
+    if not current_user or not current_user.organization_id:
+        raise HTTPException(403, "Organizacion requerida para memoria")
+    from operia.evidence.models import Evidence
+    for ids, model in ((payload.linked_evidence, Evidence), (payload.linked_reports, Report)):
+        for item_id in ids:
+            linked = db.get(model, item_id)
+            if not linked or linked.case_id != payload.case_id or linked.organization_id not in (None, current_user.organization_id):
+                raise HTTPException(422, "Referencia de memoria ajena al caso")
+    slug = slugify(f"{payload.note_type}-{payload.title}") + "-" + uuid4().hex
+    relative_path = f"organizations/{current_user.organization_id}/cases/{payload.case_id or 'global'}/{note_folder(payload.note_type)}/{slug}.md"
     markdown, meta = note_markdown(payload, slug, case)
-    write_note(relative_path, markdown)
+    write_note(relative_path, markdown, exclusive=True)
     row = MindNote(
         organization_id=current_user.organization_id if current_user else None,
         case_id=payload.case_id,
@@ -158,7 +163,9 @@ def upsert_node(
     source_entity_id: str = "",
     metadata: dict[str, Any] | None = None,
 ) -> MindGraphNode:
-    row = db.query(MindGraphNode).filter(MindGraphNode.node_key == node_key).first()
+    if case_id is None and current_user and current_user.organization_id:
+        node_key = f"org:{current_user.organization_id}:global:{node_key}"
+    row = db.query(MindGraphNode).filter(MindGraphNode.node_key == node_key, MindGraphNode.case_id == case_id).first()
     if row:
         row.label = label
         row.metadata_json = json_dump(metadata or {})
@@ -191,6 +198,12 @@ def create_edge(
     evidence_id: int | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> MindGraphEdge:
+    if not current_user or not current_user.organization_id:
+        raise HTTPException(403, "Organizacion requerida para grafo")
+    for key in (source_node_key, target_node_key):
+        node = db.query(MindGraphNode).filter_by(node_key=key, case_id=case_id).first()
+        if not node or node.organization_id not in (None, current_user.organization_id):
+            raise HTTPException(422, "Nodo ajeno al caso u organizacion")
     existing = (
         db.query(MindGraphEdge)
         .filter(

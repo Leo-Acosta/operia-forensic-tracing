@@ -146,7 +146,7 @@ def _query_ipapi(ip: str) -> dict[str, object] | None:
 
 def _query_ipinfo(ip: str) -> dict[str, object] | None:
     try:
-        data = fetch_json(f"https://ipinfo.io/{ip}/json", timeout=5)
+        data = fetch_json(f"https://ipinfo.io/{ip}/json", timeout=5, purpose="geo_ip")
         lat = lon = None
         if data.get("loc") and "," in data["loc"]:
             lat_raw, lon_raw = data["loc"].split(",", 1)

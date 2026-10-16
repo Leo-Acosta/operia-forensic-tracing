@@ -5,7 +5,7 @@ from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from operia.core.database import get_db
-from operia.identity.models import AuthToken, User
+from operia.identity.models import AuthToken, User, Organization
 from operia.identity.permissions import has_permission
 from operia.identity.security import hash_token, verify_access_token
 
@@ -66,7 +66,12 @@ def get_optional_user(
         if token_row.organization_id != organization_id:
             return None
     user = db.get(User, payload_user_id)
-    if not user or user.status != "active":
+    if not user or user.status != "active" or not user.organization_id:
+        return None
+    if user.organization_id != token_row.organization_id or user.organization_id != payload_organization_id or payload.get("role") != user.role:
+        return None
+    organization = db.get(Organization, user.organization_id)
+    if not organization or organization.status != "active":
         return None
     return CurrentUser(
         id=user.id,

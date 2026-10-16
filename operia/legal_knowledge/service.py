@@ -1313,7 +1313,7 @@ def verify_source_url(url: str, timeout: int = 8) -> dict:
         return {"url": url, "reachable": False, "status_code": None, "error": "URL vacia"}
     try:
         from operia.security.outbound import fetch_bytes
-        status, content = fetch_bytes(url, timeout=timeout)
+        status, content = fetch_bytes(url, timeout=timeout, purpose="legal_source")
         return {
             "url": url,
             "reachable": 200 <= status < 300,

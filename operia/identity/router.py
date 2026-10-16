@@ -93,6 +93,12 @@ def status() -> dict[str, object]:
 
 @router.post("/bootstrap-admin")
 def bootstrap_admin(payload: dict, request: Request, db: Session = Depends(get_db)):
+    host = request.client.host if request.client else ""
+    if settings.env != "local" or host not in {"127.0.0.1", "::1", "localhost", "testclient"}:
+        raise HTTPException(403, "Inicializacion de identidad solo desde el host local")
+    password = str(payload.get("password") or "")
+    if not 10 <= len(password) <= 1024:
+        raise HTTPException(422, "Se requiere clave explicita de 10 a 1024 caracteres")
     if db.query(User).count() > 0:
         raise HTTPException(status_code=409, detail="Ya existen usuarios. Use un administrador autenticado.")
     organization = Organization(
@@ -107,7 +113,7 @@ def bootstrap_admin(payload: dict, request: Request, db: Session = Depends(get_d
         name=str(payload.get("name") or "OPERIA Admin"),
         email=str(payload.get("email") or "admin@operia.local").lower(),
         role="admin",
-        password_hash=hash_password(str(payload.get("password") or "operia-admin-change-me")),
+        password_hash=hash_password(password),
         status="active",
     )
     db.add(user)
@@ -125,7 +131,9 @@ def local_admin_recovery(payload: dict, request: Request, db: Session = Depends(
         raise HTTPException(status_code=403, detail="Recuperación local no disponible en este entorno.")
 
     email = str(payload.get("email") or "admin@operia.local").lower().strip()
-    password = str(payload.get("password") or "OperiaAdmin2026!")
+    password = str(payload.get("password") or "")
+    if not 10 <= len(password) <= 1024:
+        raise HTTPException(422, "Se requiere una clave explicita de 10 a 1024 caracteres")
     name = str(payload.get("name") or "OPERIA Admin").strip() or "OPERIA Admin"
 
     organization = (
@@ -197,6 +205,8 @@ def login(payload: dict, request: Request, db: Session = Depends(get_db)):
             )
             db.commit()
         raise HTTPException(status_code=401, detail="Credenciales inválidas")
+    if user.password_hash.count("$") == 2:
+        user.password_hash = hash_password(password)
     if user.status != "active":
         raise HTTPException(status_code=403, detail="Usuario inactivo")
     user.failed_login_attempts = 0
@@ -251,8 +261,9 @@ def list_organizations(
     current_user: CurrentUser = Depends(require_permission("identity:read")),
 ):
     query = db.query(Organization)
-    if current_user.organization_id:
-        query = query.filter_by(id=current_user.organization_id)
+    if not current_user.organization_id:
+        raise HTTPException(403, "Organizacion requerida")
+    query = query.filter_by(id=current_user.organization_id)
     return [as_dict(row) for row in query.order_by(Organization.name).all()]
 
 
@@ -262,12 +273,7 @@ def create_organization(
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(require_permission("identity:write")),
 ):
-    row = Organization(**payload)
-    db.add(row)
-    audit(db, "create_organization", "identity", current_user, details=str(payload.get("name") or ""))
-    db.commit()
-    db.refresh(row)
-    return as_dict(row)
+    raise HTTPException(403, "Creacion de organizaciones reservada al operador de plataforma")
 
 
 @router.get("/users")
@@ -287,7 +293,12 @@ def create_user(
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(require_permission("identity:write")),
 ):
-    organization_id = payload.get("organization_id") or current_user.organization_id
+    organization_id = current_user.organization_id
+    if not organization_id or payload.get("organization_id", organization_id) != organization_id:
+        raise HTTPException(403, "No se pueden administrar usuarios de otra organizacion")
+    password = str(payload.get("password") or "")
+    if not 10 <= len(password) <= 1024 or payload.get("role", "analista") not in VALID_ROLES or payload.get("status", "active") not in VALID_STATUSES:
+        raise HTTPException(422, "Clave, rol o estado de usuario invalido")
     row = User(
         organization_id=organization_id,
         name=str(payload.get("name") or ""),
@@ -300,7 +311,7 @@ def create_user(
         phone=str(payload.get("phone") or ""),
         signature=str(payload.get("signature") or ""),
         profile_notes=str(payload.get("profile_notes") or ""),
-        password_hash=hash_password(str(payload.get("password") or "operia-change-me")),
+        password_hash=hash_password(password),
     )
     db.add(row)
     db.flush()
@@ -329,7 +340,11 @@ def update_user(
         owner = db.query(User).filter(User.email == existing_email, User.id != user_id).first()
         if owner:
             raise HTTPException(status_code=409, detail="El email ya esta asignado a otro usuario")
+    if not current_user.organization_id or payload.get("organization_id", current_user.organization_id) != current_user.organization_id:
+        raise HTTPException(403, "No se permite trasladar usuarios entre organizaciones")
     changed = apply_user_updates(row, payload, ADMIN_USER_FIELDS)
+    if set(changed) & {"role", "status", "organization_id"}:
+        db.query(AuthToken).filter_by(user_id=row.id).update({"revoked": True})
     if row.id == current_user.id and row.status != "active":
         raise HTTPException(status_code=422, detail="No podes desactivar tu propio usuario activo")
     audit(db, "update_user", "identity", current_user, details=f"{row.email or row.id}: {', '.join(changed) or 'sin cambios'}")
@@ -346,8 +361,8 @@ def reset_user_password(
     current_user: CurrentUser = Depends(require_permission("identity:write")),
 ):
     password = str(payload.get("password") or "")
-    if len(password) < 10:
-        raise HTTPException(status_code=422, detail="La nueva clave debe tener al menos 10 caracteres")
+    if not 10 <= len(password) <= 1024:
+        raise HTTPException(status_code=422, detail="La nueva clave debe tener entre 10 y 1024 caracteres")
     row = db.query(User).filter_by(id=user_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
@@ -366,7 +381,7 @@ def list_roles(
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(require_permission("identity:read")),
 ):
-    db_roles = [as_dict(row) for row in db.query(Role).order_by(Role.name).all()]
+    db_roles = [as_dict(row) for row in db.query(Role).filter(Role.organization_id == current_user.organization_id).order_by(Role.name).all()]
     configured = [{"name": role, "permissions": sorted(perms)} for role, perms in ROLE_PERMISSIONS.items()]
     return {"configured": configured, "database": db_roles}
 

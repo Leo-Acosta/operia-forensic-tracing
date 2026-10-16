@@ -9,11 +9,11 @@ sinteticos; no constituyen una certificacion de invulnerabilidad ni un pentest.
 |---|---|---|
 | Acceso entre organizaciones/casos | Sesion obligatoria, permiso por modulo/metodo, filtros ORM heredados por caso y documento padre, validacion de referencias | Es control de aplicacion; no RLS ni defensa ante administradores de la base |
 | Referencias manipuladas | Artefactos seleccionados dentro de la revision incorporada, hashes y FK de caso, validacion de IDs en hipotesis | El texto profesional sigue requiriendo revision humana |
-| SSRF y fuga mediante conectores | Salida HTTPS denegada por defecto, hosts exactos configurados, todos los resultados DNS publicos, conexion a IP validada con SNI/TLS del host original, sin proxies de entorno ni redirecciones | No reemplaza firewall de egreso; DNS conserva los tiempos del resolver del SO |
-| Ejecucion de comandos | Retirada de shell arbitraria por API; el worker sigue usando exclusivamente el comando fijo del motor | El worker aun requiere aislamiento de SO y cuenta sin privilegios |
+| SSRF y fuga mediante conectores | Salida HTTPS denegada por defecto, hosts exactos configurados, todos los resultados DNS publicos, conexion a IP validada con SNI/TLS del host original, sin proxies de entorno ni redirecciones | No reemplaza firewall de egreso; proceso hijo con deadline comun de hasta 12 s; no es sandbox de SO |
+| Ejecucion de comandos | Retirada de shell arbitraria por API; los workers usan exclusivamente comandos fijos | El worker aun requiere aislamiento de SO y cuenta sin privilegios |
 | Recuperacion indebida de administrador | Recuperacion local apagada por defecto; requiere habilitacion de configuracion y solicitud local | No mantenerla habilitada durante operacion normal |
 | Solicitudes excesivas | 8 MiB, lectura en 15 s, 240 solicitudes/minuto por peer, 20 POST de identidad/minuto y 8 solicitudes simultaneas | Cuotas locales por proceso; gateway compartido requerido para despliegues multiples |
-| Respuestas de proveedores | Cuerpo maximo 256 KiB, encoding identity, redirecciones rechazadas, JSON acotado sin duplicados ni no finitos, tiempo de lectura limitado | El presupuesto de cuerpo no incluye todo el coste del resolver DNS |
+| Respuestas de proveedores | Cuerpo maximo 256 KiB, encoding identity, redirecciones rechazadas, JSON acotado sin duplicados ni no finitos, tiempo de lectura limitado | El padre termina el proceso cuando vence el presupuesto total |
 | Contenido activo | React/texto, HTML de informes escapado, mapas SVG estaticos sin JS/CDN/tiles externos; descarga de mapas con CSP sandbox | Los documentos descargados siguen siendo material no confiable para otros programas |
 | Abuso del navegador | Origen de escrituras limitado a CORS configurado, nosniff, no-referrer, SAMEORIGIN, Permissions-Policy y no-store para API | Bearer no protege frente a una extension maliciosa o equipo comprometido |
 | Agotamiento y ambiguedad de entrada | Cuerpo contado aun sin Content-Length, framing ambiguo y compresion rechazados, JSON con profundidad/estructura acotadas | El proxy debe limitar conexiones, cabeceras y tiempo total |
@@ -39,7 +39,7 @@ No se ejecutan comandos de laboratorio enviados por usuarios. Las integraciones
 futuras con herramientas requeriran adaptadores de argumentos fijos, allowlist
 administrada, limites de recursos y aislamiento del proceso. No habilitar shell.
 La API Geo Trace ya no abre URLs de evidencia ni resuelve sus dominios. La consulta
-de IPs a un proveedor solo funciona cuando su host HTTPS esta habilitado. El
+de IPs a un proveedor requiere host HTTPS global y concesion geo_ip de su organizacion. El
 proveedor anterior por HTTP se retira; sus registros historicos permanecen.
 
 ## Contrato obligatorio para un nuevo conector
@@ -70,10 +70,19 @@ Antes de exponer evidencia real a Internet: TLS en gateway, cuotas compartidas p
 cuenta/organizacion, configuracion estricta de proxies, firewall de egreso,
 identidades/secretos administrados, aislamiento de worker, cifrado y permisos de
 backups, observabilidad/alertas y auditoria de dependencias/CVE y pentest con alcance
-autorizado. No se realizo una auditoria CVE ni un pentest en esta entrega. No se
+autorizado. La auditoria CVE de esta etapa se documenta en SECURITY_AUDIT.md; no se realizo un pentest. No se
 promete proteccion contra DDoS distribuido, administradores hostiles o compromiso
 del equipo. Estos requisitos no deben confundirse con los controles ya presentes.
 
 Referencias de diseno consultadas:
 - [OWASP SSRF Prevention](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html)
 - [OWASP REST Security](https://cheatsheetseries.owasp.org/cheatsheets/REST_Security_Cheat_Sheet.html)
+
+## Refuerzo auditado de conectores
+
+Cada finalidad requiere una concesion explicita en Organization.settings_json, ademas
+de la allowlist global. IA local requiere tambien concesion local_ai y permiso ai:use.
+Los hijos no heredan secretos ni proxies; limites de 4 operaciones globales, 1 por
+organizacion y 20/minuto por organizacion, con plazo comun maximo de 12 segundos.
+El sistema operativo sigue siendo una frontera pendiente: cuenta dedicada, firewall
+y sandbox para codigo no confiable. Politicas y clave de firma: [auditoria](SECURITY_AUDIT.md).

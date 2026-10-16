@@ -198,3 +198,14 @@ async def enforce_scope(request: Request, db: Session = Depends(get_db), user: C
                 if case_id is not None and parent_case != case_id:
                     raise HTTPException(422, "Referencias de distintos casos")
                 case_id = parent_case
+
+    from operia.identity.models import Organization
+    from operia.security.context import connector_scope, organization_scope
+    organization = db.get(Organization, user.organization_id)
+    if not organization or organization.status != "active":
+        raise HTTPException(403, "Organizacion no activa")
+    token = connector_scope.set(organization_scope(user, case_id, organization.settings_json, getattr(request.state, "request_id", "")))
+    try:
+        yield
+    finally:
+        connector_scope.reset(token)

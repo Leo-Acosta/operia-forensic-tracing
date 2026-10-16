@@ -47,6 +47,13 @@ Important variables:
 
 Ollama is optional.
 
+Network access is disabled by default. Local AI now requires
+`OPERIA_LOCAL_AI_ENABLED=true`, an explicit `local_ai` organization grant and
+`ai:use`. Public connectors require both a server host allowlist and an organization
+purpose grant. See [security audit and operator settings](SECURITY_AUDIT.md).
+Back up the persistent `storage/.auth-signing-key` with storage and protect it
+with host ACLs; database-only backups do not include this signing key.
+
 Expected local endpoint:
 
 ```text

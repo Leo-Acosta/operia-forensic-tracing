@@ -36,3 +36,9 @@ storage/*.lock
 Thumbs.db
 .vscode/
 .idea/
+
+# Private runtime signing key and tenant memory files
+storage/.auth-signing-key
+memory_vault/organizations/
+
+.auth-signing-key

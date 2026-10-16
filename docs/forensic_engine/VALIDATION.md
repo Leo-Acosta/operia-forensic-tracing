@@ -117,3 +117,28 @@ La copia restaurada de SQLite recibio upgrade/downgrade de 0005: 71 tablas anter
 con valores identicos, una tabla agregada y integrity_check ok. El snapshot externo
 historico y las revisiones/exportaciones previas siguen cubiertos por la regresion.
 Los respaldos y resultados de ejecucion permanecen fuera de Git.
+
+
+## Auditoría de dependencias y aislamiento de conectores (2026-10-16)
+
+Instalación nueva de las 50 distribuciones en Windows x64 CPython 3.12.14,
+fuera del entorno original, con ruedas descargadas y SHA-256 comprobados mediante
+requirements-win-py312.lock; instalación offline y pip check aprobados.
+Regresión completa: **164 pruebas aprobadas, 4 advertencias, 216.16 s**.
+Además, la prueba de administración entre organizaciones se repitió tras añadir
+los límites al restablecimiento de contraseña: 1 aprobada, 2.70 s.
+Las advertencias corresponden a TestClient/httpx, ast de ReportLab y dos usos
+de FastAPI on_event; no se silenciaron.
+
+pip-audit 2.10.1 sobre el entorno reconstruido: cero vulnerabilidades conocidas;
+npm 11.6.2 audit: cero. Bandit 1.9.4: cero altas/medias, 13 bajas revisadas,
+sin exclusiones de reglas. npm ci --ignore-scripts y TypeScript/Vite 6.4.4
+aprobados (1582 módulos); git diff --check sin errores.
+
+Restauración del respaldo a un destino nuevo: integrity_check ok y mismo SHA-256.
+Las 72 tablas preexistentes conservan todos sus valores. Los tests cubren
+contexto por organización/finalidad, acceso cruzado, historial, claves persistentes,
+contraseñas antiguas, colisiones Mind, SSRF, entorno sin secretos y terminación
+real del hijo al vencer el plazo. No se contactaron proveedores reales.
+Alcance, avisos y límites en ../SECURITY_AUDIT.md; el proceso hijo no es un sandbox
+del SO. Sin nuevas dependencias del motor, ejecución MVT ni despliegue.

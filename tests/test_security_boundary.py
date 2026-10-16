@@ -3,33 +3,47 @@ import socket
 import pytest
 from fastapi import HTTPException
 from operia.core.config import settings
-from operia.security import outbound
+from operia.security import outbound, transport
+from operia.security.context import ConnectorScope, connector_scope
+
+
+@pytest.fixture()
+def connector_test_scope(monkeypatch):
+    token = connector_scope.set(ConnectorScope(1, 1, 1, frozenset({("generic", "provider.example")})))
+    def direct(payload, timeout, maximum):
+        return transport.fetch_bytes(payload["url"], payload["timeout"], payload["maximum"], payload["allowed_hosts"])
+    monkeypatch.setattr(outbound, "_run_transport", direct)
+    with outbound._lock:
+        outbound._calls.clear()
+        outbound._active.clear()
+    yield
+    connector_scope.reset(token)
 from operia.security.limits import reset_limits
 from operia.security.middleware import SecurityBoundary
 
 
 @pytest.mark.parametrize("url", ["http://provider.example/a", "https://127.0.0.1/", "https://[::1]/", "https://metadata.google.internal/", "file:///etc/passwd", "https://provider.example@evil.invalid/", "https://provider.example:444/", "https://provider.example/a#fragment", "https://provider.example/\r\nX:a", "https://provider.example.evil.invalid/"])
-def test_unapproved_connector_is_rejected_before_dns(monkeypatch, url):
+def test_unapproved_connector_is_rejected_before_dns(monkeypatch, url, connector_test_scope):
     monkeypatch.setattr(settings, "connector_allowed_hosts", ["provider.example"])
     def fail(*args, **kwargs):
         raise AssertionError("No DNS for unapproved URL")
-    monkeypatch.setattr(outbound.socket, "getaddrinfo", fail)
+    monkeypatch.setattr(transport.socket, "getaddrinfo", fail)
     with pytest.raises(outbound.ConnectorRejected):
         outbound.fetch_bytes(url)
 
 
 @pytest.mark.parametrize("address", ["127.0.0.1", "10.0.0.1", "169.254.169.254", "192.168.1.1", "::1", "fe80::1", "::ffff:8.8.8.8", "224.0.0.1", "2002:0808:0808::1"])
-def test_connector_blocks_internal_special_and_mixed_dns(monkeypatch, address):
+def test_connector_blocks_internal_special_and_mixed_dns(monkeypatch, address, connector_test_scope):
     monkeypatch.setattr(settings, "connector_allowed_hosts", ["provider.example"])
-    monkeypatch.setattr(outbound.socket, "getaddrinfo", lambda *a, **k: [(2, 1, 6, "", ("8.8.8.8", 443)), (2, 1, 6, "", (address, 443))])
+    monkeypatch.setattr(transport.socket, "getaddrinfo", lambda *a, **k: [(2, 1, 6, "", ("8.8.8.8", 443)), (2, 1, 6, "", (address, 443))])
     with pytest.raises(outbound.ConnectorRejected):
         outbound.fetch_bytes("https://provider.example/")
 
 
-def test_connector_pins_dns_rejects_redirects_and_bounds_bytes(monkeypatch):
+def test_connector_pins_dns_rejects_redirects_and_bounds_bytes(monkeypatch, connector_test_scope):
     monkeypatch.setattr(settings, "connector_allowed_hosts", ["provider.example"])
     calls = []
-    monkeypatch.setattr(outbound.socket, "getaddrinfo", lambda *a, **k: [(2, 1, 6, "", ("8.8.8.8", 443))])
+    monkeypatch.setattr(transport.socket, "getaddrinfo", lambda *a, **k: [(2, 1, 6, "", ("8.8.8.8", 443))])
     class Response:
         status = 200
         data = b'{"ok":true}'
@@ -44,7 +58,7 @@ def test_connector_pins_dns_rejects_redirects_and_bounds_bytes(monkeypatch):
         def request(self, *a, **k): pass
         def getresponse(self): return response
         def close(self): pass
-    monkeypatch.setattr(outbound, "PinnedHTTPS", Connection)
+    monkeypatch.setattr(transport, "PinnedHTTPS", Connection)
     assert outbound.fetch_json("https://provider.example/data") == {"ok": True}
     assert calls == [("provider.example", "8.8.8.8")]
     response.status = 302
@@ -153,7 +167,7 @@ def test_ambiguous_json_rejected(client, raw):
 def test_connector_network_calls_remain_centralized():
     import ast
     from pathlib import Path
-    approved = {"operia/security/outbound.py", "operia/ai_assistant/ollama_client.py"}
+    approved = {"operia/security/transport.py"}
     forbidden = []
     for file in Path("operia").rglob("*.py"):
         if file.as_posix() in approved:

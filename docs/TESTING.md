@@ -27,3 +27,10 @@ Current coverage:
 
 The tests use isolated SQLite databases and do not modify the main local database.
 
+The security regression also covers organization/purpose connector grants,
+cross-case graph references, unique tenant note paths, session invalidation,
+legacy password upgrades, secret-free worker environments, SSRF and termination
+of a real child process at its deadline. No external provider receives evidence.
+See [the dated audit](SECURITY_AUDIT.md) for dependency scans and reproducible
+Windows CPython 3.12 installation with `requirements-win-py312.lock`.
+
