@@ -76,7 +76,9 @@ def test_sensitive_write_requires_permission_token(client, admin_headers):
     assert case.status_code == 200
 
 
-def test_local_admin_recovery_resets_admin_access(client):
+def test_local_admin_recovery_resets_admin_access(client, monkeypatch):
+    from operia.core.config import settings
+    monkeypatch.setattr(settings, "local_recovery_enabled", True)
     client.post(
         "/api/identity/bootstrap-admin",
         json={"email": "recover@test.local", "password": "OldPassword123!"},

@@ -24,8 +24,10 @@ from operia.settings.router import router as settings_router
 from operia.users_cases.router import router as users_cases_router
 
 from operia.identity.isolation import enforce_scope
+from operia.mobile_forensics.projection_router import router as projection_router
 
 api_router = APIRouter()
+api_router.include_router(projection_router, prefix="/mobile-forensics", tags=["native-projections"])
 api_router.include_router(mobile_router, prefix="/mobile-forensics", tags=["mobile-forensics"])
 api_router.include_router(native_mobile_router, prefix="/mobile-forensics", tags=["native-mobile"])
 

@@ -21,6 +21,8 @@ from operia.mind.bootstrap import init_mind_module
 
 @pytest.fixture()
 def client(monkeypatch):
+    from operia.security.limits import reset_limits
+    reset_limits()
     tmp_root = ROOT / "storage" / "test_runs" / uuid.uuid4().hex
     tmp_root.mkdir(parents=True, exist_ok=True)
     db_path = tmp_root / "operia_test.db"

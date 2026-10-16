@@ -95,3 +95,25 @@ Cierre definitivo de esta etapa: **121 pruebas aprobadas**, 5 advertencias
 preexistentes, 199.67 s. Comando: `.venv/Scripts/python.exe -m pytest -q -p
 no:cacheprovider`. Compilacion frontend aprobada; `git diff --check` sin errores.
 Cambios locales en feature/operia-native-mobile-engine, sin push ni despliegue.
+
+
+## Proyecciones y capas de seguridad (2026-10-16)
+
+33 pruebas nuevas: proyeccion de artefactos revisados, hipotesis separada, referencias
+Geo pasivas sin red/ubicacion inferida, idempotencia, correcciones independientes,
+mutaciones/borrados rechazados, permisos y accesos cruzados, hashes y migracion
+0005 repetible. Seguridad: bloqueo antes de DNS, respuestas DNS mixtas/internas y
+especiales, destino fijado, redirects y respuesta excesiva, JSON hostil, limites de
+cuerpo/rate/concurrencia, origen, recuperacion apagada, shell retirado, IA no
+habilitada, mapas inertes, rutas Geo acotadas y prueba de arquitectura de red.
+Todas las respuestas de proveedor se simularon; no se enviaron evidencias a red.
+
+Regresion completa final: **154 aprobadas**, cinco advertencias preexistentes,
+173.34 s. TypeScript/Vite aprobado (1582 modulos); diff sin errores. No hubo una
+nueva inspeccion visual del navegador, adquisiciones reales, pentest ni auditoria
+CVE. Sin nuevas dependencias del motor ni instalacion/ejecucion de MVT.
+
+La copia restaurada de SQLite recibio upgrade/downgrade de 0005: 71 tablas anteriores
+con valores identicos, una tabla agregada y integrity_check ok. El snapshot externo
+historico y las revisiones/exportaciones previas siguen cubiertos por la regresion.
+Los respaldos y resultados de ejecucion permanecen fuera de Git.

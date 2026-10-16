@@ -9,7 +9,7 @@ type Result = { artifacts: { id: string; locator: string; kind: string; original
   timeline: { id: string; normalized_utc: string; original: string; uncertainty: string }[];
   coverage: { state: string; limitations: string[]; sources: { status: string; excluded: unknown[]; warnings: string[] }[] };
   detection_status: string; counts: { artifacts: number; alerts: number; timeline: number } };
-type Detail = { integrations: { id: number; review_id: number; evidence_id: number; report_id: number; snapshot_sha256: string }[]; job: Job; result: Result | null; reviews: { id: number; reviewer_name: string; created_at: string; content_json: string }[];
+type Detail = { projections: { id: number; finding_id: number; hypothesis_id: number; geo_analysis_id: number | null; snapshot_sha256: string }[]; integrations: { id: number; review_id: number; evidence_id: number; report_id: number; snapshot_sha256: string }[]; job: Job; result: Result | null; reviews: { id: number; reviewer_name: string; created_at: string; content_json: string }[];
   events: { id: number; state: string; reason: string }[]; exports: { id: number; format: string; sha256: string }[] };
 type Legacy = { id: number; filename: string; declared_mvt_version: string; origin: string };
 type Capability = { message: string; readers: { platform: string; format: string; version: string }[] };
@@ -243,6 +243,25 @@ export default function MobileForensics({ caseId }: { caseId: number }) {
           setDetail(await apiGet<Detail>(`${native}/jobs/${jobId}?offset=${offset}`));
         })}>Crear {format === "json" ? "informe JSON" : "CSV temporal"}</button>)}
         {detail.integrations.map(i => <p key={i.id}>Revisión {i.review_id}: evidencia {i.evidence_id}, informe {i.report_id}. <button onClick={() => void run(() => download(`${native}/jobs/${jobId}/integrations/${i.id}`, `operia-integration-${i.id}.json`, token))}>Descargar instantánea preservada</button><code>{i.snapshot_sha256}</code></p>)}
+        <h3>7. Hallazgos, hipótesis y Geo Trace</h3><p>Seleccioná artefactos respaldados por una revisión ya incorporada. Geo Trace conserva referencias pasivas: no consulta URLs ni infiere ubicaciones o responsables.</p>
+        <form key={`projection-${jobId}`} className="form-grid" onChange={() => { setDirty(true); setDirtyForm("projection"); }} onSubmit={event => {
+          event.preventDefault(); const form = event.currentTarget; const values = new FormData(form);
+          void run(async () => {
+            await apiPost(`${native}/jobs/${jobId}/projections`, { integration_id: Number(values.get("integration_id")),
+              artifact_ids: String(values.get("artifact_ids") || "").split(/[\s,]+/).filter(Boolean),
+              hypothesis_text: values.get("hypothesis_text"), facts_to_prove: values.get("facts_to_prove"), create_geo: values.get("create_geo") === "on" });
+            if (!mounted.current || getAuthToken() !== token) return;
+            setDetail(await apiGet<Detail>(`${native}/jobs/${jobId}?offset=${offset}`)); form.reset(); setDirty(false);
+          });
+        }}><fieldset disabled={busy || !canWrite || !detail.integrations.length || (dirty && dirtyForm !== "projection")}>
+          <label>Incorporación de evidencia<select name="integration_id" required>{detail.integrations.map(i => <option key={i.id} value={i.id}>Incorporación {i.id} · revisión {i.review_id}</option>)}</select></label>
+          <label>IDs de artefactos revisados<input name="artifact_ids" required /></label>
+          <label>Hipótesis profesional por contrastar<textarea name="hypothesis_text" minLength={20} maxLength={4000} required /></label>
+          <label>Hechos y corroboración necesarios<textarea name="facts_to_prove" minLength={20} maxLength={4000} required /></label>
+          <label><input type="checkbox" name="create_geo" />Crear Geo Trace pasivo de las URLs mencionadas (requiere referencias URL)</label>
+          <button>Preservar hallazgo e hipótesis</button>
+        </fieldset></form>
+        {detail.projections.map(p => <p key={p.id}>Hallazgo {p.finding_id}, hipótesis {p.hypothesis_id}, Geo Trace {p.geo_analysis_id ?? "no solicitado"}. <button onClick={() => void run(() => download(`${native}/jobs/${jobId}/projections/${p.id}`, `operia-projection-${p.id}.json`, token))}>Descargar respaldo de proyección</button><code>{p.snapshot_sha256}</code></p>)}
         {detail.exports.map(e => <p key={e.id}><button onClick={() => void run(() => download(`${native}/jobs/${jobId}/exports/${e.id}`, `operia-native-${jobId}-${e.id}.${e.format}`, token))}>Descargar exportación {e.id} ({e.format})</button><code>{e.sha256}</code></p>)}
       </>}
     </>}

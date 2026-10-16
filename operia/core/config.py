@@ -14,6 +14,13 @@ class Settings(BaseSettings):
     mobile_import_max_bytes: int = Field(default=5 * 1024 * 1024, ge=1, le=50 * 1024 * 1024)
     mobile_job_timeout_seconds: int = Field(default=30, ge=1, le=300)
     mobile_storage_quota_bytes: int = Field(default=128 * 1024 * 1024, ge=5 * 1024 * 1024, le=2 * 1024 * 1024 * 1024)
+    connector_allowed_hosts: list[str] = []
+    local_ai_enabled: bool = False
+    local_recovery_enabled: bool = False
+    http_max_concurrent_requests: int = Field(default=8, ge=1, le=64)
+    http_max_body_bytes: int = Field(default=8 * 1024 * 1024, ge=1024, le=32 * 1024 * 1024)
+    http_requests_per_minute: int = Field(default=240, ge=10, le=10000)
+    http_auth_per_minute: int = Field(default=20, ge=1, le=1000)
     cors_origins: list[str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",

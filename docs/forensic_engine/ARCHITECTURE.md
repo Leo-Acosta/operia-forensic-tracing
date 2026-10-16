@@ -30,7 +30,7 @@ SQLAlchemy, React, IA ni un motor externo. Los adaptadores actuales están en
 readers.py; no se crean carpetas vacías para aparentar módulos.
 
 Diseño pendiente: lectores SQLite sobre copias/WAL/SHM, manifiesto de backup iOS,
-contenedores de adquisiciones, correlaciones entre fuentes, conectores seguros a hallazgos/trazado, IA y sandbox del SO.
+contenedores de adquisiciones, correlaciones entre fuentes, correlacion avanzada entre fuentes, IA y sandbox del SO.
 El diagrama representa solo el flujo implementado.
 
 ## Integración canónica (2026-10-16)
@@ -47,3 +47,20 @@ Los consumidores canónicos y sus alias reciben una sesión de organización: la
 consultas ORM se limitan por caso, organización y documento padre; las escrituras
 validan referencias del caso. Los registros integrados no se editan ni eliminan
 por las rutas canónicas o legacy. Otra revisión produce otra incorporación.
+
+## Proyecciones analiticas preservadas
+
+POST `.../native/cases/{case_id}/jobs/{job_id}/projections` recibe incorporacion,
+IDs de artefactos revisados, hipotesis profesional, hechos a probar y opcion Geo.
+Crea Finding/Hypothesis separados, con referencias a evidencia y revision. Geo
+crea analisis y targets solo cuando hay URLs en los artefactos seleccionados;
+no hace DNS, HTTP, geolocalizacion, atribucion ni inferencia de fraude. Si no hay
+URLs, la opcion Geo se rechaza sin crear registros. Estado no_evaluado, coordenadas
+NULL, score/probabilidades sin evaluacion. Los ceros son valores de esquema, no una
+estimacion de riesgo o ausencia de actividad.
+
+AnalysisProjection vincula IDs de destino y conserva snapshot con hash; una misma
+solicitud canonica por incorporacion es idempotente. Otra hipotesis/seleccion crea
+nuevos registros. Finding/Hypothesis/Geo y sus targets quedan preservados. Las
+hipotesis siguen abiertas y requieren corroboracion independiente. GET
+`.../projections/{id}` permite descargar el respaldo exacto y la UI muestra IDs.

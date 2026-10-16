@@ -47,3 +47,15 @@ snapshot después de upgrade repetido/downgrade. Bootstrap registra la tabla nue
 Respaldo local verificado: `storage/temp/pre-evidence-integration-20261016.db`,
 con manifiesto SHA-256. Solo incluye SQLite; los archivos externos requieren su
 respaldo separado. No usar una reversión de código para borrar las tablas nuevas.
+
+
+Etapa siguiente: 0005, dependiente de 0004, agrega native_mobile_projections.
+Upgrade repetible; downgrade conserva tabla y datos. El bootstrap tambien registra
+Geo Trace para resolver la nueva FK en procesos de worker independientes.
+
+Respaldo verificado: storage/temp/pre-projections-security-20261016.db. Su copia
+restaurada projections-security-restore-check-20261016.db recibio upgrade dos veces
+y downgrade no destructivo: las 71 tablas anteriores conservaron todos sus valores,
+se agrego solo native_mobile_projections y SQLite integrity_check dio ok. Evidencia
+de comprobacion en storage/test_runs/projections-migration-check.json, fuera de Git.
+El respaldo SQLite no incluye archivos externos.

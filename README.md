@@ -137,6 +137,7 @@ storage/
 - [AI Security](docs/AI_SECURITY.md)
 - [Exports](docs/EXPORTS.md)
 - [SaaS Readiness](docs/SAAS_READINESS.md)
+- [Capas de seguridad y contrato de conectores](docs/SECURITY_LAYERS.md)
 - [Testing](docs/TESTING.md)
 - [Deployment](docs/DEPLOYMENT.md)
 - [Migration Notes](docs/MIGRATION_NOTES.md)

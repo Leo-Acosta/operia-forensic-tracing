@@ -63,7 +63,7 @@ def export_html(report: Report) -> Path:
         path = new_export_path(f"report-{report.id}.html")
         path.write_text("<!doctype html><meta charset='utf-8'><pre>" + escape(report.markdown_content) + "</pre>", encoding="utf-8")
         return path
-    html = md.markdown(normalize_spanish(report.markdown_content), extensions=["tables"])
+    html = "<pre>" + escape(normalize_spanish(report.markdown_content)) + "</pre>"
     path = new_export_path(f"report-{report.id}.html")
     path.write_text(f"<!doctype html><meta charset='utf-8'><body>{html}</body>", encoding="utf-8")
     return path

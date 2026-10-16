@@ -44,3 +44,11 @@ con adquisición/metadatos, resultado completo y revisión seleccionada. Su desc
 verifica SHA-256. La evidencia canónica referencia el original BLOB por el vínculo,
 sin ruta recibida del usuario ni duplicación de la fuente. El informe y su primera
 versión conservan sus hashes; las correcciones se incorporan como otro registro.
+
+
+AnalysisProjection (native_mobile_projections) contiene organizacion/caso/examen,
+incorporacion, finding_id, hypothesis_id, geo_analysis_id opcional, actor/fecha,
+request_sha256, snapshot_bytes y snapshot_sha256. Unicidad por incorporacion y hash
+de solicitud; IDs de artefactos ordenados para idempotencia. Snapshot
+operia.analysis-projection/1 conserva seleccion, solicitud, hashes de resultado e
+incorporacion y referencias Geo por artefacto. No altera operia.forensic/1.

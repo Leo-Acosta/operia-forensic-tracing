@@ -109,3 +109,21 @@ class EvidenceIntegration(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     snapshot_bytes: Mapped[bytes] = mapped_column(LargeBinary)
     snapshot_sha256: Mapped[str] = mapped_column(String(64))
+
+
+class AnalysisProjection(Base):
+    __tablename__ = "native_mobile_projections"
+    __table_args__ = (UniqueConstraint("integration_id", "request_sha256", name="uq_native_projection_request"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    job_id: Mapped[int] = mapped_column(ForeignKey("native_mobile_jobs.id"))
+    integration_id: Mapped[int] = mapped_column(ForeignKey("native_mobile_evidence_integrations.id"))
+    finding_id: Mapped[int] = mapped_column(ForeignKey("findings.id"))
+    hypothesis_id: Mapped[int] = mapped_column(ForeignKey("hypotheses.id"))
+    geo_analysis_id: Mapped[int | None] = mapped_column(ForeignKey("geo_trace_analyses.id"), nullable=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    request_sha256: Mapped[str] = mapped_column(String(64))
+    snapshot_bytes: Mapped[bytes] = mapped_column(LargeBinary)
+    snapshot_sha256: Mapped[str] = mapped_column(String(64))

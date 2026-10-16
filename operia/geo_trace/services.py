@@ -2,12 +2,13 @@ import hashlib
 import ipaddress
 import json
 import re
-import socket
 from pathlib import Path
 from urllib.parse import urlparse
 
-import folium
-import requests
+from operia.security.outbound import fetch_json
+from html import escape
+from uuid import uuid4
+import math
 
 from operia.core.config import settings
 
@@ -139,33 +140,13 @@ def _ip_kind(ip_obj: ipaddress._BaseAddress) -> str:
 
 
 def _query_ipapi(ip: str) -> dict[str, object] | None:
-    try:
-        response = requests.get(f"http://ip-api.com/json/{ip}", timeout=5)
-        response.raise_for_status()
-        data = response.json()
-        if data.get("status") != "success":
-            return None
-        return {
-            "country": data.get("country"),
-            "city": data.get("city"),
-            "isp": data.get("isp"),
-            "org": data.get("org"),
-            "asn": data.get("as"),
-            "lat": data.get("lat"),
-            "lon": data.get("lon"),
-            "geo_source": "ip-api",
-            "confidence": "media",
-        }
-    except Exception:
-        return None
+    # Legacy cleartext provider is retired; records previously obtained are retained.
+    return None
 
 
 def _query_ipinfo(ip: str) -> dict[str, object] | None:
     try:
-        headers = {"Authorization": f"Bearer {IPINFO_TOKEN}"} if IPINFO_TOKEN else {}
-        response = requests.get(f"https://ipinfo.io/{ip}/json", timeout=5, headers=headers)
-        response.raise_for_status()
-        data = response.json()
+        data = fetch_json(f"https://ipinfo.io/{ip}/json", timeout=5)
         lat = lon = None
         if data.get("loc") and "," in data["loc"]:
             lat_raw, lon_raw = data["loc"].split(",", 1)
@@ -218,29 +199,17 @@ def geolocate_ip(ip: str) -> dict[str, object]:
 
 
 def analyze_url(url: str) -> dict[str, object]:
-    parsed = urlparse(url)
-    host = parsed.hostname
-    if not host:
-        return {"url": url, "target_type": "url_invalida", "message": "No se pudo extraer el host de la URL."}
-    if host.endswith(".onion"):
-        return {"url": url, "host": host, "target_type": "onion", "ip": None, "geo": None, "message": "Servicio .onion detectado. La IP real no esta disponible por diseno de Tor."}
+    # Evidence URLs are observations, never instructions to contact the destination.
     try:
-        ip = socket.gethostbyname(host)
-    except Exception as exc:
-        return {"url": url, "host": host, "target_type": "web", "ip": None, "geo": None, "message": f"No se pudo resolver DNS: {exc}"}
-    title = final_url = status_code = None
-    try:
-        response = requests.get(url, timeout=8, allow_redirects=True)
-        final_url = response.url
-        status_code = response.status_code
-        text = response.text[:5000]
-        start = text.lower().find("<title>")
-        end = text.lower().find("</title>")
-        if start != -1 and end != -1 and end > start:
-            title = text[start + 7 : end].strip()
-    except Exception:
-        pass
-    return {"url": url, "host": host, "target_type": "web", "ip": ip, "geo": geolocate_ip(ip), "title": title, "final_url": final_url, "status_code": status_code, "message": "URL analizada correctamente."}
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password or any(ord(c) < 32 for c in url):
+            raise ValueError()
+        host = parsed.hostname.encode("idna").decode("ascii")
+        parsed.port
+        return {"url": url, "host": host, "ip": None, "geo": None, "target_type": "observado_no_enriquecido",
+                "confidence": "no_evaluada", "risk": "no_evaluado", "score": 0, "message": "Referencia pasiva: sin DNS, conexion ni geolocalizacion."}
+    except (ValueError, UnicodeError):
+        return {"url": url, "target_type": "url_invalida", "message": "Referencia URL invalida"}
 
 
 def evidence_hash(payload: object) -> str:
@@ -252,34 +221,21 @@ def color_by_risk(risk: str) -> str:
 
 
 def create_target_map(targets: list[dict[str, object]], filename: str) -> Path:
+    # A passive coordinate plot has no scripts, external tiles, fonts or CDN requests.
     settings.maps_dir.mkdir(parents=True, exist_ok=True)
-    output_path = settings.maps_dir / filename
-    geolocated = [item for item in targets if item.get("lat") is not None and item.get("lon") is not None]
-    if not geolocated:
-        output_path.write_text("<h2>No hay targets geolocalizables para mostrar.</h2>", encoding="utf-8")
-        return output_path
-    center_lat = sum(float(item["lat"]) for item in geolocated) / len(geolocated)
-    center_lon = sum(float(item["lon"]) for item in geolocated) / len(geolocated)
-    map_obj = folium.Map(location=[center_lat, center_lon], zoom_start=3, control_scale=True)
-    for index, target in enumerate(geolocated, start=1):
-        popup = f"""
-        <b>Orden:</b> {index}<br>
-        <b>Origen:</b> {target.get('origin', 'N/A')}<br>
-        <b>IP:</b> {target.get('ip', 'N/A')}<br>
-        <b>URL:</b> {target.get('url') or '-'}<br>
-        <b>Ubicacion:</b> {target.get('country') or 'N/A'} / {target.get('city') or 'N/A'} / {target.get('isp') or 'N/A'}<br>
-        <b>Riesgo:</b> {target.get('risk', 'N/A')}<br>
-        <b>Score:</b> {target.get('score', 'N/A')}
-        """
-        folium.Marker(
-            [float(target["lat"]), float(target["lon"])],
-            popup=folium.Popup(popup, max_width=500),
-            tooltip=f"{index}. {target.get('ip') or target.get('host') or 'Target'}",
-            icon=folium.Icon(color=color_by_risk(str(target.get("risk", "bajo"))), icon="info-sign"),
-        ).add_to(map_obj)
-    if len(geolocated) >= 2:
-        folium.PolyLine([(float(item["lat"]), float(item["lon"])) for item in geolocated], color="cyan", weight=3, opacity=0.8).add_to(map_obj)
-    map_obj.fit_bounds([[float(item["lat"]), float(item["lon"])] for item in geolocated])
-    map_obj.save(str(output_path))
+    output_path = settings.maps_dir / (uuid4().hex + ".html")
+    points, rows = [], []
+    for target in targets:
+        try:
+            lat, lon = float(target["lat"]), float(target["lon"])
+            if not math.isfinite(lat) or not math.isfinite(lon) or not -90 <= lat <= 90 or not -180 <= lon <= 180:
+                continue
+        except (KeyError, TypeError, ValueError):
+            continue
+        label = escape(str(target.get("ip") or target.get("host") or "Referencia"), quote=True)
+        points.append(f'<circle cx="{(lon+180)*2.5}" cy="{(90-lat)*2.5}" r="4" fill="blue"><title>{label}</title></circle>')
+        rows.append(f"<li>{label}: {lat}, {lon}. Coordenadas de proveedor, no ubicacion de una persona.</li>")
+    html = '<!doctype html><meta charset="utf-8"><h2>Referencias geograficas pasivas</h2><svg viewBox="0 0 900 450" xmlns="http://www.w3.org/2000/svg"><rect width="900" height="450" fill="#edf2f7"/>' + ''.join(points) + '</svg><ul>' + ''.join(rows) + '</ul>'
+    with output_path.open("x", encoding="utf-8") as stream:
+        stream.write(html)
     return output_path
-

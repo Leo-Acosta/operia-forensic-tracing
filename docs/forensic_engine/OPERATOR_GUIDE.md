@@ -55,3 +55,20 @@ transición a informe final por esas rutas. Corregir mediante una nueva revisió
 del examen y una nueva incorporación. La custodia registra recepción/incorporación
 en OPERIA y no inventa actos anteriores. Los históricos externos mantienen su
 origen, bytes y descargas. Un caso con datos móviles se conserva, no se elimina.
+
+## Hallazgos, hipotesis y Geo Trace
+
+Despues de incorporar evidencia, completar la seccion 7 del motor: elegir la
+incorporacion, seleccionar IDs de artefactos respaldados por esa revision y redactar
+una hipotesis y los hechos que necesitan corroboracion. Se requieren evidence:write
+y cases:write. Geo Trace es opcional y pasivo: solo referencias URL contenidas en
+los artefactos. No abre enlaces ni sitúa al dispositivo o a una persona.
+
+El resultado entrega IDs de hallazgo, hipotesis y analisis Geo, y descarga JSON con
+hash. Repetir exactamente la solicitud devuelve los mismos registros. Para corregir,
+crear otra proyeccion; no editar los registros preservados. La revision profesional
+no equivale a confirmacion tecnica. Los historicos e informes anteriores no cambian.
+
+Las consultas de red y la IA local estan apagadas por defecto y la ejecucion shell
+fue retirada. Ver [capas de seguridad](../SECURITY_LAYERS.md) para configuracion,
+limites y el contrato para futuros conectores.

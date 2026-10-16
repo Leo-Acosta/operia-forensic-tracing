@@ -69,3 +69,13 @@ antes de ejecutar el endpoint, incluyendo exportadores. Los nuevos archivos de
 exportación reservan destinos únicos: un nombre enviado no selecciona ni
 sobrescribe un archivo anterior y las rutas se rechazan. Los informes móviles
 exportan texto preservado; HTML lo escapa y PDF no reconstruye datos del caso vivo.
+
+
+## Frontera de conectores
+
+La etapa de proyecciones incorpora limites HTTP, origen, permisos por metodo,
+concurrencia, JSON estricto, salida denegada por defecto, validacion/pinning de DNS,
+retirada de shell, mapas/HTML inertes y recuperacion local deshabilitada por defecto.
+Las proyecciones permanecen pasivas incluso si se habilita un proveedor externo.
+Consultar [capas y contrato](../SECURITY_LAYERS.md). Limites por proceso, no firewall
+ni cuotas distribuidas; no se realizaron adquisiciones reales, pentest o auditoria CVE.

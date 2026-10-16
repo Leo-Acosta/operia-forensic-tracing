@@ -62,7 +62,7 @@ def validate_writes(db, context, instances):
     if org is None:
         return
     from operia.cases.models import Case
-    from operia.forensic_jobs.models import EvidenceIntegration
+    from operia.forensic_jobs.models import EvidenceIntegration, AnalysisProjection
     for item in list(db.new) + list(db.dirty) + list(db.deleted):
         if isinstance(item, Case):
             if item in db.new:
@@ -103,7 +103,27 @@ def validate_writes(db, context, instances):
                     parent = db.get(target, value)
                     if not parent or parent.case_id != item_case_id:
                         raise HTTPException(422, "Referencia ajena al caso")
+        if item.__tablename__ == "hypotheses":
+            import re
+            from operia.cases.models import Finding
+            from operia.evidence.models import Evidence
+            for key, model in (("finding_ids", Finding), ("evidence_ids", Evidence)):
+                raw = getattr(item, key, None) or ""
+                if raw:
+                    ids = re.split(r"[,\s]+", raw.strip())
+                    if len(ids) > 100 or any(not value.isdecimal() for value in ids) or len(ids) != len(set(ids)):
+                        raise HTTPException(422, "Referencias de hipotesis invalidas")
+                    for value in ids:
+                        referenced = db.get(model, int(value))
+                        if not referenced or referenced.case_id != item.case_id:
+                            raise HTTPException(422, "Referencia de hipotesis ajena al caso")
         if item in db.dirty or item in db.deleted:
+            projection_key = {"findings": "finding_id", "hypotheses": "hypothesis_id", "geo_trace_analyses": "geo_analysis_id"}.get(item.__tablename__)
+            if projection_key and db.query(AnalysisProjection).filter(getattr(AnalysisProjection, projection_key) == item.id).first():
+                if item in db.deleted or db.is_modified(item, include_collections=False):
+                    raise HTTPException(409, "Analisis proyectado preservado: crear otra proyeccion")
+            if item.__tablename__ == "geo_trace_targets" and db.query(AnalysisProjection).filter_by(geo_analysis_id=item.analysis_id).first():
+                raise HTTPException(409, "Target proyectado preservado")
             name = item.__tablename__
             if name in {"report_sections", "report_versions"}:
                 if db.query(EvidenceIntegration).filter_by(report_id=item.report_id).first():
@@ -117,7 +137,19 @@ def validate_writes(db, context, instances):
 async def enforce_scope(request: Request, db: Session = Depends(get_db), user: CurrentUser = Depends(require_user)):
     if not user.organization_id:
         raise HTTPException(403, "Organización requerida")
-    permission = "evidence:read" if request.url.path.startswith("/api/evidence") else "reports:read" if request.url.path.startswith(("/api/reports", "/api/exports")) else "cases:read"
+    from operia.core.config import settings
+    module = request.url.path.removeprefix(settings.api_prefix + "/").split("/", 1)[0]
+    writing = request.method not in ("GET", "HEAD", "OPTIONS")
+    permissions = {"evidence": "evidence", "reports": "reports", "exports": "reports", "legal-report": "reports", "rubrics": "reports",
+                   "legal": "legal", "legal-knowledge": "legal", "cases": "cases", "cybercrime": "evidence",
+                   "geo": "evidence", "geo-trace": "evidence", "geo-proximity": "evidence"}
+    permission = permissions.get(module, "cases") + (":write" if writing else ":read")
+    if module in ("ai", "mind", "ai-security") and writing:
+        permission = "ai:use"
+    if module == "legal-knowledge" and request.url.path.endswith("/articles/recommend"):
+        permission = "legal:read"
+    if module == "audit":
+        permission = "audit:read"
     if not has_permission(user.role, permission):
         raise HTTPException(403, "Permiso insuficiente")
     db.info["request_organization"] = user.organization_id
@@ -146,8 +178,12 @@ async def enforce_scope(request: Request, db: Session = Depends(get_db), user: C
                 raise HTTPException(409, "Caso con historicos moviles preservados; no se permite eliminar")
     from operia.evidence.models import Evidence, ChainOfCustodyAction
     from operia.reports.models import Report, Presentation, PresentationSlide, ReportSection
-    objects = {"report_id": Report, "evidence_id": Evidence, "action_id": ChainOfCustodyAction,
+    from operia.cases.models import Finding, Hypothesis
+    objects = {"finding_id": Finding, "hypothesis_id": Hypothesis, "report_id": Report, "evidence_id": Evidence, "action_id": ChainOfCustodyAction,
                "presentation_id": Presentation, "slide_id": PresentationSlide, "section_id": ReportSection}
+    if request.url.path.startswith(("/api/geo/trace", "/api/geo-trace")):
+        from operia.geo_trace.models import GeoTraceAnalysis
+        objects["analysis_id"] = GeoTraceAnalysis
     for key, model in objects.items():
         value = references.get(key)
         if value is not None:

@@ -16,7 +16,7 @@ from operia.forensic_engine.analysis import capabilities, timeline_csv
 from operia.forensic_engine.canonical import MAX_SOURCE_BYTES, canonical_bytes, read_json, sha256
 from operia.forensic_engine.contracts import EngineInputError
 from operia.forensic_engine.detection import validate_indicators
-from operia.forensic_jobs.models import Acquisition, ExaminationJob, ExportRecord, IndicatorSet, JobEvent, ReviewRevision, EvidenceIntegration
+from operia.forensic_jobs.models import Acquisition, ExaminationJob, ExportRecord, IndicatorSet, JobEvent, ReviewRevision, EvidenceIntegration, AnalysisProjection
 from operia.forensic_jobs.worker import DONE, event
 from operia.forensic_jobs.storage_limits import begin_write, ensure_capacity
 from operia.identity.dependencies import CurrentUser, require_permission
@@ -252,6 +252,10 @@ def detail(case_id: int, job_id: int, offset: int = 0, db: Session = Depends(get
         for key in ("artifacts", "observations", "alerts", "timeline"):
             result[key] = result[key][offset:offset + 100]
     return {"job": job_view(job), "result": result, "offset": offset,
+        "projections": [{"id": item.id, "finding_id": item.finding_id, "hypothesis_id": item.hypothesis_id,
+            "geo_analysis_id": item.geo_analysis_id, "snapshot_sha256": item.snapshot_sha256}
+            for item in db.query(AnalysisProjection).filter_by(job_id=job_id, case_id=case_id,
+                organization_id=user.organization_id).order_by(AnalysisProjection.id).all()],
         "integrations": [{"id": item.id, "review_id": item.review_id, "evidence_id": item.evidence_id,
             "report_id": item.report_id, "snapshot_sha256": item.snapshot_sha256}
             for item in db.query(EvidenceIntegration).filter_by(job_id=job_id, case_id=case_id,

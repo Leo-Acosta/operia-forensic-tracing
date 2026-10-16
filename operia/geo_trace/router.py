@@ -78,11 +78,15 @@ def create_analysis(
     current_user: CurrentUser = Depends(require_permission("evidence:write")),
 ):
     case_id = payload.get("case_id")
-    if case_id and not db.get(Case, int(case_id)):
+    if not case_id or not db.get(Case, int(case_id)):
         raise HTTPException(404, "Caso no encontrado")
     text = payload.get("input_text") or ""
+    if not isinstance(text, str) or len(text) > 16384:
+        raise HTTPException(422, "Geo Trace admite hasta 16384 caracteres")
     ips = extract_ips(text)
     urls = extract_urls(text)
+    if len(ips) + len(urls) > 50:
+        raise HTTPException(422, "Maximo 50 referencias por analisis")
     analysis = GeoTraceAnalysis(case_id=case_id, title=payload.get("title") or "Geo Trace analysis", input_text=text)
     db.add(analysis)
     db.flush()
@@ -133,7 +137,13 @@ def export_map(analysis_id: int, db: Session = Depends(get_db)):
     analysis = db.get(GeoTraceAnalysis, analysis_id)
     if not analysis or not analysis.map_path:
         raise HTTPException(404, "Mapa no encontrado")
-    return FileResponse(analysis.map_path, media_type="text/html", filename=f"geo-trace-{analysis_id}.html")
+    from pathlib import Path
+    from operia.core.config import settings
+    path = Path(analysis.map_path).resolve()
+    if not path.is_relative_to(settings.maps_dir.resolve()) or not path.is_file():
+        raise HTTPException(404, "Mapa fuera del deposito autorizado")
+    return FileResponse(path, media_type="text/html", filename=f"geo-trace-{analysis_id}.html",
+        headers={"Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'self'"})
 
 
 @router.post("/analyses/{analysis_id}/export/pdf")

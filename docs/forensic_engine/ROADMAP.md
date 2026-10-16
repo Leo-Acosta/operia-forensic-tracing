@@ -11,7 +11,7 @@ Fecha: 2026-10-16. Ningún documento sustituye validación de código.
 | P4 cola/worker local | P1/P2 | persistencia, claim, cancelación, timeout, restart, cuota y estados separados | implementado/probado en Windows; sandbox SO pendiente |
 | P5 revisión/UI/JSON/CSV | P3/P4 | revisión append-only, informes estables, ámbito y flujo real | implementado; ver VALIDATION |
 | P5 evidencia/custodia/informes/PDF/Word | aislamiento transversal | referencias por caso, doble permiso, snapshot, revisión preservada y exportaciones | implementado; pruebas sintéticas |
-| P5 hallazgos/Geo Trace | contrato específico | conectores acotados y revisión de datos | pendiente |
+| P5 hallazgos/hipotesis/Geo Trace | incorporacion revisada | seleccion explicita, referencias y snapshots, Geo pasivo | implementado; validacion sintetica |
 | P6 backup iOS/SQLite/WAL/bugreport completo | especificaciones y muestras autorizadas | lectura contrastada, conservación/copias, formatos/versiones precisos | pendiente; sin muestras reales |
 | P6 validación de detección real | conjuntos etiquetados y revisión profesional | tamaño/origen/verdad de referencia documentados | bloqueada por falta de adquisiciones autorizadas |
 | P7 IA | integridad + acceso mínimo + autorización de flujos | referencias verificables, no ejecución, separación hechos/hipótesis | pendiente, motor funciona sin IA |

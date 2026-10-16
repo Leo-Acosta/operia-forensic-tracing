@@ -1312,15 +1312,16 @@ def verify_source_url(url: str, timeout: int = 8) -> dict:
     if not url:
         return {"url": url, "reachable": False, "status_code": None, "error": "URL vacia"}
     try:
-        response = requests.get(url, timeout=timeout)
+        from operia.security.outbound import fetch_bytes
+        status, content = fetch_bytes(url, timeout=timeout)
         return {
             "url": url,
-            "reachable": response.ok,
-            "status_code": response.status_code,
-            "content_length": len(response.text),
+            "reachable": 200 <= status < 300,
+            "status_code": status,
+            "content_length": len(content),
             "checked_at": date.today().isoformat(),
         }
-    except requests.RequestException as exc:
+    except (requests.RequestException, RuntimeError) as exc:
         return {
             "url": url,
             "reachable": False,

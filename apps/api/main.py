@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from operia.security.middleware import SecurityBoundary
 from fastapi.middleware.cors import CORSMiddleware
 
 from operia.core.bootstrap import init_platform_schema
@@ -27,6 +28,8 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    app.add_middleware(SecurityBoundary)
 
     app.include_router(api_router, prefix=settings.api_prefix)
 

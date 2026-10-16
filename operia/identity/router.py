@@ -63,7 +63,7 @@ def audit(db: Session, action: str, module: str, current_user: CurrentUser | Non
 
 def is_local_recovery_request(request: Request) -> bool:
     host = request.client.host if request.client else ""
-    return settings.env == "local" and host in {"127.0.0.1", "::1", "localhost", "testclient"}
+    return settings.local_recovery_enabled and settings.env == "local" and host in {"127.0.0.1", "::1", "localhost", "testclient"}
 
 
 def issue_token(user: User, request: Request, db: Session) -> tuple[str, str]:
