@@ -24,6 +24,7 @@ storage/exports/*
 storage/maps/*
 storage/temp/*
 storage/test_runs/
+storage/*.lock
 !storage/evidence/.gitkeep
 !storage/uploads/.gitkeep
 !storage/exports/.gitkeep

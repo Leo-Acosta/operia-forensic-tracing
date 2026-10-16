@@ -1,187 +1,254 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { API_BASE, apiGet, apiPost, authHeaders } from "./api";
+import { API_BASE, apiGet, apiPost, authHeaders, getAuthToken } from "./api";
 
 type Device = { id: number; label: string; platform: string };
-type Exam = { id: number; device_id: number; filename: string; sha256: string; coverage: string;
-  candidate_count: number; record_count: number; limitations: string };
-type Review = { id: number; conclusion: string; reviewer_name: string; created_at: string; rationale: string };
-type Detail = { exam: Exam; records: { index: number; pointer: string; record: unknown; assessment: string }[]; reviews: Review[] };
+type Acquisition = { id: number; device_id: number; filename: string; format: string; sha256: string; size_bytes: number };
+type Job = { id: number; acquisition_id: number; state: string; error_code: string; result_sha256: string; configuration: { demo_rules: boolean } };
+type Result = { artifacts: { id: string; locator: string; kind: string; original: unknown; normalized: unknown }[];
+  alerts: { id: string; explanation: string; synthetic: boolean; artifact_ids: string[] }[];
+  timeline: { id: string; normalized_utc: string; original: string; uncertainty: string }[];
+  coverage: { state: string; limitations: string[]; sources: { status: string; excluded: unknown[]; warnings: string[] }[] };
+  detection_status: string; counts: { artifacts: number; alerts: number; timeline: number } };
+type Detail = { job: Job; result: Result | null; reviews: { id: number; reviewer_name: string; created_at: string; content_json: string }[];
+  events: { id: number; state: string; reason: string }[]; exports: { id: number; format: string; sha256: string }[] };
+type Legacy = { id: number; filename: string; declared_mvt_version: string; origin: string };
+type Capability = { message: string; readers: { platform: string; format: string; version: string }[] };
+const ACTIVE = ["pendiente", "preparando", "ejecutando"];
 
-async function download(path: string, name: string) {
+async function download(path: string, name: string, token: string) {
   const response = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
-  if (!response.ok) throw new Error(`No se pudo descargar (${response.status}). Revisá sesión, permisos e integridad.`);
-  const url = URL.createObjectURL(await response.blob());
+  if (getAuthToken() !== token) throw new Error("La sesión cambió; descarga cancelada.");
+  if (!response.ok) throw new Error(`No se pudo descargar (${response.status}). Revisá permisos e integridad.`);
+  const blob = await response.blob();
+  if (getAuthToken() !== token) return;
+  const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a"); anchor.href = url; anchor.download = name; anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export default function MobileForensics({ caseId }: { caseId: number }) {
   const [devices, setDevices] = useState<Device[]>([]);
-  const [exams, setExams] = useState<Exam[]>([]);
+  const [acquisitions, setAcquisitions] = useState<Acquisition[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [indicators, setIndicators] = useState<{ id: number; version: string; sha256: string }[]>([]);
+  const [legacy, setLegacy] = useState<Legacy[]>([]);
+  const [legacyDetail, setLegacyDetail] = useState<{ exam: Legacy; records: unknown[]; reviews: unknown[]; exports: { id: number }[] } | null>(null);
   const [deviceId, setDeviceId] = useState("");
-  const [examId, setExamId] = useState(0);
+  const [jobId, setJobId] = useState(0);
   const [detail, setDetail] = useState<Detail | null>(null);
-  const [engine, setEngine] = useState("");
+  const [capability, setCapability] = useState<Capability | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [dirtyForm, setDirtyForm] = useState("");
+  const [canWrite, setCanWrite] = useState(false);
+  const [sessionActive, setSessionActive] = useState(true);
   const [offset, setOffset] = useState(0);
   const panel = useRef<HTMLElement>(null);
-  const [canWrite, setCanWrite] = useState(false);
+  const mounted = useRef(true);
+  const token = useRef(getAuthToken()).current;
   const root = `/mobile-forensics/cases/${caseId}`;
+  const native = `/mobile-forensics/native/cases/${caseId}`;
+  const selectedState = jobs.find(job => job.id === jobId)?.state;
+  const hasActive = jobs.some(job => ACTIVE.includes(job.state));
 
   useEffect(() => {
-    let alive = true;
-    Promise.all([apiGet<Device[]>(`${root}/devices`), apiGet<Exam[]>(`${root}/exams`),
-      apiGet<{ message: string }>("/mobile-forensics/engine"),
-      apiGet<{ user: { role: string } | null }>("/identity/me"),
-      apiGet<Record<string, string[]>>("/identity/permissions")]).then(([d, e, status, identity, roles]) => {
-      if (alive) {
-        setDevices(d); setExams(e); setEngine(status.message);
-        const permissions = roles[identity.user?.role || ""] || [];
-        setCanWrite(permissions.includes("*") || permissions.includes("evidence:write"));
-      }
-    }).catch(e => { if (alive) setError(e.message); });
-    return () => { alive = false; };
-  }, [root]);
-  useEffect(() => {
-    let alive = true; setDetail(null);
-    if (examId) apiGet<Detail>(`${root}/exams/${examId}?offset=${offset}`).then(data => {
-      if (alive) setDetail(data);
-    }).catch(e => { if (alive) setError(e.message); });
-    return () => { alive = false; };
-  }, [root, examId, offset]);
-  useEffect(() => {
-    const handler = (event: BeforeUnloadEvent) => { if (dirty) { event.preventDefault(); event.returnValue = ""; } };
-    const navigate = (event: MouseEvent) => {
-      if (dirty && event.target instanceof Element && event.target.closest(".sidebar button")) {
-        event.preventDefault(); event.stopPropagation();
-        setError("Guardá o descartá los cambios del módulo antes de navegar.");
+    const changed = () => {
+      if (getAuthToken() !== token) {
+        setSessionActive(false); setDetail(null); setLegacyDetail(null); setAcquisitions([]);
+        setJobs([]); setDevices([]); setIndicators([]); setLegacy([]); setCanWrite(false); setDirty(false);
       }
     };
-    window.addEventListener("beforeunload", handler);
-    document.addEventListener("click", navigate, true);
+    window.addEventListener("operia:auth-changed", changed); window.addEventListener("storage", changed);
+    return () => { window.removeEventListener("operia:auth-changed", changed); window.removeEventListener("storage", changed); };
+  }, [token]);
+
+  async function refresh() {
+    const [d, a, j, i, h] = await Promise.all([apiGet<Device[]>(`${root}/devices`),
+      apiGet<Acquisition[]>(`${native}/acquisitions`), apiGet<Job[]>(`${native}/jobs`),
+      apiGet<typeof indicators>(`${native}/indicator-sets`), apiGet<Legacy[]>(`${root}/exams`)]);
+    if (mounted.current && getAuthToken() === token) { setDevices(d); setAcquisitions(a); setJobs(j); setIndicators(i); setLegacy(h); }
+  }
+  useEffect(() => {
+    mounted.current = true;
+    void refresh().catch(e => { if (mounted.current) setError(e.message); });
+    Promise.all([apiGet<Capability>("/mobile-forensics/native/capabilities"),
+      apiGet<{ user: { role: string } | null }>("/identity/me"), apiGet<Record<string, string[]>>("/identity/permissions")])
+      .then(([c, identity, roles]) => { if (mounted.current && getAuthToken() === token) {
+        setCapability(c); const permissions = roles[identity.user?.role || ""] || [];
+        setCanWrite(permissions.includes("*") || permissions.includes("evidence:write"));
+      } }).catch(e => { if (mounted.current) setError(e.message); });
+    return () => { mounted.current = false; };
+  }, [native, root, token]);
+  useEffect(() => {
+    if (!hasActive) return;
+    const timer = window.setInterval(() => void refresh().catch(e => { if (mounted.current) setError(e.message); }), 2000);
+    return () => window.clearInterval(timer);
+  }, [hasActive, native, root, token]);
+  useEffect(() => {
+    let alive = true;
+    if (jobId) apiGet<Detail>(`${native}/jobs/${jobId}?offset=${offset}`).then(data => {
+      if (alive && getAuthToken() === token) setDetail(data);
+    }).catch(e => { if (alive) setError(e.message); });
+    return () => { alive = false; };
+  }, [native, jobId, selectedState, offset, token]);
+  useEffect(() => {
+    const handler = (event: BeforeUnloadEvent) => { if (dirty || busy) { event.preventDefault(); event.returnValue = ""; } };
+    const navigate = (event: MouseEvent) => {
+      if ((dirty || busy) && event.target instanceof Element && event.target.closest(".sidebar button")) {
+        event.preventDefault(); event.stopPropagation(); setError("Guardá o descartá cambios y esperá la operación antes de navegar.");
+      }
+    };
+    window.addEventListener("beforeunload", handler); document.addEventListener("click", navigate, true);
     return () => { window.removeEventListener("beforeunload", handler); document.removeEventListener("click", navigate, true); };
-  }, [dirty]);
+  }, [dirty, busy]);
 
   async function run(action: () => Promise<void>) {
     setError(""); setBusy(true);
-    try { await action(); } catch (e) { setError(e instanceof Error ? e.message : "Error de operación"); }
-    finally { setBusy(false); }
+    try { await action(); } catch (e) { if (mounted.current) setError(e instanceof Error ? e.message : "Error de operación"); }
+    finally { if (mounted.current) { setBusy(false); if (getAuthToken() !== token) {
+      setDetail(null); setLegacyDetail(null); setAcquisitions([]); setJobs([]); setDevices([]); setCanWrite(false);
+    } } }
   }
-
+  async function fileBase64(file: File, max = 5 * 1024 * 1024) {
+    if (!file || file.size > max) throw new Error("Archivo ausente o supera la cuota de bytes.");
+    const bytes = new Uint8Array(await file.arrayBuffer()); let binary = "";
+    for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+    return btoa(binary);
+  }
   function createDevice(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form);
     void run(async () => {
       const device = await apiPost<Device>(`${root}/devices`, Object.fromEntries(data));
-      setDevices(previous => [...previous, device]); setDeviceId(String(device.id)); form.reset(); setDirty(false);
+      if (!mounted.current || getAuthToken() !== token) return;
+      await refresh(); setDeviceId(String(device.id)); form.reset(); setDirty(false);
     });
   }
-
-  function importFile(event: FormEvent<HTMLFormElement>) {
+  function preserve(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form);
     void run(async () => {
-      const file = data.get("file") as File;
-      if (!file || !file.size) throw new Error("Seleccioná un JSON MVT. Un archivo de cero bytes no es válido.");
-      if (file.size > 5 * 1024 * 1024) throw new Error("La interfaz admite hasta 5 MiB por archivo.");
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      let binary = "";
-      for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
-      const metadata = Object.fromEntries(data); delete metadata.file;
-      const exam = await apiPost<Exam>(`${root}/devices/${deviceId}/imports`, {
-        metadata: { ...metadata, data_owner_consent: data.get("data_owner_consent") === "on" },
-        filename: file.name, content_base64: btoa(binary)
-      });
-      setExams(previous => [exam, ...previous]); setOffset(0); setExamId(exam.id); form.reset(); setDirty(false);
+      const file = data.get("file") as File; const metadata = Object.fromEntries(data); delete metadata.file; delete metadata.format;
+      await apiPost(`${native}/acquisitions`, { device_id: Number(deviceId), metadata, format: data.get("format"),
+        filename: file.name, content_base64: await fileBase64(file) });
+      if (!mounted.current || getAuthToken() !== token) return;
+      await refresh(); form.reset(); setDirty(false);
     });
   }
-
-  function submitReview(event: FormEvent<HTMLFormElement>) {
+  function enqueue(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); const data = new FormData(event.currentTarget);
+    void run(async () => {
+      const job = await apiPost<Job>(`${native}/jobs`, { acquisition_id: Number(data.get("acquisition_id")),
+        indicator_set_id: data.get("indicator_set_id") ? Number(data.get("indicator_set_id")) : null, demo_rules: data.get("demo_rules") === "on" });
+      if (!mounted.current || getAuthToken() !== token) return;
+      await refresh(); setDetail(null); setOffset(0); setJobId(job.id);
+    });
+  }
+  function review(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form);
     void run(async () => {
-      const text = String(data.get("record_indexes") || "").trim();
-      const indexes = text ? text.split(",").map(value => Number(value.trim())) : [];
-      if (indexes.some(value => !Number.isInteger(value))) throw new Error("Usá índices enteros separados por coma.");
-      await apiPost(`${root}/exams/${examId}/reviews`, { ...Object.fromEntries(data), record_indexes: indexes });
-      setDetail(await apiGet<Detail>(`${root}/exams/${examId}?offset=${offset}`)); form.reset(); setDirty(false);
+      const ids = String(data.get("artifact_ids") || "").split(/[\s,]+/).filter(Boolean);
+      await apiPost(`${native}/jobs/${jobId}/reviews`, { ...Object.fromEntries(data), artifact_ids: ids });
+      if (!mounted.current || getAuthToken() !== token) return;
+      setDetail(await apiGet<Detail>(`${native}/jobs/${jobId}?offset=${offset}`)); form.reset(); setDirty(false);
     });
   }
 
+  if (!sessionActive) return <section className="panel mobile-forensics"><h2>Sesión cambiada o vencida</h2><p>Los datos del examen se retiraron de la pantalla. Iniciá sesión para continuar.</p></section>;
   return <section className="panel mobile-forensics" ref={panel}>
-    <h2>Forense móvil · piloto de importación</h2>
-    <p>{engine || "Consultando estado del módulo…"}</p>
-    <p>Preserva resultados recibidos y permite revisión local. No adquiere ni modifica dispositivos.
-      Cobertura parcial; sin validación con dispositivos reales. El caso seleccionado define el ámbito.</p>
+    <h2>Motor Forense Móvil de OPERIA</h2><p>{capability?.message || "Consultando capacidades…"}</p>
+    <p>Caso {caseId}. Análisis posterior a adquisición, sin conexión al dispositivo ni servicios externos. Validación sintética; no es un detector certificado de spyware.</p>
+    <p>Worker separado requerido: <code>python -m operia.forensic_jobs.worker</code>. Los trabajos permanecen pendientes si no está iniciado. El proceso local no constituye un sandbox.</p>
     {error && <p role="alert">{error}</p>}
-    {!canWrite && <p>Modo de lectura. Tu rol no permite registrar dispositivos, importar ni agregar revisiones o exportaciones.</p>}
-    {dirty && <p role="status">Hay cambios sin guardar. Guardalos antes de cambiar de caso o módulo.
-      <button type="button" disabled={busy} onClick={() => {
-        panel.current?.querySelectorAll("form").forEach(form => form.reset()); setDirty(false); setError("");
-      }}>Descartar cambios pendientes</button></p>}
-    <fieldset disabled={busy || !canWrite}>
-      <legend>1. Registrar dispositivo</legend>
-      <form onSubmit={createDevice} onChange={() => setDirty(true)} className="form-grid">
+    {!canWrite && <p>Modo de lectura o permisos aún sin verificar.</p>}
+    {dirty && <p role="status">Hay cambios sin guardar. <button disabled={busy} onClick={() => {
+      panel.current?.querySelectorAll("form").forEach(form => form.reset()); setDirty(false); setError("");
+    }}>Descartar cambios pendientes</button></p>}
+    <fieldset disabled={busy || !canWrite || (dirty && dirtyForm !== "device")}><legend>1. Dispositivo · datos declarados</legend>
+      <form className="form-grid" onSubmit={createDevice} onChange={() => { setDirty(true); setDirtyForm("device"); }}>
         <label>Nombre<input name="label" required maxLength={160} /></label>
         <label>Plataforma<select name="platform"><option value="ios">iOS</option><option value="android">Android</option></select></label>
-        <label>Identificador<input name="identifier" required maxLength={160} placeholder="Identificador interno o no registrado" /></label>
-        <button type="submit">Registrar dispositivo</button>
+        <label>Identificador interno<input name="identifier" required maxLength={160} /></label><button>Registrar dispositivo</button>
       </form>
     </fieldset>
-    <fieldset disabled={busy || !devices.length || !canWrite}>
-      <legend>2. Importar un archivo de una ejecución</legend>
-      <label>Dispositivo<select value={deviceId} onChange={e => setDeviceId(e.target.value)}>
-        <option value="">Seleccionar…</option>{devices.map(d => <option key={d.id} value={d.id}>{d.label} ({d.platform})</option>)}
-      </select></label>
-      <p>Admite sms.json y sms_detected.json; iOS también safari_history.json y safari_history_detected.json.
-        Cada importación crea un examen independiente. No combines ejecuciones en un archivo.</p>
-      <form onSubmit={importFile} onChange={() => setDirty(true)} className="form-grid">
-        {([
-          ["authorization", "Autorización y referencia del consentimiento"], ["scope", "Alcance autorizado"],
-          ["provenance", "Procedencia y responsable de adquisición"], ["acquisition_method", "Método de adquisición"],
-          ["acquisition_date", "Fecha original de adquisición (o desconocida)"], ["retention_policy", "Política de retención y eliminación informada"],
-          ["declared_mvt_version", "Versión de MVT declarada"], ["declared_run_id", "Identificador de ejecución original"],
-          ["indicators_description", "Indicadores usados, hashes y limitaciones (o desconocidos)"]
-        ] as const).map(([name, label]) => <label key={name}>{label}<input name={name} required maxLength={name.includes("version") ? 80 : name === "acquisition_method" || name === "declared_run_id" ? 160 : name === "acquisition_date" ? 80 : 4000} /></label>)}
-        <label className="mobile-consent"><input type="checkbox" name="data_owner_consent" required />El dueño de los datos prestó consentimiento explícito, libre e informado sobre privacidad, retención y eliminación.</label>
-        <label>Resultado original (máximo 5 MiB)<input type="file" name="file" accept=".json" required /></label>
-        <button type="submit" disabled={!deviceId}>Preservar e importar</button>
+    <fieldset disabled={busy || !canWrite || !devices.length || (dirty && dirtyForm !== "acquisition")}><legend>2. Preservar adquisición autorizada</legend>
+      <label>Dispositivo<select value={deviceId} disabled={dirty} onChange={e => setDeviceId(e.target.value)}><option value="">Seleccionar…</option>
+        {devices.map(d => <option value={d.id} key={d.id}>{d.label} ({d.platform})</option>)}</select></label>
+      <form className="form-grid" onSubmit={preserve} onChange={() => { setDirty(true); setDirtyForm("acquisition"); }}><fieldset disabled={!deviceId}>
+        <label>Formato<select name="format" required key={deviceId}>
+          {(capability?.readers || []).filter(r => r.platform === devices.find(d => d.id === Number(deviceId))?.platform).map(r => <option key={r.format} value={r.format}>{r.format} · lector {r.version}</option>)}
+        </select></label>
+        {[["authorization", "Autorización y fundamento documentado"], ["scope", "Alcance"], ["provenance", "Origen y operador de adquisición"],
+          ["acquisition_method", "Método de adquisición"], ["acquisition_date_original", "Fecha original o desconocida"],
+          ["retention_policy", "Retención y eliminación"], ["restrictions", "Restricciones de uso"], ["declared_os_version", "Versión de OS declarada o desconocida"]].map(([name, label]) =>
+          <label key={name}>{label}<input name={name} required maxLength={name === "acquisition_method" ? 160 : name === "acquisition_date_original" || name === "declared_os_version" ? 80 : 4000} /></label>)}
+        <label>Archivo original · máximo 5 MiB<input type="file" name="file" required accept=".plist,.mobileconfig,.txt,.log" /></label>
+        <button disabled={!deviceId}>Preservar bytes originales</button>
+      </fieldset></form>
+    </fieldset>
+    <details><summary>Indicadores propios del caso · opcionales</summary>
+      <p>JSON operia.indicators/1, hasta 256 KiB. Fuente, condiciones, versión y limitaciones obligatorias. No se descargan feeds.</p>
+      <form onSubmit={event => { event.preventDefault(); const form = event.currentTarget; const file = new FormData(form).get("indicators") as File;
+        void run(async () => { if (!file || file.size > 256 * 1024) throw new Error("Archivo de indicadores supera 256 KiB");
+          const response = await fetch(`${API_BASE}${native}/indicator-sets`, { method: "POST", headers: authHeaders({ "Content-Type": "application/json" }), body: await file.arrayBuffer() });
+          if (!response.ok) throw new Error(`Indicadores rechazados (${response.status})`); await refresh(); form.reset(); });
+      }}><label>Conjunto exacto de indicadores<input name="indicators" type="file" accept=".json" required disabled={!canWrite || busy} /></label>
+        <button disabled={!canWrite || busy || dirty}>Registrar conjunto</button></form>
+      {indicators.map(i => <p key={i.id}>Conjunto {i.id} · versión {i.version} · SHA-256 {i.sha256}</p>)}
+    </details>
+    <fieldset disabled={busy || !canWrite || !acquisitions.length || dirty}><legend>3. Crear examen y trabajo persistente</legend>
+      <form className="form-grid" onSubmit={enqueue}>
+        <label>Adquisición<select name="acquisition_id" required>{acquisitions.filter(a => !deviceId || a.device_id === Number(deviceId)).map(a =>
+          <option key={a.id} value={a.id}>{a.id} · {a.filename} · {a.format}</option>)}</select></label>
+        <label>Indicadores<select name="indicator_set_id"><option value="">Sin indicadores · cobertura de detección limitada</option>{indicators.map(i => <option key={i.id} value={i.id}>{i.id} · {i.version}</option>)}</select></label>
+        <label className="mobile-consent"><input name="demo_rules" type="checkbox" />Activar reglas sintéticas de demostración (no firmas de malware)</label><button>Encolar examen</button>
       </form>
     </fieldset>
-    <h3>3. Exámenes y registros</h3>
-    {!exams.length && <p>No hay exámenes. Registrá un dispositivo e importá un resultado autorizado.</p>}
-    <label>Filtrar por dispositivo<select value={deviceId} onChange={e => setDeviceId(e.target.value)}>
-      <option value="">Todos</option>{devices.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
-    </select></label>
-    <div>{exams.filter(e => !deviceId || e.device_id === Number(deviceId)).map(e => <button key={e.id}
-      disabled={busy || dirty} onClick={() => { setOffset(0); setExamId(e.id); }}>
-      Examen {e.id} · {e.filename} · {e.record_count} registros · {e.candidate_count} candidatos
-    </button>)}</div>
-    {detail && <>
-      <p><strong>Cobertura: {detail.exam.coverage}</strong>. {detail.exam.limitations}</p>
-      <p>SHA-256 de los bytes originales: <code>{detail.exam.sha256}</code></p>
-      <button disabled={busy} onClick={() => void run(() => download(`${root}/exams/${examId}/original`, detail.exam.filename))}>Descargar original</button>
-      {detail.records.map(r => <details key={r.index}><summary>Registro {r.pointer} · {r.assessment}</summary><pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{JSON.stringify(r.record, null, 2)}</pre></details>)}
-      <button disabled={busy || dirty || offset === 0} onClick={() => setOffset(offset - 100)}>Anteriores</button>
-      <button disabled={busy || dirty || offset + 100 >= detail.exam.record_count} onClick={() => setOffset(offset + 100)}>Siguientes</button>
-      <h3>4. Revisión profesional con historial</h3>
-      <p>Este piloto admite conclusiones preliminares. Confirmación de compromiso y ausencia de indicios requieren cobertura e indicadores verificables.</p>
-      <form key={examId} onSubmit={submitReview} onChange={() => setDirty(true)} className="form-grid">
-        <fieldset disabled={busy || !canWrite}>
-          <label>Conclusión<select name="conclusion"><option value="inconcluso">Inconcluso</option><option value="actividad_sospechosa">Actividad sospechosa</option><option value="indicios_compatibles_con_compromiso">Indicios compatibles con compromiso</option></select></label>
-          <label>Índices de respaldo separados por coma<input name="record_indexes" placeholder="0,1" /></label>
-          {[["rationale", "Fundamento"], ["alternatives", "Explicaciones alternativas"], ["limitations", "Limitaciones"],
-            ["current_activity", "Evaluación de actividad actual"], ["chronology", "Cronología e incertidumbre"], ["attribution", "Atribución y límites"]].map(([name, label]) =>
-            <label key={name}>{label}<textarea name={name} minLength={10} maxLength={4000} required /></label>)}
-          <button type="submit">Agregar revisión (conserva las anteriores)</button>
-        </fieldset>
-      </form>
-      {detail.reviews.map(r => <article key={r.id}><strong>Revisión {r.id}: {r.conclusion}</strong><p>{r.reviewer_name} · {r.created_at} UTC</p><p>{r.rationale}</p></article>)}
-      <h3>5. Exportación JSON del piloto</h3>
-      <button disabled={busy || dirty || !canWrite} onClick={() => void run(async () => {
-        const result = await apiPost<{ id: number }>(`${root}/exams/${examId}/exports`, {});
-        await download(`${root}/exams/${examId}/exports/${result.id}`, `mobile-${examId}-export-${result.id}.json`);
-      })}>Crear y descargar copia versionada</button>
+    <h3>4. Trabajos, cobertura y resultados</h3>
+    {!jobs.length && <p>Sin trabajos. Preservá un archivo y creá un examen.</p>}
+    <button disabled={busy || dirty} onClick={() => void run(refresh)}>Actualizar trabajos</button>
+    <div>{jobs.map(job => <button key={job.id} disabled={busy || dirty} onClick={() => { setDetail(null); setOffset(0); setJobId(job.id); }}>
+      Examen {job.id} · adquisición {job.acquisition_id} · {job.state}</button>)}</div>
+    {detail && <><p>Estado técnico: <strong>{detail.job.state}</strong> {detail.job.error_code}</p>
+      {ACTIVE.includes(detail.job.state) && <button disabled={busy || !canWrite} onClick={() => void run(async () => { await apiPost(`${native}/jobs/${jobId}/cancel`, {}); await refresh(); })}>Solicitar cancelación</button>}
+      {["fallido", "cancelado", "interrumpido"].includes(detail.job.state) && <button disabled={busy || !canWrite} onClick={() => void run(async () => { await apiPost(`${native}/jobs/${jobId}/retry`, {}); await refresh(); })}>Reintentar con historial</button>}
+      <details><summary>Historial técnico del trabajo</summary>{detail.events.map(e => <p key={e.id}>{e.state} · {e.reason}</p>)}</details>
+      {detail.result && <>
+        <p>Cobertura: <strong>{detail.result.coverage.state}</strong>. Detección: {detail.result.detection_status}. Conclusión: requiere revisión.</p>
+        {detail.result.coverage.sources.map((source, i) => <p key={i}>{source.status} · {source.excluded.length} exclusiones. {source.warnings.join(" ")}</p>)}
+        <p>{detail.result.coverage.limitations.join(" ")}</p><p>Hash canónico del resultado: <code>{detail.job.result_sha256}</code></p>
+        <button disabled={busy} onClick={() => void run(() => download(`${native}/acquisitions/${detail.job.acquisition_id}/original`, acquisitions.find(a => a.id === detail.job.acquisition_id)?.filename || "original.bin", token))}>Descargar original</button>
+        <h4>Observaciones · {detail.result.counts.artifacts} artefactos</h4>
+        {detail.result.artifacts.map(a => <details key={a.id}><summary>{a.kind} · {a.locator}</summary><p>ID: <code>{a.id}</code></p><pre>{JSON.stringify({ original: a.original, normalized: a.normalized }, null, 2)}</pre></details>)}
+        <h4>Alertas · {detail.result.counts.alerts}</h4>{detail.result.alerts.map(a => <article key={a.id}><strong>{a.synthetic ? "DEMOSTRACIÓN SINTÉTICA" : "Coincidencia pendiente de corroboración"}</strong><p>{a.explanation}</p><code>{a.artifact_ids.join(", ")}</code></article>)}
+        <h4>Cronología · {detail.result.counts.timeline} eventos</h4>{!detail.result.counts.timeline && <p>No hay tiempos normalizables para esta fuente. No se infiere inicio de ataque.</p>}
+        {detail.result.timeline.map(t => <p key={t.id}>{t.normalized_utc} · original: {t.original} · {t.uncertainty}</p>)}
+        <button disabled={busy || dirty || offset === 0} onClick={() => setOffset(offset - 100)}>Anteriores</button>
+        <button disabled={busy || dirty || offset + 100 >= Math.max(...Object.values(detail.result.counts))} onClick={() => setOffset(offset + 100)}>Siguientes</button>
+        <h3>5. Revisión profesional versionada</h3><p>La confirmación de compromiso requiere corroboración independiente y permanece fuera del alcance de este MVP.</p>
+        <form key={jobId} className="form-grid" onSubmit={review} onChange={() => { setDirty(true); setDirtyForm("review"); }}><fieldset disabled={busy || !canWrite || (dirty && dirtyForm !== "review")}>
+          <label>Conclusión<select name="conclusion"><option value="inconcluso">Inconcluso</option><option value="actividad_sospechosa">Actividad sospechosa</option><option value="indicios_compatibles_con_compromiso">Indicios compatibles con compromiso</option><option value="sin_indicios_en_el_alcance_examinado">Sin indicios dentro del alcance (requiere cobertura y justificación)</option></select></label>
+          <label>IDs de artefactos de respaldo, separados por coma<input name="artifact_ids" /></label>
+          {[["rationale", "Fundamentos"], ["alternatives", "Alternativas y contradicciones"], ["limitations", "Limitaciones"], ["current_activity", "Actividad actual"], ["chronology", "Cronología e incertidumbre"], ["attribution", "Atribución y límites"], ["coverage_justification", "Justificación expresa del alcance y cobertura"]].map(([name, label]) =>
+            <label key={name}>{label}<textarea name={name} required minLength={10} maxLength={4000} /></label>)}<button>Agregar revisión</button>
+        </fieldset></form>
+        {detail.reviews.map(r => <article key={r.id}><strong>Revisión {r.id} · {r.reviewer_name}</strong><p>{r.created_at} UTC</p><pre>{JSON.stringify(JSON.parse(r.content_json), null, 2)}</pre></article>)}
+        <h3>6. Informes y exportaciones</h3>{["json", "csv"].map(format => <button key={format} disabled={busy || dirty || !canWrite} onClick={() => void run(async () => {
+          const item = await apiPost<{ id: number }>(`${native}/jobs/${jobId}/exports`, { format });
+          if (!mounted.current || getAuthToken() !== token) return;
+          await download(`${native}/jobs/${jobId}/exports/${item.id}`, `operia-native-${jobId}-${item.id}.${format}`, token);
+          setDetail(await apiGet<Detail>(`${native}/jobs/${jobId}?offset=${offset}`));
+        })}>Crear {format === "json" ? "informe JSON" : "CSV temporal"}</button>)}
+        {detail.exports.map(e => <p key={e.id}><button onClick={() => void run(() => download(`${native}/jobs/${jobId}/exports/${e.id}`, `operia-native-${jobId}-${e.id}.${e.format}`, token))}>Descargar exportación {e.id} ({e.format})</button><code>{e.sha256}</code></p>)}
+      </>}
     </>}
-    {busy && <p role="status">Procesando…</p>}
+    <details><summary>Resultados externos históricos · {legacy.length}</summary><p>Origen externo declarado. Se conservan herramienta, versión, bytes y reportes; no pertenecen al motor propio. El importador anterior fue retirado.</p>
+      {legacy.map(e => <button key={e.id} disabled={dirty || busy} onClick={() => void run(async () => {
+        const data = await apiGet<typeof legacyDetail>(`${root}/exams/${e.id}`); if (mounted.current && getAuthToken() === token) setLegacyDetail(data);
+      })}>Histórico externo {e.id} · {e.filename} · {e.declared_mvt_version}</button>)}
+      {legacyDetail && <><p>{legacyDetail.exam.origin}</p><button onClick={() => void run(() => download(`${root}/exams/${legacyDetail.exam.id}/original`, legacyDetail.exam.filename, token))}>Original histórico</button>
+        <pre>{JSON.stringify({ records: legacyDetail.records, reviews: legacyDetail.reviews }, null, 2)}</pre>
+        {legacyDetail.exports.map(e => <button key={e.id} onClick={() => void run(() => download(`${root}/exams/${legacyDetail.exam.id}/exports/${e.id}`, `historico-${e.id}.json`, token))}>Reporte histórico {e.id}</button>)}</>}
+    </details>
+    {busy && <p role="status">Procesando solicitud…</p>}
   </section>;
 }

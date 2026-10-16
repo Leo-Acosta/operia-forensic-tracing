@@ -1,0 +1,10 @@
+{
+  "schema": "operia.indicators/1",
+  "source": "Fixture original sintético de este proyecto; no es inteligencia de amenazas",
+  "terms": "Datos ficticios para pruebas locales; política de distribución del proyecto pendiente del titular",
+  "version": "fixture-1",
+  "limitations": "No valida detección de spyware. Dominios .invalid reservados para pruebas. Vigencia real desconocida.",
+  "items": [
+    {"id": "synthetic-domain-1", "type": "domain", "value": "example.invalid", "match": "subdomains"}
+  ]
+}

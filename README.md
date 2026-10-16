@@ -20,6 +20,7 @@ The platform is built as a single FastAPI + React application, with a shared loc
 - Canonical exports with SHA-256, MD5 and manifest files.
 - React frontend with operational screens.
 - Automated test suite.
+- Native mobile forensic engine for selected iOS plist and Android text artifacts (synthetic validation).
 
 ## Quick Start On Windows
 
@@ -140,6 +141,8 @@ storage/
 - [Deployment](docs/DEPLOYMENT.md)
 - [Migration Notes](docs/MIGRATION_NOTES.md)
 - [Forense móvil: piloto, diagnóstico y límites](docs/MOBILE_FORENSICS.md)
+- [Motor móvil propio: arquitectura](docs/forensic_engine/ARCHITECTURE.md)
+- [Motor móvil propio: operación y límites](docs/forensic_engine/OPERATOR_GUIDE.md)
 
 ## Disclaimer
 

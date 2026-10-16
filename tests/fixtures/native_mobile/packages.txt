@@ -1,0 +1,2 @@
+package:/data/app/synthetic/base.apk=invalid.operia.synthetic
+package:com.example.benign

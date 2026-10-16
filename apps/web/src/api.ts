@@ -8,6 +8,7 @@ export function getAuthToken() {
 export function setAuthToken(token: string) {
   if (token) localStorage.setItem(TOKEN_KEY, token);
   else localStorage.removeItem(TOKEN_KEY);
+  window.dispatchEvent(new Event("operia:auth-changed"));
 }
 
 export function authHeaders(extra: HeadersInit = {}) {

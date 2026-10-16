@@ -1,0 +1,4 @@
+--------- beginning of main
+1700000000.000  100  101 I OperiaFixture: synthetic URL mentioned https://example.invalid/path
+1700000000.123  100  101 W OperiaFixture: synthetic URL mentioned https://sub.example.invalid/path
+1700000001.999999  100  101 I OperiaFixture: synthetic event without URL

@@ -121,7 +121,9 @@ def public_exam(exam):
         "declared_mvt_version", "declared_run_id", "indicators_description", "filename",
         "sha256", "record_count", "candidate_count", "coverage", "limitations"
     )} | {"technical_status": "importado", "forensic_conclusion": "requiere_revision",
-         "engine_validation": "no_validado", "size_bytes": len(exam.original_bytes)}
+         "engine_validation": "no_validado", "size_bytes": len(exam.original_bytes),
+         "origin": "external_historical", "tool_declared": "MVT (declarado por operador)",
+         "native_engine_result": False}
 
 
 def verify_original(exam):

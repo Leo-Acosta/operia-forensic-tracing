@@ -18,6 +18,7 @@
 .mobile-forensics details { background: #fff; border: 1px solid #d9e2ec; padding: 12px; margin: 12px 0; border-radius: 8px; }
 .mobile-forensics summary { cursor: pointer; }
 .mobile-forensics code { overflow-wrap: anywhere; }
+.mobile-forensics pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 450px; overflow-y: auto; }
 .mobile-forensics [role="alert"] { background: #fff0f0; color: #8d1f1f; border-radius: 8px; padding: 12px; }
 .mobile-forensics :focus-visible { outline: 3px solid #3983cc; outline-offset: 3px; }
 @media (max-width: 760px) {

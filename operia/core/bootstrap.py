@@ -16,6 +16,7 @@ from operia.identity import models as identity_models  # noqa: F401
 from operia.legal_knowledge import models as legal_knowledge_models  # noqa: F401
 from operia.mind import models as mind_models  # noqa: F401
 from operia.mobile_forensics import models as mobile_models  # noqa: F401
+from operia.forensic_jobs import models as native_mobile_models  # noqa: F401
 from operia.reports import models as report_models  # noqa: F401
 from operia.rubrics import models as rubric_models  # noqa: F401
 

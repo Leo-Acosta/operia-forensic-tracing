@@ -19,62 +19,66 @@ from operia.mobile_forensics.models import MobileExam
 from operia.mobile_forensics.service import bounded_json, parse_result
 
 
-META = {"authorization": "Consentimiento sintético de prueba", "data_owner_consent": True,
-    "scope": "Únicamente registros sintéticos", "provenance": "Fixture sintético creado para pruebas",
-    "acquisition_method": "fixture sintético", "acquisition_date": "desconocida",
-    "retention_policy": "Eliminar solo según política del caso de prueba",
-    "declared_mvt_version": "sintética-no-ejecutada", "declared_run_id": "fixture-001",
-    "indicators_description": "Desconocidos; motor no ejecutado"}
+# Historical external rows are seeded as prior persisted data, never imported as native truth.
 RAW = b' [ {"url": "https://example.invalid/", "timestamp": "ambiguo"} ]\r\n'
 
 
-def setup_case(client, headers, code="MOBILE-SYNTHETIC"):
-    response = client.post("/api/cases", json={"case_code": code, "title": "Fixture móvil"}, headers=headers)
-    assert response.status_code == 200, response.text
-    case_id = response.json()["id"]
-    root = f"/api/mobile-forensics/cases/{case_id}"
-    response = client.post(root + "/devices", json={"label": "Fixture", "platform": "ios"}, headers=headers)
-    assert response.status_code == 200, response.text
-    return root, response.json()["id"]
+def historical(client, headers):
+    from operia.cases.models import Case
+    from operia.identity.models import User
+    from operia.mobile_forensics.models import MobileExport, MobileReview
+    case = client.post("/api/cases", json={"case_code": "LEGACY-ONLY", "title": "Histórico externo"}, headers=headers).json()
+    root = f'/api/mobile-forensics/cases/{case["id"]}'
+    device = client.post(root + "/devices", json={"label": "Histórico", "platform": "ios"}, headers=headers).json()
+    generator = app.dependency_overrides[get_db](); db = next(generator)
+    try:
+        case_row = db.get(Case, case["id"])
+        user = db.query(User).filter_by(organization_id=case_row.organization_id).first()
+        exam = MobileExam(organization_id=case_row.organization_id, case_id=case_row.id, device_id=device["id"], operator_id=user.id,
+            authorization="Autorización sintética histórica", data_owner_consent=True, scope="Solo fixture histórico",
+            provenance="Fixture original del piloto externo", acquisition_method="fixture", acquisition_date="desconocida",
+            retention_policy="Conservar para regresión", declared_mvt_version="sintética-no-ejecutada", declared_run_id="legacy-fixture",
+            indicators_description="desconocidos", filename="safari_history_detected.json", sha256=hashlib.sha256(RAW).hexdigest(),
+            original_bytes=RAW, record_count=1, candidate_count=1, coverage="parcial_no_verificada", limitations="Sin adquisición real")
+        db.add(exam); db.flush()
+        snapshot = b'{"schema":"operia-mobile-pilot/1","source":"external historical fixture"}\n'
+        export = MobileExport(exam_id=exam.id, created_by=user.id, content=snapshot, sha256=hashlib.sha256(snapshot).hexdigest())
+        db.add(export); db.commit()
+        return root, device["id"], exam.id, export.id, snapshot
+    finally:
+        generator.close()
 
 
-def import_file(client, headers, root, device_id, raw=RAW, filename="safari_history_detected.json", metadata=None):
-    return client.post(f"{root}/devices/{device_id}/imports", headers=headers, json={
-        "metadata": metadata or META, "filename": filename, "content_base64": base64.b64encode(raw).decode()})
-
-
-def review_payload(**changes):
-    return {"conclusion": "actividad_sospechosa", "record_indexes": [0],
-        "rationale": "Coincidencia sintética pendiente de corroboración", "alternatives": "Fixture sin dispositivo real",
-        "limitations": "No hay adquisición real ni motor ejecutado", "current_activity": "No determinable con estos datos",
-        "chronology": "Fecha original ambigua, sin normalizar", "attribution": "No existe sustento para atribución", **changes}
-
-
-def test_preservation_review_and_export_snapshots(client, admin_headers):
-    root, device = setup_case(client, admin_headers)
-    response = import_file(client, admin_headers, root, device)
-    assert response.status_code == 200, response.text
-    exam = response.json()
-    path = f'{root}/exams/{exam["id"]}'
-    assert exam["sha256"] == hashlib.sha256(RAW).hexdigest()
-    assert exam["coverage"] == "parcial_no_verificada" and exam["candidate_count"] == 1
+def test_historical_original_and_snapshot_are_not_reclassified(client, admin_headers):
+    root, device, exam, export, snapshot = historical(client, admin_headers)
+    path = f"{root}/exams/{exam}"
+    response = client.get(path, headers=admin_headers)
+    assert response.status_code == 200
+    assert response.json()["exam"]["origin"] == "external_historical"
+    assert response.json()["exam"]["native_engine_result"] is False
+    assert response.json()["exam"]["declared_mvt_version"] == "sintética-no-ejecutada"
     assert client.get(path + "/original", headers=admin_headers).content == RAW
-    assert import_file(client, admin_headers, root, device).status_code == 409
-    assert client.post(path + "/reviews", json=review_payload(record_indexes=[1]), headers=admin_headers).status_code == 422
-    first = client.post(path + "/reviews", json=review_payload(), headers=admin_headers)
-    assert first.status_code == 200, first.text
-    export = client.post(path + "/exports", headers=admin_headers).json()
-    url = path + f'/exports/{export["id"]}'
-    snapshot = client.get(url, headers=admin_headers)
-    assert hashlib.sha256(snapshot.content).hexdigest() == export["sha256"]
-    assert snapshot.json()["review_id"] == first.json()["id"]
-    assert snapshot.json()["report_id"] == export["id"]
-    assert client.post(path + "/reviews", json=review_payload(conclusion="inconcluso"), headers=admin_headers).status_code == 200
-    detail = client.get(path, headers=admin_headers).json()
-    assert len(detail["reviews"]) == 2 and detail["records"][0]["pointer"] == "/0"
-    assert client.get(url, headers=admin_headers).content == snapshot.content
-    assert client.get(path + "?offset=-1", headers=admin_headers).status_code == 422
+    assert client.get(path + f"/exports/{export}", headers=admin_headers).content == snapshot
+    assert client.post(f"{root}/devices/{device}/imports", headers=admin_headers, json={}).status_code == 410
+    for suffix in ("/reviews", "/exports"):
+        assert client.post(path + suffix, headers=admin_headers, json={}).status_code == 410
     assert client.get(path + "/original").status_code == 401
+
+
+def test_historical_isolation_and_integrity(client, admin_headers):
+    root, device, exam, export, snapshot = historical(client, admin_headers)
+    path = f"{root}/exams/{exam}"
+    app.dependency_overrides[get_optional_user] = lambda: CurrentUser(1, 99999, "Otra organización", None, "admin")
+    assert client.get(path).status_code == 404
+    app.dependency_overrides.pop(get_optional_user)
+    generator = app.dependency_overrides[get_db](); db = next(generator)
+    try:
+        db.get(MobileExam, exam).original_bytes = b'[]'
+        db.commit()
+    finally:
+        generator.close()
+    assert client.get(path, headers=admin_headers).status_code == 409
+    assert client.get(path + "/original", headers=admin_headers).status_code == 409
 
 
 @pytest.mark.parametrize("raw,filename", [
@@ -91,60 +95,6 @@ def test_hostile_or_incompatible_formats(raw, filename):
     with pytest.raises(HTTPException) as exc:
         parse_result(raw, filename, "ios")
     assert exc.value.status_code == 422
-
-
-def test_empty_results_consent_limits_and_corruption(client, admin_headers, monkeypatch):
-    root, device = setup_case(client, admin_headers)
-    empty = import_file(client, admin_headers, root, device, b'[]', "sms.json")
-    assert empty.status_code == 200
-    assert empty.json()["coverage"] == "sin_datos_analizables"
-    path = f'{root}/exams/{empty.json()["id"]}'
-    assert client.post(path + "/reviews", headers=admin_headers,
-        json=review_payload(conclusion="sin_indicios_en_el_alcance_examinado", record_indexes=[])).status_code == 422
-    assert import_file(client, admin_headers, root, device, metadata={**META, "data_owner_consent": False}).status_code == 422
-    from operia.core.config import settings
-    monkeypatch.setattr(settings, "mobile_import_max_bytes", 8)
-    assert import_file(client, admin_headers, root, device).status_code == 413
-    monkeypatch.setattr(settings, "mobile_import_max_bytes", 5 * 1024 * 1024)
-    assert client.post(f"{root}/devices/{device}/imports", headers=admin_headers, content=b'x' * (7 * 1024 * 1024)).status_code == 413
-    generator = app.dependency_overrides[get_db]()
-    db = next(generator)
-    try:
-        item = db.get(MobileExam, empty.json()["id"])
-        item.original_bytes = b'[{}]'
-        db.commit()
-    finally:
-        generator.close()
-    for suffix in ("", "/original"):
-        assert client.get(path + suffix, headers=admin_headers).status_code == 409
-    assert client.post(path + "/exports", headers=admin_headers).status_code == 409
-    assert client.post(path + "/reviews", json=review_payload(), headers=admin_headers).status_code == 409
-
-
-def test_scope_and_permissions_are_strict(client, admin_headers):
-    root, device = setup_case(client, admin_headers)
-    exam = import_file(client, admin_headers, root, device).json()
-    path = f'{root}/exams/{exam["id"]}'
-    other_root, other_device = setup_case(client, admin_headers, "MOBILE-OTHER")
-    assert client.get(other_root + f'/exams/{exam["id"]}', headers=admin_headers).status_code == 404
-    assert import_file(client, admin_headers, other_root, device).status_code == 404
-    assert client.get(root + "/devices").status_code == 401
-    for org in (None, 99999):
-        app.dependency_overrides[get_optional_user] = lambda org=org: CurrentUser(1, org, "Otro", None, "admin")
-        for suffix in ("/devices", "/exams", f'/exams/{exam["id"]}', f'/exams/{exam["id"]}/original'):
-            assert client.get(root + suffix).status_code == 404
-        assert import_file(client, {}, root, device).status_code == 404
-        assert client.post(path + "/reviews", json=review_payload()).status_code == 404
-        assert client.post(path + "/exports").status_code == 404
-    app.dependency_overrides[get_optional_user] = lambda: CurrentUser(1, 1, "Lector", None, "lector")
-    assert client.post(root + "/devices", json={"label": "x", "platform": "ios"}).status_code == 403
-    assert client.post(path + "/reviews", json=review_payload()).status_code == 403
-    app.dependency_overrides.pop(get_optional_user)
-
-
-def test_engine_does_not_claim_validation(client, admin_headers):
-    state = client.get("/api/mobile-forensics/engine", headers=admin_headers).json()
-    assert state["validated"] is False and state["execution_enabled"] is False
 
 
 def test_backup_tool_refuses_overwrite_and_detects_tampering(tmp_path):
@@ -171,7 +121,7 @@ def test_additive_migration_backup_restore(tmp_path):
     path = tmp_path / "previous.db"
     engine = create_engine(f"sqlite:///{path}")
     mobile_tables = {"mobile_devices", "mobile_exams", "mobile_reviews", "mobile_exports"}
-    old_tables = [table for table in Base.metadata.sorted_tables if table.name not in mobile_tables]
+    old_tables = [table for table in Base.metadata.sorted_tables if table.name not in mobile_tables and not table.name.startswith("native_mobile_")]
     Base.metadata.create_all(engine, tables=old_tables)
     with engine.begin() as connection:
         connection.execute(text("INSERT INTO cases (id,case_code,title,description,responsible,client_or_victim,incident_type,status,jurisdiction,general_observations,created_at,updated_at) VALUES (1,'OLD','Anterior','','','','','abierto','','',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"))

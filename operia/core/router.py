@@ -17,6 +17,7 @@ from operia.legal_report.legal_router import router as legal_router
 from operia.legal_report.router import router as legal_report_router
 from operia.mind.router import router as mind_router
 from operia.mobile_forensics.router import router as mobile_router
+from operia.mobile_forensics.native_router import router as native_mobile_router
 from operia.reports.router import router as reports_router
 from operia.rubrics.router import router as rubrics_router
 from operia.settings.router import router as settings_router
@@ -24,6 +25,7 @@ from operia.users_cases.router import router as users_cases_router
 
 api_router = APIRouter()
 api_router.include_router(mobile_router, prefix="/mobile-forensics", tags=["mobile-forensics"])
+api_router.include_router(native_mobile_router, prefix="/mobile-forensics", tags=["native-mobile"])
 
 
 @api_router.get("/health", tags=["system"])

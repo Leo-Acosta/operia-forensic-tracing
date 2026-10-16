@@ -1,5 +1,9 @@
 # Forense móvil: diagnóstico y entrega incremental
 
+> Documento histórico del piloto externo. La visión vigente es el motor propio:
+> [Arquitectura](forensic_engine/ARCHITECTURE.md) y [guía](forensic_engine/OPERATOR_GUIDE.md).
+> Su importador fue retirado; se conservan datos y exportaciones previos.
+
 Fecha: 2026-10-16. Base inspeccionada: `b2b7223`, checkout `new_unified_app`.
 Rama de trabajo: `feature/mobile-forensics-mvt`. Sin publicación autorizada.
 
