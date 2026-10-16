@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { API_BASE, apiDelete, apiGet, apiPatch, apiPost, apiPostForm, apiPut, authHeaders, getAuthToken, setAuthToken } from "./api";
 import { externalToolsCatalog, type InventoryCyberTool } from "./externalToolsCatalog";
+import MobileForensics from "./MobileForensics";
 
 type ModuleKey =
   | "workflow"
@@ -48,6 +49,7 @@ type ModuleKey =
   | "deepfakeMedia"
   | "blockchainForensics"
   | "iotForensics"
+  | "mobileForensics"
   | "externalTools"
   | "aiSecurity"
   | "geoTrace"
@@ -755,6 +757,7 @@ const modules: Array<{ key: ModuleKey; label: string; icon: typeof BarChart3; se
   { key: "deepfakeMedia", label: "Deepfake / Medios", icon: FileCheck2, section: "Forense" },
   { key: "blockchainForensics", label: "Blockchain Investigation Lab", icon: Globe2, section: "Forense" },
   { key: "iotForensics", label: "IoT Forensics", icon: Shield, section: "Forense" },
+  { key: "mobileForensics", label: "Forense móvil", icon: Shield, section: "Forense" },
   { key: "externalTools", label: "Herramientas Externas", icon: Wrench, section: "Forense" },
   { key: "aiSecurity", label: "AI Security", icon: BrainCircuit, section: "Forense" },
   { key: "geoTrace", label: "Geo Trace", icon: Map, section: "Forense" },
@@ -7304,6 +7307,9 @@ export function App() {
     if (active === "deepfakeMedia") return renderDeepfakeMedia();
     if (active === "blockchainForensics") return renderBlockchainForensics();
     if (active === "iotForensics") return renderIoTForensics();
+    if (active === "mobileForensics") return selectedCaseId && authToken
+      ? <MobileForensics key={`${selectedCaseId}:${authToken}`} caseId={Number(selectedCaseId)} />
+      : <section className="panel"><h2>Forense móvil</h2><p>Iniciá sesión y seleccioná un caso para registrar dispositivos y exámenes.</p></section>;
     if (active === "externalTools") return renderExternalTools();
     if (active === "ai") return renderAi();
     if (active === "aiSecurity") return renderAiSecurity();
