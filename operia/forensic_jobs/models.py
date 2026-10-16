@@ -92,3 +92,20 @@ class ExportRecord(Base):
     format: Mapped[str] = mapped_column(String(20))
     content: Mapped[bytes] = mapped_column(LargeBinary)
     sha256: Mapped[str] = mapped_column(String(64))
+
+
+class EvidenceIntegration(Base):
+    __tablename__ = "native_mobile_evidence_integrations"
+    __table_args__ = (UniqueConstraint("review_id", name="uq_native_integration_review"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"))
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"))
+    job_id: Mapped[int] = mapped_column(ForeignKey("native_mobile_jobs.id"))
+    review_id: Mapped[int] = mapped_column(ForeignKey("native_mobile_reviews.id"))
+    evidence_id: Mapped[int] = mapped_column(ForeignKey("evidence.id"))
+    custody_id: Mapped[int] = mapped_column(ForeignKey("chain_of_custody_actions.id"))
+    report_id: Mapped[int] = mapped_column(ForeignKey("reports.id"))
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    snapshot_bytes: Mapped[bytes] = mapped_column(LargeBinary)
+    snapshot_sha256: Mapped[str] = mapped_column(String(64))

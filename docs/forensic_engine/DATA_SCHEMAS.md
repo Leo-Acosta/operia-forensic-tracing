@@ -35,3 +35,12 @@ exclusiones y justificación expresa del alcance.
 
 No hay API de modificación/borrado de originales, conjuntos, revisiones o exports.
 Eso no equivale a almacenamiento inmutable frente a un administrador de la base.
+
+
+EvidenceIntegration enlaza organización/caso, examen, revisión, evidencia original,
+acto de custodia, informe y actor/fecha de incorporación. Conserva snapshot_bytes y
+snapshot_sha256; review_id es único. El snapshot usa operia.evidence-integration/1,
+con adquisición/metadatos, resultado completo y revisión seleccionada. Su descarga
+verifica SHA-256. La evidencia canónica referencia el original BLOB por el vínculo,
+sin ruta recibida del usuario ni duplicación de la fuente. El informe y su primera
+versión conservan sus hashes; las correcciones se incorporan como otro registro.

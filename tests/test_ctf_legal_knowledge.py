@@ -27,13 +27,13 @@ EXPECTED_ARTICLES = {
 def _seed_and_articles(client, admin_headers):
     seed = client.post("/api/legal-knowledge/articles/seed", headers=admin_headers)
     assert seed.status_code == 200
-    response = client.get("/api/legal-knowledge/articles")
+    response = client.get("/api/legal-knowledge/articles", headers=admin_headers)
     assert response.status_code == 200
     return response.json()
 
 
-def _recommend_refs(client, incident_text):
-    response = client.post("/api/legal-knowledge/articles/recommend", json={"incident_text": incident_text})
+def _recommend_refs(client, incident_text, admin_headers):
+    response = client.post("/api/legal-knowledge/articles/recommend", json={"incident_text": incident_text}, headers=admin_headers)
     assert response.status_code == 200
     body = response.json()
     return body, {item["reference"] for item in body["recommendations"]}
@@ -55,27 +55,27 @@ def test_ctf_profiles_return_expected_norms(client, admin_headers):
         "falsedad documental digital con certificado falso": {"CP art. 293", "CP art. 296"},
     }
     for incident_text, expected_refs in expectations.items():
-        _, refs = _recommend_refs(client, incident_text)
+        _, refs = _recommend_refs(client, incident_text, admin_headers)
         assert expected_refs.issubset(refs)
 
 
 def test_deepfake_returns_cccn_and_intellectual_property(client, admin_headers):
     _seed_and_articles(client, admin_headers)
-    body, refs = _recommend_refs(client, "deepfake de voz e imagen para suplantar identidad")
+    body, refs = _recommend_refs(client, "deepfake de voz e imagen para suplantar identidad", admin_headers)
     assert body["profile"]["key"] == "deepfake"
     assert {"CCCN art. 51-53", "LPI art. 1"}.issubset(refs)
 
 
 def test_blockchain_returns_cp_172_173_168(client, admin_headers):
     _seed_and_articles(client, admin_headers)
-    body, refs = _recommend_refs(client, "blockchain criptoactivos wallet estafa manipulación informática extorsión")
+    body, refs = _recommend_refs(client, "blockchain criptoactivos wallet estafa manipulación informática extorsión", admin_headers)
     assert body["profile"]["key"] == "blockchain"
     assert {"CP art. 172", "CP art. 173 inc. 16", "CP art. 168"}.issubset(refs)
 
 
 def test_iot_returns_cp_153bis_183_197(client, admin_headers):
     _seed_and_articles(client, admin_headers)
-    body, refs = _recommend_refs(client, "iot dispositivos conectados acceso ilegítimo daño informático comunicaciones")
+    body, refs = _recommend_refs(client, "iot dispositivos conectados acceso ilegítimo daño informático comunicaciones", admin_headers)
     assert body["profile"]["key"] == "iot"
     assert {"CP art. 153 bis", "CP art. 183", "CP art. 197"}.issubset(refs)
 
@@ -88,7 +88,7 @@ def test_ctf_library_does_not_invent_sources(client, admin_headers):
     for item in articles:
         assert item["official_url"].startswith(official_hosts)
 
-    body, _ = _recommend_refs(client, "deepfake blockchain iot phishing")
+    body, _ = _recommend_refs(client, "deepfake blockchain iot phishing", admin_headers)
     assert body["policy"]["registered_sources_only"] is True
     assert body["policy"]["no_unregistered_jurisprudence_or_doctrine"] is True
     for item in body["recommendations"]:

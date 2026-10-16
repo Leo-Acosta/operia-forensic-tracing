@@ -2,7 +2,7 @@
 from sqlalchemy import func, select, text
 
 from operia.core.config import settings
-from operia.forensic_jobs.models import Acquisition, ExaminationJob, ExportRecord, IndicatorSet
+from operia.forensic_jobs.models import Acquisition, ExaminationJob, ExportRecord, IndicatorSet, EvidenceIntegration
 
 
 def begin_write(db):
@@ -16,7 +16,7 @@ def begin_write(db):
 def ensure_capacity(db, organization_id, added_bytes):
     total = 0
     for model, column in ((Acquisition, Acquisition.original_bytes), (IndicatorSet, IndicatorSet.original_bytes),
-                          (ExaminationJob, ExaminationJob.result_bytes)):
+                          (ExaminationJob, ExaminationJob.result_bytes), (EvidenceIntegration, EvidenceIntegration.snapshot_bytes)):
         total += db.scalar(select(func.coalesce(func.sum(func.length(column)), 0)).where(
             model.organization_id == organization_id)) or 0
     total += db.scalar(select(func.coalesce(func.sum(func.length(ExportRecord.content)), 0)).join(

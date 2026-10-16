@@ -1,5 +1,7 @@
 ﻿from pathlib import Path
 from shutil import copyfileobj
+from uuid import uuid4
+from operia.evidence.router import safe_path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -220,8 +222,8 @@ def upload_evidence(case_id: int, description: str, responsible: str = "", custo
     case_dir = UPLOAD_DIR / str(case_id)
     case_dir.mkdir(parents=True, exist_ok=True)
     safe_name = Path(file.filename or "evidence.bin").name
-    destination = case_dir / safe_name
-    with destination.open("wb") as buffer:
+    destination = safe_path(str(case_dir / (uuid4().hex + "-" + safe_name)), case_id)
+    with destination.open("xb") as buffer:
         copyfileobj(file.file, buffer)
     sha = sha256_file(destination)
     evidence = Evidence(

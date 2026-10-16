@@ -8,6 +8,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
 from operia.core.config import settings
+from operia.exports.paths import new_export_path
 from operia.exports.models import ExportManifest
 from operia.identity.dependencies import CurrentUser
 from operia.shared.hashing import file_md5, file_sha256
@@ -23,13 +24,13 @@ from operia.exports.report_exporters import (
 
 
 def export_json_payload(payload: dict[str, Any], filename: str) -> Path:
-    path = settings.exports_dir / filename
+    path = new_export_path(filename)
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     return path
 
 
 def export_csv_rows(rows: list[dict[str, Any]], filename: str) -> Path:
-    path = settings.exports_dir / filename
+    path = new_export_path(filename)
     fieldnames = sorted({key for row in rows for key in row.keys()}) if rows else ["empty"]
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
@@ -40,13 +41,13 @@ def export_csv_rows(rows: list[dict[str, Any]], filename: str) -> Path:
 
 
 def export_markdown_text(markdown: str, filename: str) -> Path:
-    path = settings.exports_dir / filename
+    path = new_export_path(filename)
     path.write_text(markdown, encoding="utf-8")
     return path
 
 
 def export_text_pdf(title: str, body: str, filename: str) -> Path:
-    path = settings.exports_dir / filename
+    path = new_export_path(filename)
     doc = canvas.Canvas(str(path), pagesize=A4)
     width, height = A4
     y = height - 72

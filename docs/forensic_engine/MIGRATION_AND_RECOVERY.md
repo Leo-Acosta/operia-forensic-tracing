@@ -35,3 +35,15 @@ Operación de recuperación:
 
 La prueba de restauración es sintética; no es un plan de continuidad certificado.
 Guardar respaldos cifrados, fuera de Git, con permisos/retención y otra copia física.
+
+## Etapa de evidencia y aislamiento
+
+Migración aditiva 20261016_0004, dependiente de 0003: agrega solamente
+`native_mobile_evidence_integrations`. Upgrade repetible y downgrade que conserva
+la tabla. No transforma exámenes, revisiones, exportaciones ni blobs históricos.
+La prueba restaura una copia SQLite con un examen externo y compara sus bytes y
+snapshot después de upgrade repetido/downgrade. Bootstrap registra la tabla nueva.
+
+Respaldo local verificado: `storage/temp/pre-evidence-integration-20261016.db`,
+con manifiesto SHA-256. Solo incluye SQLite; los archivos externos requieren su
+respaldo separado. No usar una reversión de código para borrar las tablas nuevas.

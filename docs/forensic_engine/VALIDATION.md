@@ -63,3 +63,35 @@ advertencias preexistentes, 114.71 s. `git diff --check` sin errores (avisos de
 normalización LF/CRLF). No se ejecutaron MVT ni adquisiciones reales. Cambios
 solo locales en feature/operia-native-mobile-engine; sin push, PR ni despliegue.
 El commit de entrega se obtiene con `git log -1 --oneline` en esa rama.
+
+
+## Etapa de aislamiento e incorporación (2026-10-16)
+
+Pruebas nuevas en test_native_integration.py: dos organizaciones con tokens reales,
+lectura de hijos históricos NULL solo por su caso, listas/dashboard/usuarios sin
+filtración, referencias cruzadas rechazadas, doble permiso de incorporación,
+idempotencia por revisión, fuente original por hash, informe/versión/custodia
+preservados y prohibición de borrado del caso móvil. Migración 0004 repetida y
+no destructiva sobre copia restaurada, con comparación exacta de bytes externos.
+
+PDF y Word se abren con pypdf/python-docx para comprobar el hash de la instantánea
+y el contenido de revisión. HTML escapa texto activo. Las exportaciones repetidas
+usan archivos distintos y conservan el primero; se rechazan rutas y referencias
+ajenas antes de escribir. El frontend compila con TypeScript/Vite, 1582 módulos.
+No se hizo una nueva verificación visual del navegador en esta etapa.
+
+Regresión de transición: 120 pruebas aprobadas (215.23 s). Después del último
+refuerzo de exportadores y validación previa: 21 pruebas focalizadas aprobadas
+(83.89 s). Sin dependencias nuevas. Persisten las cinco advertencias anteriores.
+La suite completa final se registra al cierre de esta sección.
+
+Respaldo y restauración local verificados con SQLite integrity_check y manifiesto
+SHA-256; comparación de las tablas de originales, revisiones y exports móviles
+contra el respaldo sin diferencias. Los backups no incluyen archivos externos.
+La validación sigue siendo sintética, sin dispositivos reales ni ejecución MVT.
+
+
+Cierre definitivo de esta etapa: **121 pruebas aprobadas**, 5 advertencias
+preexistentes, 199.67 s. Comando: `.venv/Scripts/python.exe -m pytest -q -p
+no:cacheprovider`. Compilacion frontend aprobada; `git diff --check` sin errores.
+Cambios locales en feature/operia-native-mobile-engine, sin push ni despliegue.

@@ -23,6 +23,8 @@ from operia.rubrics.router import router as rubrics_router
 from operia.settings.router import router as settings_router
 from operia.users_cases.router import router as users_cases_router
 
+from operia.identity.isolation import enforce_scope
+
 api_router = APIRouter()
 api_router.include_router(mobile_router, prefix="/mobile-forensics", tags=["mobile-forensics"])
 api_router.include_router(native_mobile_router, prefix="/mobile-forensics", tags=["native-mobile"])
@@ -33,29 +35,29 @@ def health() -> dict[str, str]:
     return {"status": "ok", "product": "OPERIA Forensic Tracing"}
 
 
-api_router.include_router(dashboard_router, prefix="/dashboard", tags=["dashboard"])
+api_router.include_router(dashboard_router, dependencies=[Depends(enforce_scope)], prefix="/dashboard", tags=["dashboard"])
 api_router.include_router(identity_router, prefix="/identity", tags=["identity"])
-api_router.include_router(audit_router, prefix="/audit", tags=["audit"])
-api_router.include_router(cases_router, prefix="/cases", tags=["cases"])
-api_router.include_router(users_cases_router, prefix="/users-cases", tags=["users-cases"])
-api_router.include_router(evidence_router, prefix="/evidence", tags=["evidence"])
-api_router.include_router(cybercrime_router, prefix="/cybercrime", tags=["cybercrime"])
-api_router.include_router(legal_router, prefix="/legal", tags=["legal"])
+api_router.include_router(audit_router, dependencies=[Depends(enforce_scope)], prefix="/audit", tags=["audit"])
+api_router.include_router(cases_router, dependencies=[Depends(enforce_scope)], prefix="/cases", tags=["cases"])
+api_router.include_router(users_cases_router, dependencies=[Depends(enforce_scope)], prefix="/users-cases", tags=["users-cases"])
+api_router.include_router(evidence_router, dependencies=[Depends(enforce_scope)], prefix="/evidence", tags=["evidence"])
+api_router.include_router(cybercrime_router, dependencies=[Depends(enforce_scope)], prefix="/cybercrime", tags=["cybercrime"])
+api_router.include_router(legal_router, dependencies=[Depends(enforce_scope)], prefix="/legal", tags=["legal"])
 api_router.include_router(
     legal_report_router,
     prefix="/legal-report",
     tags=["legal-report-legacy"],
-    dependencies=[Depends(require_permission("reports:write"))],
+    dependencies=[Depends(enforce_scope), Depends(require_permission("reports:write"))],
 )
-api_router.include_router(legal_knowledge_router, prefix="/legal-knowledge", tags=["legal-knowledge"])
-api_router.include_router(ai_assistant_router, prefix="/ai", tags=["ai"])
-api_router.include_router(ai_security_router, prefix="/ai-security", tags=["ai-security"])
-api_router.include_router(mind_router, prefix="/mind", tags=["mind"])
-api_router.include_router(geo_trace_router, prefix="/geo/trace", tags=["geo-trace"])
-api_router.include_router(geo_trace_router, prefix="/geo-trace", tags=["geo-trace-legacy"])
-api_router.include_router(geo_proximity_router, prefix="/geo/proximity", tags=["geo-proximity"])
-api_router.include_router(geo_proximity_router, prefix="/geo-proximity", tags=["geo-proximity-legacy"])
-api_router.include_router(reports_router, prefix="/reports", tags=["reports"])
-api_router.include_router(rubrics_router, prefix="/rubrics", tags=["rubrics"])
-api_router.include_router(exports_router, prefix="/exports", tags=["exports"])
+api_router.include_router(legal_knowledge_router, dependencies=[Depends(enforce_scope)], prefix="/legal-knowledge", tags=["legal-knowledge"])
+api_router.include_router(ai_assistant_router, dependencies=[Depends(enforce_scope)], prefix="/ai", tags=["ai"])
+api_router.include_router(ai_security_router, dependencies=[Depends(enforce_scope)], prefix="/ai-security", tags=["ai-security"])
+api_router.include_router(mind_router, dependencies=[Depends(enforce_scope)], prefix="/mind", tags=["mind"])
+api_router.include_router(geo_trace_router, dependencies=[Depends(enforce_scope)], prefix="/geo/trace", tags=["geo-trace"])
+api_router.include_router(geo_trace_router, dependencies=[Depends(enforce_scope)], prefix="/geo-trace", tags=["geo-trace-legacy"])
+api_router.include_router(geo_proximity_router, dependencies=[Depends(enforce_scope)], prefix="/geo/proximity", tags=["geo-proximity"])
+api_router.include_router(geo_proximity_router, dependencies=[Depends(enforce_scope)], prefix="/geo-proximity", tags=["geo-proximity-legacy"])
+api_router.include_router(reports_router, dependencies=[Depends(enforce_scope)], prefix="/reports", tags=["reports"])
+api_router.include_router(rubrics_router, dependencies=[Depends(enforce_scope)], prefix="/rubrics", tags=["rubrics"])
+api_router.include_router(exports_router, dependencies=[Depends(enforce_scope)], prefix="/exports", tags=["exports"])
 api_router.include_router(settings_router, prefix="/settings", tags=["settings"])

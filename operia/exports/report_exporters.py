@@ -34,7 +34,7 @@ from operia.legal_report.services.report_service import (
 from operia.core.config import settings
 from operia.shared.time import utcnow
 
-EXPORT_DIR = settings.exports_dir
+from operia.exports.paths import new_export_path
 
 PUBLIC_FORBIDDEN_MARKERS = (
     "ollama",
@@ -53,14 +53,18 @@ PUBLIC_FORBIDDEN_MARKERS = (
 
 
 def export_markdown(report: Report) -> Path:
-    path = EXPORT_DIR / f"report-{report.id}.md"
-    path.write_text(normalize_spanish(report.markdown_content), encoding="utf-8")
+    path = new_export_path(f"report-{report.id}.md")
+    path.write_text(report.markdown_content if report.template_used == "Motor propio OPERIA" else normalize_spanish(report.markdown_content), encoding="utf-8")
     return path
 
 
 def export_html(report: Report) -> Path:
+    if report.template_used == "Motor propio OPERIA":
+        path = new_export_path(f"report-{report.id}.html")
+        path.write_text("<!doctype html><meta charset='utf-8'><pre>" + escape(report.markdown_content) + "</pre>", encoding="utf-8")
+        return path
     html = md.markdown(normalize_spanish(report.markdown_content), extensions=["tables"])
-    path = EXPORT_DIR / f"report-{report.id}.html"
+    path = new_export_path(f"report-{report.id}.html")
     path.write_text(f"<!doctype html><meta charset='utf-8'><body>{html}</body>", encoding="utf-8")
     return path
 
@@ -95,6 +99,14 @@ def _clean_markdown_text(text: str) -> str:
 
 
 def export_docx(report: Report) -> Path:
+    if report.template_used == "Motor propio OPERIA":
+        document = Document()
+        document.add_heading(report.title, 0)
+        for line in report.markdown_content.splitlines():
+            document.add_paragraph(line)
+        path = new_export_path(f"report-{report.id}.docx")
+        document.save(path)
+        return path
     document = Document()
     section = document.sections[0]
     section.top_margin = Inches(0.7)
@@ -147,13 +159,13 @@ def export_docx(report: Report) -> Path:
             document.add_paragraph(_clean_markdown_text(line))
         elif line.strip():
             document.add_paragraph(_clean_markdown_text(line))
-    path = EXPORT_DIR / f"report-{report.id}.docx"
+    path = new_export_path(f"report-{report.id}.docx")
     document.save(path)
     return path
 
 
 def export_pdf(report: Report) -> Path:
-    path = EXPORT_DIR / f"report-{report.id}.pdf"
+    path = new_export_path(f"report-{report.id}.pdf")
     c = canvas.Canvas(str(path), pagesize=A4)
     width, height = A4
     case = report.case
@@ -248,7 +260,9 @@ def export_pdf(report: Report) -> Path:
 
 
 def export_pdf(report: Report) -> Path:
-    path = EXPORT_DIR / f"report-{report.id}.pdf"
+    if report.template_used == "Motor propio OPERIA":
+        return _export_native_pdf(report)
+    path = new_export_path(f"report-{report.id}.pdf")
     case = isolated_case_snapshot(report.case)
     styles = _report_styles()
     story: list = []
@@ -1764,7 +1778,7 @@ def _draw_premium_slide(c: canvas.Canvas, presentation: Presentation, slide, wid
 
 
 def export_presentation_pdf(presentation: Presentation) -> Path:
-    path = EXPORT_DIR / f"presentation-{presentation.id}.pdf"
+    path = new_export_path(f"presentation-{presentation.id}.pdf")
     c = canvas.Canvas(str(path), pagesize=landscape(A4))
     width, height = landscape(A4)
     slides = sorted(presentation.slides, key=lambda item: item.slide_number)
@@ -1822,3 +1836,15 @@ def export_presentation_pdf(presentation: Presentation) -> Path:
     presentation.exported_file = str(path)
     return path
 
+
+
+def _export_native_pdf(report: Report) -> Path:
+    """Render only the preserved report; never rebuild its facts from a live case."""
+    path = new_export_path(f"report-{report.id}.pdf")
+    style = ParagraphStyle("NativePreserved", fontName="Helvetica", fontSize=9, leading=12,
+                           splitLongWords=True, spaceAfter=6)
+    story = []
+    for line in report.markdown_content.splitlines():
+        story.append(Paragraph(escape(line), style) if line else Spacer(1, 6))
+    SimpleDocTemplate(str(path), pagesize=A4, title=report.title, author=report.author).build(story)
+    return path

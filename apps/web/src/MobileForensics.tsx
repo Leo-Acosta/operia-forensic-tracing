@@ -9,7 +9,7 @@ type Result = { artifacts: { id: string; locator: string; kind: string; original
   timeline: { id: string; normalized_utc: string; original: string; uncertainty: string }[];
   coverage: { state: string; limitations: string[]; sources: { status: string; excluded: unknown[]; warnings: string[] }[] };
   detection_status: string; counts: { artifacts: number; alerts: number; timeline: number } };
-type Detail = { job: Job; result: Result | null; reviews: { id: number; reviewer_name: string; created_at: string; content_json: string }[];
+type Detail = { integrations: { id: number; review_id: number; evidence_id: number; report_id: number; snapshot_sha256: string }[]; job: Job; result: Result | null; reviews: { id: number; reviewer_name: string; created_at: string; content_json: string }[];
   events: { id: number; state: string; reason: string }[]; exports: { id: number; format: string; sha256: string }[] };
 type Legacy = { id: number; filename: string; declared_mvt_version: string; origin: string };
 type Capability = { message: string; readers: { platform: string; format: string; version: string }[] };
@@ -231,13 +231,18 @@ export default function MobileForensics({ caseId }: { caseId: number }) {
           {[["rationale", "Fundamentos"], ["alternatives", "Alternativas y contradicciones"], ["limitations", "Limitaciones"], ["current_activity", "Actividad actual"], ["chronology", "Cronología e incertidumbre"], ["attribution", "Atribución y límites"], ["coverage_justification", "Justificación expresa del alcance y cobertura"]].map(([name, label]) =>
             <label key={name}>{label}<textarea name={name} required minLength={10} maxLength={4000} /></label>)}<button>Agregar revisión</button>
         </fieldset></form>
-        {detail.reviews.map(r => <article key={r.id}><strong>Revisión {r.id} · {r.reviewer_name}</strong><p>{r.created_at} UTC</p><pre>{JSON.stringify(JSON.parse(r.content_json), null, 2)}</pre></article>)}
+        {detail.reviews.map(r => <article key={r.id}><strong>Revisión {r.id} · {r.reviewer_name}</strong><p>{r.created_at} UTC</p><pre>{JSON.stringify(JSON.parse(r.content_json), null, 2)}</pre><button type="button" disabled={busy || dirty || !canWrite} onClick={() => void run(async () => {
+          await apiPost<{ evidence_id: number; report_id: number }>(`${native}/jobs/${jobId}/integrations?review_id=${r.id}`, {});
+          if (!mounted.current || getAuthToken() !== token) return;
+          setDetail(await apiGet<Detail>(`${native}/jobs/${jobId}?offset=${offset}`));
+        })}>Incorporar revisión a evidencia, custodia e informe</button></article>)}
         <h3>6. Informes y exportaciones</h3>{["json", "csv"].map(format => <button key={format} disabled={busy || dirty || !canWrite} onClick={() => void run(async () => {
           const item = await apiPost<{ id: number }>(`${native}/jobs/${jobId}/exports`, { format });
           if (!mounted.current || getAuthToken() !== token) return;
           await download(`${native}/jobs/${jobId}/exports/${item.id}`, `operia-native-${jobId}-${item.id}.${format}`, token);
           setDetail(await apiGet<Detail>(`${native}/jobs/${jobId}?offset=${offset}`));
         })}>Crear {format === "json" ? "informe JSON" : "CSV temporal"}</button>)}
+        {detail.integrations.map(i => <p key={i.id}>Revisión {i.review_id}: evidencia {i.evidence_id}, informe {i.report_id}. <button onClick={() => void run(() => download(`${native}/jobs/${jobId}/integrations/${i.id}`, `operia-integration-${i.id}.json`, token))}>Descargar instantánea preservada</button><code>{i.snapshot_sha256}</code></p>)}
         {detail.exports.map(e => <p key={e.id}><button onClick={() => void run(() => download(`${native}/jobs/${jobId}/exports/${e.id}`, `operia-native-${jobId}-${e.id}.${e.format}`, token))}>Descargar exportación {e.id} ({e.format})</button><code>{e.sha256}</code></p>)}
       </>}
     </>}

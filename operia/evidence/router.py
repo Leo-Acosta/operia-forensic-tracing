@@ -2,7 +2,8 @@ from pathlib import Path
 from shutil import copyfileobj
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
+from uuid import uuid4
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
@@ -17,6 +18,29 @@ from operia.shared.crud import get_or_404, update_from_payload
 from operia.shared.hashing import file_md5, file_sha256
 
 router = APIRouter()
+
+
+def preserved_source(db, item):
+    from operia.forensic_jobs.models import EvidenceIntegration, Acquisition, ExaminationJob
+    from operia.forensic_engine.canonical import sha256
+    link = db.query(EvidenceIntegration).filter_by(evidence_id=item.id).first()
+    if not link:
+        return None
+    job = db.get(ExaminationJob, link.job_id)
+    acquisition = db.get(Acquisition, job.acquisition_id) if job else None
+    if not acquisition or acquisition.case_id != item.case_id or acquisition.organization_id != item.organization_id or sha256(acquisition.original_bytes) != item.sha256_hash:
+        raise HTTPException(409, "Integridad del original alterada")
+    return acquisition.original_bytes
+
+
+def safe_path(location, case_id=None):
+    path = Path(location).resolve()
+    if not path.is_relative_to(settings.uploads_dir.resolve()) or Path(location).is_symlink():
+        raise HTTPException(403, "Archivo fuera del depósito de evidencias")
+    if case_id is not None and not path.is_relative_to((settings.uploads_dir / str(case_id)).resolve()):
+        raise HTTPException(403, "Archivo ajeno al deposito del caso")
+    return path
+
 
 
 @router.get("/")
@@ -62,7 +86,8 @@ def read_evidence(evidence_id: int, db: Session = Depends(get_db)):
 @router.get("/{evidence_id}/metadata")
 def evidence_metadata(evidence_id: int, db: Session = Depends(get_db)):
     item = get_or_404(db, Evidence, evidence_id)
-    path = Path(item.file_location or "")
+    raw = preserved_source(db, item)
+    path = safe_path(item.file_location, item.case_id) if item.file_location else Path()
     exists = path.exists() if item.file_location else False
     return {
         "id": item.id,
@@ -71,8 +96,8 @@ def evidence_metadata(evidence_id: int, db: Session = Depends(get_db)):
         "type": item.evidence_type,
         "source": item.source,
         "file_location": item.file_location,
-        "file_exists": exists,
-        "file_size": path.stat().st_size if exists else None,
+        "file_exists": raw is not None or exists,
+        "file_size": len(raw) if raw is not None else (path.stat().st_size if exists else None),
         "sha256_hash": item.sha256_hash,
         "md5_hash": item.md5_hash,
         "integrity_status": item.integrity_status,
@@ -86,9 +111,12 @@ def evidence_metadata(evidence_id: int, db: Session = Depends(get_db)):
 @router.get("/{evidence_id}/integrity")
 def verify_evidence_integrity(evidence_id: int, db: Session = Depends(get_db)):
     item = get_or_404(db, Evidence, evidence_id)
+    raw = preserved_source(db, item)
+    if raw is not None:
+        return {"ok": True, "stored_sha256": item.sha256_hash, "integrity_status": "integra"}
     if not item.file_location:
         return {"ok": False, "message": "La evidencia no posee archivo asociado.", "stored_sha256": item.sha256_hash}
-    path = Path(item.file_location)
+    path = safe_path(item.file_location, item.case_id)
     if not path.exists():
         return {"ok": False, "message": "Archivo no encontrado en storage.", "stored_sha256": item.sha256_hash}
     actual_sha = file_sha256(path)
@@ -109,11 +137,16 @@ def verify_evidence_integrity(evidence_id: int, db: Session = Depends(get_db)):
 @router.get("/{evidence_id}/download")
 def download_evidence(evidence_id: int, db: Session = Depends(get_db)):
     item = get_or_404(db, Evidence, evidence_id)
+    raw = preserved_source(db, item)
+    if raw is not None:
+        return Response(raw, media_type="application/octet-stream", headers={"Cache-Control": "no-store", "Content-Disposition": f'attachment; filename="evidence-{item.id}.bin"'})
     if not item.file_location:
         raise HTTPException(status_code=404, detail="La evidencia no posee archivo asociado")
-    path = Path(item.file_location)
+    path = safe_path(item.file_location, item.case_id)
     if not path.exists():
         raise HTTPException(status_code=404, detail="Archivo de evidencia no encontrado")
+    if item.sha256_hash and file_sha256(path) != item.sha256_hash:
+        raise HTTPException(409, "Integridad del archivo alterada")
     return FileResponse(path, filename=path.name)
 
 
@@ -160,8 +193,8 @@ def upload_evidence(
     case_dir = settings.uploads_dir / str(case_id)
     case_dir.mkdir(parents=True, exist_ok=True)
     safe_name = Path(file.filename or "evidence.bin").name
-    destination = case_dir / safe_name
-    with destination.open("wb") as buffer:
+    destination = safe_path(str(case_dir / (uuid4().hex + "-" + safe_name)), case_id)
+    with destination.open("xb") as buffer:
         copyfileobj(file.file, buffer)
     sha = file_sha256(destination)
     evidence = Evidence(

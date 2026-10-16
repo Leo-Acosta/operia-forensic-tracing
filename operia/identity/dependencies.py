@@ -100,5 +100,5 @@ def require_permission(permission: str):
 
 def same_organization(current_user: CurrentUser | None, organization_id: int | None) -> bool:
     if current_user is None or current_user.organization_id is None or organization_id is None:
-        return True
+        return False
     return current_user.organization_id == organization_id

@@ -37,6 +37,21 @@ No sobrescribe salida. Fixture sintético, no instalar en un dispositivo. Los no
 de archivo recibidos por la API no admiten rutas ni caracteres especiales.
 
 Límites: no adquiere dispositivos, no descifra, no interpreta backups completos,
-SQLite/WAL, CMS ni archivos comprimidos. Sin PDF/Word, Geo Trace o IA habilitados
-para resultados nuevos hasta cerrar permisos transversales. No modifica dispositivos,
+SQLite/WAL, CMS ni archivos comprimidos. Geo Trace e IA no son conectores del motor. PDF/Word disponibles mediante
+la incorporación revisada al módulo de informes. No modifica dispositivos,
 abre enlaces o envía datos a servicios externos. Contención/recuperación son separadas.
+
+## Incorporar al expediente
+
+Con una revisión profesional guardada, pulsar «Incorporar revisión a evidencia,
+custodia e informe». Requiere permisos de escritura de evidencia e informes.
+La pantalla conserva los IDs de evidencia/informe y permite descargar la
+instantánea JSON con hash. Repetir la misma revisión devuelve el mismo vínculo.
+Los módulos Evidencia e Informes permiten consultar el original y exportar el
+informe técnico en PDF, Word y Markdown con los mecanismos existentes.
+
+La incorporación es un registro preservado: no admite edición, borrado ni
+transición a informe final por esas rutas. Corregir mediante una nueva revisión
+del examen y una nueva incorporación. La custodia registra recepción/incorporación
+en OPERIA y no inventa actos anteriores. Los históricos externos mantienen su
+origen, bytes y descargas. Un caso con datos móviles se conserva, no se elimina.

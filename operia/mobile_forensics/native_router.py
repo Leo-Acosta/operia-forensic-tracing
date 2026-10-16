@@ -16,7 +16,7 @@ from operia.forensic_engine.analysis import capabilities, timeline_csv
 from operia.forensic_engine.canonical import MAX_SOURCE_BYTES, canonical_bytes, read_json, sha256
 from operia.forensic_engine.contracts import EngineInputError
 from operia.forensic_engine.detection import validate_indicators
-from operia.forensic_jobs.models import Acquisition, ExaminationJob, ExportRecord, IndicatorSet, JobEvent, ReviewRevision
+from operia.forensic_jobs.models import Acquisition, ExaminationJob, ExportRecord, IndicatorSet, JobEvent, ReviewRevision, EvidenceIntegration
 from operia.forensic_jobs.worker import DONE, event
 from operia.forensic_jobs.storage_limits import begin_write, ensure_capacity
 from operia.identity.dependencies import CurrentUser, require_permission
@@ -252,6 +252,10 @@ def detail(case_id: int, job_id: int, offset: int = 0, db: Session = Depends(get
         for key in ("artifacts", "observations", "alerts", "timeline"):
             result[key] = result[key][offset:offset + 100]
     return {"job": job_view(job), "result": result, "offset": offset,
+        "integrations": [{"id": item.id, "review_id": item.review_id, "evidence_id": item.evidence_id,
+            "report_id": item.report_id, "snapshot_sha256": item.snapshot_sha256}
+            for item in db.query(EvidenceIntegration).filter_by(job_id=job_id, case_id=case_id,
+                organization_id=user.organization_id).order_by(EvidenceIntegration.id).all()],
         "reviews": db.query(ReviewRevision).filter_by(job_id=job_id).order_by(ReviewRevision.id).all(),
         "events": db.query(JobEvent).filter_by(job_id=job_id).order_by(JobEvent.id).all(),
         "exports": [{"id": item.id, "format": item.format, "sha256": item.sha256, "review_id": item.review_id}
@@ -355,3 +359,82 @@ def download(case_id: int, job_id: int, export_id: int, db: Session = Depends(ge
     return Response(item.content, media_type="application/json" if item.format == "json" else "text/csv",
         headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
             "Content-Disposition": f'attachment; filename="operia-native-{job_id}-{item.id}.{item.format}"'})
+
+
+@router.post("/cases/{case_id}/jobs/{job_id}/integrations")
+def integrate(case_id: int, job_id: int, review_id: int, db: Session = Depends(get_db),
+              user: CurrentUser = Depends(write), report_user: CurrentUser = Depends(require_permission("reports:write"))):
+    from operia.forensic_jobs.models import EvidenceIntegration
+    from operia.evidence.models import Evidence, ChainOfCustodyAction
+    from operia.reports.models import Report, ReportSection, ReportVersion
+    job = scoped(db, ExaminationJob, job_id, case_id, user)
+    result = result_of(job, db)
+    revision = db.get(ReviewRevision, review_id)
+    if not revision or revision.job_id != job_id:
+        raise HTTPException(404, "Revisión ajena al examen")
+    if revision.result_sha256 != job.result_sha256:
+        raise HTTPException(409, "La revisión no corresponde al resultado preservado")
+    existing = db.query(EvidenceIntegration).filter_by(review_id=review_id).first()
+    if existing:
+        if sha256(existing.snapshot_bytes) != existing.snapshot_sha256:
+            raise HTTPException(409, "Integridad de la incorporacion alterada")
+        return {"id": existing.id, "evidence_id": existing.evidence_id, "custody_id": existing.custody_id,
+                "report_id": existing.report_id, "snapshot_sha256": existing.snapshot_sha256}
+    acquisition = scoped(db, Acquisition, job.acquisition_id, case_id, user)
+    snapshot = canonical_bytes(jsonable_encoder({"schema": "operia.evidence-integration/1", "case_id": case_id,
+        "organization_id": user.organization_id, "job_id": job_id, "acquisition": acquisition_view(acquisition),
+        "result_sha256": job.result_sha256, "result": result, "review": revision}))
+    capacity(db, user, len(snapshot))
+    evidence = Evidence(case_id=case_id, organization_id=user.organization_id,
+        evidence_type="fuente móvil preservada", description=f"Motor propio: fuente {acquisition.filename}; examen {job_id}; revisión {review_id}",
+        source=f"native-acquisition:{acquisition.id}", responsible=user.name, custodian=user.name,
+        sha256_hash=acquisition.sha256, preservation_method="Original BLOB inmutable; descarga con verificación SHA-256",
+        tool_used=f"OPERIA {ENGINE_VERSION}", integrity_status="integra", evidence_nature="copia aportada",
+        custody_observations="La cadena documentada comienza en la recepción OPERIA; la procedencia previa es declarada.")
+    db.add(evidence)
+    db.flush()
+    custody = ChainOfCustodyAction(case_id=case_id, organization_id=user.organization_id, evidence_id=evidence.id,
+        user_responsible=user.name, user_role=user.role, action_type="incorporación de examen revisado",
+        detailed_description=f"Recepción OPERIA {acquisition.created_at}; adquisición {acquisition.id}; examen {job_id}; revisión {review_id}; instantánea {sha256(snapshot)}",
+        tool_used=f"OPERIA {ENGINE_VERSION}", hash_before=acquisition.sha256, hash_after=acquisition.sha256,
+        result_obtained=f"Resultado {job.result_sha256}; alcance y limitaciones en informe",
+        legal_observations="No acredita custodia anterior a la recepción ni admisibilidad judicial.")
+    markdown = (f"# Examen móvil OPERIA {job_id} — revisión {review_id}\n\n"
+        f"Evidencia {evidence.id}; adquisición {acquisition.id}; SHA-256 original: {acquisition.sha256}\n\n"
+        f"SHA-256 resultado: {job.result_sha256}\n\nSHA-256 instantánea: {sha256(snapshot)}\n\n"
+        "Validación sintética del motor. Requiere revisión profesional; no demuestra limpieza ni atribución.\n\n"
+        "## Revisión profesional preservada\n\n" + revision.content_json + "\n\n## Cobertura y limitaciones\n\n" + json.dumps(result["coverage"], ensure_ascii=False))
+    report = Report(case_id=case_id, organization_id=user.organization_id, title=f"Examen móvil {job_id} / revisión {review_id}",
+        author=user.name, markdown_content=markdown, template_used="Motor propio OPERIA", status="borrador")
+    db.add_all([custody, report])
+    db.flush()
+    db.add_all([ReportSection(report_id=report.id, organization_id=user.organization_id, order_index=1,
+        title="Examen móvil revisado", content=markdown), ReportVersion(report_id=report.id,
+        organization_id=user.organization_id, version_number="1.0", user=user.name,
+        change_summary="Incorporación inmutable de revisión móvil", markdown_snapshot=markdown)])
+    link = EvidenceIntegration(organization_id=user.organization_id, case_id=case_id, job_id=job_id,
+        review_id=review_id, evidence_id=evidence.id, custody_id=custody.id, report_id=report.id,
+        created_by=user.id, snapshot_bytes=snapshot, snapshot_sha256=sha256(snapshot))
+    db.add(link)
+    audit(db, "native_evidence_integrated", user, case_id, job_id)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "Revisión ya incorporada; recargá el caso")
+    return {"id": link.id, "evidence_id": evidence.id, "custody_id": custody.id,
+            "report_id": report.id, "snapshot_sha256": link.snapshot_sha256}
+
+
+@router.get("/cases/{case_id}/jobs/{job_id}/integrations/{integration_id}")
+def integration_snapshot(case_id: int, job_id: int, integration_id: int,
+                         db: Session = Depends(get_db), user: CurrentUser = Depends(read)):
+    from operia.forensic_jobs.models import EvidenceIntegration
+    scoped(db, ExaminationJob, job_id, case_id, user)
+    item = scoped(db, EvidenceIntegration, integration_id, case_id, user)
+    if item.job_id != job_id:
+        raise HTTPException(404, "Incorporacion ajena al examen")
+    if sha256(item.snapshot_bytes) != item.snapshot_sha256:
+        raise HTTPException(409, "Integridad de instantanea alterada")
+    return Response(item.snapshot_bytes, media_type="application/json", headers={"Cache-Control": "no-store",
+        "Content-Disposition": f'attachment; filename="operia-integration-{item.id}.json"'})

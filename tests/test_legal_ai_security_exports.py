@@ -2,12 +2,13 @@ def test_legal_knowledge_search_and_recommend(client, admin_headers):
     seed = client.post("/api/legal-knowledge/articles/seed", headers=admin_headers)
     assert seed.status_code == 200
 
-    search = client.get("/api/legal-knowledge/articles?q=ransomware extorsion datos")
+    search = client.get("/api/legal-knowledge/articles?q=ransomware extorsion datos", headers=admin_headers)
     assert search.status_code == 200
     assert len(search.json()) >= 1
 
     recommend = client.post(
         "/api/legal-knowledge/articles/recommend",
+        headers=admin_headers,
         json={"incident_text": "ransomware con extorsion y filtracion de datos personales"},
     )
     assert recommend.status_code == 200
@@ -19,11 +20,11 @@ def test_legal_knowledge_attack_profile_for_phishing(client, admin_headers):
     seed = client.post("/api/legal-knowledge/articles/seed", headers=admin_headers)
     assert seed.status_code == 200
 
-    attack_types = client.get("/api/legal-knowledge/attack-types")
+    attack_types = client.get("/api/legal-knowledge/attack-types", headers=admin_headers)
     assert attack_types.status_code == 200
     assert any(item["value"] == "phishing" for item in attack_types.json())
 
-    profile = client.get("/api/legal-knowledge/attack-types/phishing")
+    profile = client.get("/api/legal-knowledge/attack-types/phishing", headers=admin_headers)
     assert profile.status_code == 200
     assert profile.json()["label"] == "Phishing / fraude digital"
     assert "engaño" in profile.json()["legal_theory"] or "engano" in profile.json()["legal_theory"]
@@ -31,6 +32,7 @@ def test_legal_knowledge_attack_profile_for_phishing(client, admin_headers):
 
     recommendation = client.post(
         "/api/legal-knowledge/articles/recommend",
+        headers=admin_headers,
         json={"incident_text": "phishing por anuncio falso con pago y captura de datos"},
     )
     assert recommendation.status_code == 200
@@ -43,7 +45,7 @@ def test_legal_knowledge_attack_profile_for_phishing(client, admin_headers):
     assert principal["precedents"] == []
     assert principal["doctrine"] == []
 
-    context = client.get(f"/api/legal-knowledge/articles/{principal['article_id']}/context?crime_type=phishing")
+    context = client.get(f"/api/legal-knowledge/articles/{principal['article_id']}/context?crime_type=phishing", headers=admin_headers)
     assert context.status_code == 200
     assert context.json()["context"]["precedents"] == []
     assert context.json()["context"]["doctrine"] == []
@@ -67,6 +69,7 @@ def test_analyst_can_approve_and_reject_legal_mapping(client, admin_headers):
 
     recommendation = client.post(
         "/api/legal-knowledge/articles/recommend",
+        headers=admin_headers,
         json={"incident_text": "phishing por anuncio falso con pago"},
     )
     principal = recommendation.json()["recommendations"][0]
@@ -150,6 +153,7 @@ def test_analyst_can_link_legal_mapping_to_evidence(client, admin_headers):
 
     recommendation = client.post(
         "/api/legal-knowledge/articles/recommend",
+        headers=admin_headers,
         json={"incident_text": "phishing por anuncio falso con pago"},
     )
     principal = recommendation.json()["recommendations"][0]

@@ -64,9 +64,9 @@ def test_history_delete_case_requires_auth_and_removes_reports_and_exports(clien
     deleted = client.delete(f"/api/cases/{case_id}", headers=admin_headers)
     assert deleted.status_code == 200
     assert deleted.json()["deleted_reports"] == 1
-    assert client.get(f"/api/cases/{case_id}").status_code == 404
-    assert client.get(f"/api/reports/case/{case_id}", headers=admin_headers).json() == []
-    assert client.get(f"/api/exports/manifests?case_id={case_id}", headers=admin_headers).json() == []
+    assert client.get(f"/api/cases/{case_id}", headers=admin_headers).status_code == 404
+    assert client.get(f"/api/reports/case/{case_id}", headers=admin_headers).status_code == 404
+    assert client.get(f"/api/exports/manifests?case_id={case_id}", headers=admin_headers).status_code == 404
 
 
 def test_case_evidence_report_flow_with_audit(client, admin_headers):

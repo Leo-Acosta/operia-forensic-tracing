@@ -41,7 +41,31 @@ revisión y descargas; JobEvent conserva transiciones técnicas sin volcar evide
 en logs. No hay retención/eliminación automática; se registra la política del caso.
 Los borradores de UI se mantienen en memoria, no en localStorage.
 
-Riesgos preexistentes fuera de estas rutas: accesos de casos/evidencia/informes sin
-aislamiento integral y recuperación local de administrador. No se certifica SaaS
-multiempresa global; la transferencia a módulos canónicos/servicios externos sigue
-deshabilitada hasta auditar/corregir esos límites. No hay IA en este motor.
+Permanece pendiente la revisión de recuperación local de administrador y de
+servicios externos. No hay IA en el núcleo del motor.
+
+## Límite transversal implementado
+
+`identity/isolation.py` instala criterios de lectura ORM en las sesiones HTTP
+protegidas y valida referencias antes de flush. Casos sin organización no son
+comodines. Un hijo histórico con organización NULL hereda únicamente el ámbito
+del caso; no se reescribe. Los documentos sin caso solo son visibles a su
+organización explícita. Se protegen casos, evidencia/custodia, informes/versiones,
+presentaciones, exportaciones, contexto legal, IA, Mind, geo y sus alias.
+
+La incorporación exige evidence:write y reports:write. Descargas de originales e
+instantáneas comprueban SHA-256. Se rechazan traslados entre casos y referencias
+cruzadas. Los archivos nuevos usan nombres únicos y creación exclusiva; la descarga
+local exige pertenencia al depósito del caso. Eliminar un caso con datos móviles
+recibe 409 antes de ejecutar borrados masivos.
+
+Este control es de aplicación, no RLS de la base. Un nuevo router debe incluir
+`enforce_scope`; un proceso fuera de HTTP debe validar su propio ámbito (como el
+worker). SQL directo, administradores de almacenamiento y recuperación local de
+identidad no quedan aislados por este mecanismo. No certifica un SaaS multiempresa.
+
+Las referencias de caso/documento enviadas en path, query o JSON se comprueban
+antes de ejecutar el endpoint, incluyendo exportadores. Los nuevos archivos de
+exportación reservan destinos únicos: un nombre enviado no selecciona ni
+sobrescribe un archivo anterior y las rutas se rechazan. Los informes móviles
+exportan texto preservado; HTML lo escapa y PDF no reconstruye datos del caso vivo.
