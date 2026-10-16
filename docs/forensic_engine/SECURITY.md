@@ -21,14 +21,17 @@ por organización 128 MiB (configurable 5 MiB–2 GiB), reservada con escritor S
 Incluye entradas, indicadores, resultados y snapshots; **no mide páginas SQLite,
 metadatos ni archivos legacy**. Cuota física de disco pertenece al despliegue.
 
-Subproceso sin shell, comando fijo del motor propio, datos por stdin, salida drenada
-con límite, stderr no preservado. Cancelación/timeout terminan árbol Windows con
-taskkill fijo o grupo POSIX. El núcleo no tiene operaciones de red. Eso **no es
-aislamiento de red ni sandbox del SO**. No hay límites efectivos de memoria del SO,
-cuenta de servicio creada ni contenedor configurado en esta entrega. Requiere un
-despliegue con mínimo privilegio y denegación de red antes de evidencia sensible.
-Un kill forzado del worker puede dejar un hijo hasta su salida/error de pipe; no se
-promete kill-on-parent-death. No se validó ese escenario ni la rama POSIX.
+El hijo usa un runtime propio de solo lectura y AppContainer nuevo por invocacion.
+El analizador no tiene capacidades de red; el conector HTTPS recibe internetClient
+ademas de la politica organizacion/finalidad y allowlist de aplicacion. Job Object
+aplica 256 MiB, 10 segundos de CPU de usuario, un proceso activo, restricciones de
+UI y KILL_ON_JOB_CLOSE. El proceso nace suspendido; se asigna al Job antes de
+reanudar. Entrada/salida por pipes, sin .env, secretos, site-packages o proxy.
+El launcher deniega si no puede aplicar la contencion; no hay fallback POSIX.
+Se probo cierre abrupto de un supervisor y terminacion del hijo por el kernel.
+Los nuevos JobEvent registran sandbox_attached_v1 e identidad del runtime.
+Ver [pentest y operacion](../LOCAL_PENTEST.md). No sustituye cuenta dedicada del
+supervisor, firewall por proveedor, parches del SO ni un pentest de produccion.
 
 Recuperación: bajo lock exclusivo, los estados activos del dueño anterior pasan a
 interrumpido, no a completado; reintento explícito con historial. Configuraciones
@@ -41,8 +44,8 @@ revisión y descargas; JobEvent conserva transiciones técnicas sin volcar evide
 en logs. No hay retención/eliminación automática; se registra la política del caso.
 Los borradores de UI se mantienen en memoria, no en localStorage.
 
-Permanece pendiente la revisión de recuperación local de administrador y de
-servicios externos. No hay IA en el núcleo del motor.
+La recuperacion local esta apagada por defecto y acotada al host. Los servicios
+externos requieren concesiones explicitas y contencion. No hay IA en el núcleo del motor.
 
 ## Límite transversal implementado
 
@@ -78,4 +81,5 @@ concurrencia, JSON estricto, salida denegada por defecto, validacion/pinning de 
 retirada de shell, mapas/HTML inertes y recuperacion local deshabilitada por defecto.
 Las proyecciones permanecen pasivas incluso si se habilita un proveedor externo.
 Consultar [capas y contrato](../SECURITY_LAYERS.md). Limites por proceso, no firewall
-ni cuotas distribuidas; no se realizaron adquisiciones reales, pentest o auditoria CVE.
+ni cuotas distribuidas. Hubo auditoria CVE y pentest local acotado; no adquisiciones
+reales ni evaluacion de infraestructura productiva.

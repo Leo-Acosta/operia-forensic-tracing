@@ -152,16 +152,16 @@ def test_cancellation_timeout_restart_retry_and_worker_scope(client, admin_heade
     worker.run_once(database_factory(), timeout=0)
     assert client.get(path, headers=admin_headers).json()["job"]["error_code"] == "timeout"
     client.post(path + "/retry", headers=admin_headers)
-    original_popen = worker.subprocess.Popen
+    original_spawn = worker.spawn_worker
     children = []
     def cancel_running(*args, **kwargs):
-        process = original_popen(*args, **kwargs)
-        if "operia.forensic_engine.worker_entry" in args[0]:
+        process = original_spawn(*args, **kwargs)
+        if args[0] == "native":
             children.append(process)
             assert client.post(path + "/cancel", headers=admin_headers).status_code == 200
         return process
     with monkeypatch.context() as patch:
-        patch.setattr(worker.subprocess, "Popen", cancel_running)
+        patch.setattr(worker, "spawn_worker", cancel_running)
         worker.run_once(database_factory(), timeout=15)
     assert children and children[0].poll() is not None
     assert client.get(path, headers=admin_headers).json()["job"]["state"] == "cancelado"
@@ -281,15 +281,15 @@ def test_worker_cli_in_fresh_process_loads_shared_model_graph(client, admin_head
 def test_input_change_during_analysis_never_publishes_completed_result(client, admin_headers, monkeypatch):
     root, acquisition, raw = setup(client, admin_headers)
     job = enqueue(client, admin_headers, root, acquisition)
-    popen = worker.subprocess.Popen
+    spawn = worker.spawn_worker
     def changed_input(*args, **kwargs):
-        process = popen(*args, **kwargs)
-        if "operia.forensic_engine.worker_entry" in args[0]:
+        process = spawn(*args, **kwargs)
+        if args[0] == "native":
             with database_factory()() as db:
                 db.get(Acquisition, acquisition["id"]).original_bytes = b"changed after child input snapshot"
                 db.commit()
         return process
-    monkeypatch.setattr(worker.subprocess, "Popen", changed_input)
+    monkeypatch.setattr(worker, "spawn_worker", changed_input)
     worker.run_once(database_factory(), timeout=15)
     value = client.get(root + f'/jobs/{job["id"]}', headers=admin_headers).json()
     assert value["job"]["state"] == "fallido"

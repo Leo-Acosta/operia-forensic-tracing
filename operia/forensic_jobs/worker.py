@@ -1,20 +1,16 @@
 """One job per worker. Durable claim, global worker lock, timeout and cancellation.
 
-Not an OS sandbox. Parsing runs in a disposable subprocess with no network code;
-deploy behind OS/container access/network limits before handling sensitive evidence.
+Parsing runs in a disposable Windows AppContainer without network capabilities,
+under a Job Object with memory/CPU/process limits. No unrestricted fallback.
 """
 import argparse
 import base64
 import os
-import signal
-import subprocess
-import sys
 import tempfile
 import threading
 import time
 import uuid
 from contextlib import contextmanager
-from pathlib import Path
 
 from sqlalchemy import update
 
@@ -29,6 +25,8 @@ from operia.identity.permissions import has_permission
 from operia.mobile_forensics.models import MobileDevice
 from operia.cases.models import Case
 from operia.shared.time import utcnow
+from operia.security.sandbox_runtime import spawn_worker
+from operia.security.windows_sandbox import SandboxUnavailable
 
 ACTIVE = ("preparando", "ejecutando")
 DONE = ("completado", "completado_con_limitaciones")
@@ -95,16 +93,8 @@ def recover_interrupted(db):
 def terminate_tree(process):
     if process.poll() is not None:
         return
-    if os.name == "nt":
-        # Fixed OS utility and numeric PID; no shell and no customer-supplied command.
-        subprocess.run([str(Path(os.environ.get("SystemRoot", "C:/Windows")) / "System32/taskkill.exe"),
-            "/PID", str(process.pid), "/T", "/F"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
-    else:
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-    process.wait(timeout=10)
+    process.kill()  # TerminateJobObject, including the complete job tree.
+    process.wait(timeout=3)
 
 
 def run_once(session_factory=None, timeout=None):
@@ -166,11 +156,12 @@ def run_once(session_factory=None, timeout=None):
         with tempfile.TemporaryDirectory(prefix="operia-native-", dir=settings.temp_dir) as directory:
             # Output is drained in bounded threads so a child cannot fill a pipe or
             # expand an unbounded log on disk. No source path is passed to the child.
-            process = subprocess.Popen([sys.executable, "-m", "operia.forensic_engine.worker_entry"],
-                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                cwd=Path(__file__).resolve().parents[2], shell=False,
-                start_new_session=os.name != "nt",
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+            process = spawn_worker("native")
+            with factory() as db:
+                current = db.get(ExaminationJob, job_id)
+                if current and current.claim_token == token:
+                    db.add(JobEvent(job_id=job_id, state="ejecutando", reason="sandbox_attached_v1:" + process.sandbox_identity))
+                    db.commit()
             output, overflow = bytearray(), threading.Event()
 
             def drain():
@@ -259,12 +250,15 @@ def run_once(session_factory=None, timeout=None):
             job = db.get(ExaminationJob, job_id)
             if job and job.claim_token == token:
                 state = "interrumpido" if isinstance(error, (KeyboardInterrupt, SystemExit)) else "fallido"
-                reason = str(error) if isinstance(error, RuntimeError) and str(error) in ("native_storage_quota_exceeded", "native_sqlite_only") else "worker_error"
+                reason = "sandbox_unavailable" if isinstance(error, SandboxUnavailable) else (str(error) if isinstance(error, RuntimeError) and str(error) in ("native_storage_quota_exceeded", "native_sqlite_only") else "worker_error")
                 event(db, job, state, reason)
                 job.error_code, job.finished_at, job.claim_token = reason, utcnow(), ""
                 db.commit()
         if isinstance(error, (KeyboardInterrupt, SystemExit)):
             raise
+    finally:
+        if process:
+            process.close()
     return True
 
 

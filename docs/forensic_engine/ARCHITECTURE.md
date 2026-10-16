@@ -30,7 +30,8 @@ SQLAlchemy, React, IA ni un motor externo. Los adaptadores actuales están en
 readers.py; no se crean carpetas vacías para aparentar módulos.
 
 Diseño pendiente: lectores SQLite sobre copias/WAL/SHM, manifiesto de backup iOS,
-contenedores de adquisiciones, correlaciones entre fuentes, correlacion avanzada entre fuentes, IA y sandbox del SO.
+contenedores de adquisiciones, correlaciones entre fuentes, correlacion avanzada entre fuentes, IA. El sandbox Windows del SO se incorpora en la etapa documentada en
+[Pentest local](../LOCAL_PENTEST.md).
 El diagrama representa solo el flujo implementado.
 
 ## Integración canónica (2026-10-16)

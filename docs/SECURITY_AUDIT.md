@@ -1,5 +1,9 @@
 # Auditoría de seguridad y dependencias — 2026-10-16
 
+Registro histórico de la etapa 77c0971. El aislamiento del SO y las pruebas
+posteriores están en [Pentest local](LOCAL_PENTEST.md); los límites de esta etapa
+se mantienen aquí como evidencia de lo que se verificó entonces.
+
 Alcance: código Python de `operia` y `apps/api`, entorno Windows x64 CPython
 3.12.14 y lockfile npm completo, incluyendo herramientas de desarrollo. Revisión
 manual de identidad, archivos, límites y conectores; pruebas con datos sintéticos.

@@ -117,7 +117,9 @@ def capacity(db, user, added_bytes, lock=True):
 
 @router.get("/capabilities")
 def engine_capabilities(user: CurrentUser = Depends(read)):
-    return capabilities() | {"worker_required": True, "os_sandbox": False}
+    from operia.security.sandbox_runtime import status
+    sandbox = status()
+    return capabilities() | {"worker_required": True, "os_sandbox": sandbox["runtime_verified"], "sandbox": sandbox}
 
 
 @router.get("/cases/{case_id}/acquisitions")

@@ -105,3 +105,16 @@ Before any real SaaS deployment:
 - add signed export manifests;
 - add monitoring.
 
+
+
+## Aislamiento Windows y pentest local
+
+Ejecutar `python scripts/prepare_worker_sandbox.py` desde la raiz antes de
+trabajos nuevos y despues de actualizar el runtime. AppContainer/Job son
+obligatorios, sin fallback a ejecucion normal. La IA directa a localhost queda
+bloqueada hasta disponer de pasarela separada; no agregar excepciones de loopback.
+Ver [operacion, resultados y limites](LOCAL_PENTEST.md).
+
+El Docker API Linux existente no proporciona este backend Windows. Los trabajos
+y conectores que requieran contencion se rechazan en esa plataforma; se necesita
+un backend de aislamiento Linux validado antes de habilitarlos alli.

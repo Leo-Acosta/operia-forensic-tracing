@@ -56,6 +56,7 @@ Backend:
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+python scripts\prepare_worker_sandbox.py
 uvicorn apps.api.main:app --reload --host 127.0.0.1 --port 8020
 ```
 
@@ -139,6 +140,7 @@ storage/
 - [SaaS Readiness](docs/SAAS_READINESS.md)
 - [Capas de seguridad y contrato de conectores](docs/SECURITY_LAYERS.md)
 - [Auditoría de seguridad y dependencias](docs/SECURITY_AUDIT.md)
+- [Pentest local y aislamiento Windows de workers/conectores](docs/LOCAL_PENTEST.md)
 - [Testing](docs/TESTING.md)
 - [Deployment](docs/DEPLOYMENT.md)
 - [Migration Notes](docs/MIGRATION_NOTES.md)

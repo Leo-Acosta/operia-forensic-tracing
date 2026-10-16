@@ -142,3 +142,30 @@ contraseñas antiguas, colisiones Mind, SSRF, entorno sin secretos y terminació
 real del hijo al vencer el plazo. No se contactaron proveedores reales.
 Alcance, avisos y límites en ../SECURITY_AUDIT.md; el proceso hijo no es un sandbox
 del SO. Sin nuevas dependencias del motor, ejecución MVT ni despliegue.
+
+
+## Aislamiento Windows y pentest local controlado (2026-10-16)
+
+AppContainer por ejecución y Job Object: cuotas de CPU/memoria/procesos, sin red
+para el analizador, entorno sin secretos, runtime stdlib RX e integridad previa,
+creación suspendida, cierre/timeout sin fallback. Comprobación en el entrypoint
+y JobEvent nuevo, sin modificar eventos ni resultados históricos.
+
+**180 pruebas aprobadas**, cuatro advertencias de deprecación, 251.49 s sobre
+el entorno reconstruido con requirements-win-py312.lock. Incluye 16 casos locales
+con control positivo fuera del sandbox, canarios privados bloqueados, memoria
+del padre, descendientes, loopback, recursos, salida excesiva, caída abrupta del
+supervisor, corrupción del runtime, falta de configuración y preservación de un
+trabajo completado ante fallo nuevo del sandbox. Pentest HTTP en 127.0.0.1 con
+SQLite desechable: IDOR, inyección, origen, JSON, volumen, SSRF, cuotas, traversal,
+exportaciones y framing ambiguo por socket. Sin proveedores ni evidencia real.
+
+TypeScript/Vite aprobado (1582 módulos), pip check correcto, auditorías Python/npm
+sin vulnerabilidades conocidas. Bandit ampliado a scripts: cero altas/medias,
+14 bajas revisadas, sin suprimir reglas. diff sin errores.
+
+Respaldo/restore con SHA-256 e integrity_check correctos; 72 tablas anteriores
+comparadas por todos sus valores sin diferencias. No hay migración destructiva
+ni motor externo. IA directa a localhost permanece bloqueada hasta una pasarela
+separada. Windows es el único backend validado, no un pentest productivo.
+Detalle en [pentest local](../LOCAL_PENTEST.md).

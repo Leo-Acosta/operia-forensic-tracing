@@ -34,3 +34,12 @@ of a real child process at its deadline. No external provider receives evidence.
 See [the dated audit](SECURITY_AUDIT.md) for dependency scans and reproducible
 Windows CPython 3.12 installation with `requirements-win-py312.lock`.
 
+
+
+## Aislamiento Windows y pentest local
+
+Ejecutar `python scripts/prepare_worker_sandbox.py` desde la raiz antes de
+trabajos nuevos y despues de actualizar el runtime. AppContainer/Job son
+obligatorios, sin fallback a ejecucion normal. La IA directa a localhost queda
+bloqueada hasta disponer de pasarela separada; no agregar excepciones de loopback.
+Ver [operacion, resultados y limites](LOCAL_PENTEST.md).

@@ -4,10 +4,12 @@ import json
 import sys
 from operia.security.transport import fetch_bytes, local_ai_bytes
 from operia.security.errors import ConnectorRejected
+from operia.security.child_guard import require_containment
 
 
 def main():
     try:
+        require_containment()
         raw = sys.stdin.buffer.read(2 * 1024 * 1024 + 4097)
         if len(raw) > 2 * 1024 * 1024 + 4096:
             raise ConnectorRejected("connector_request_too_large")

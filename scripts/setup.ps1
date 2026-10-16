@@ -8,6 +8,9 @@ if (-not (Test-Path ".venv")) {
 
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+if ($LASTEXITCODE -ne 0) { throw "Backend dependency installation failed" }
+.\.venv\Scripts\python.exe scripts\prepare_worker_sandbox.py
+if ($LASTEXITCODE -ne 0) { throw "Windows worker isolation could not be prepared" }
 
 Push-Location apps\web
 if (-not (Test-Path "node_modules")) {

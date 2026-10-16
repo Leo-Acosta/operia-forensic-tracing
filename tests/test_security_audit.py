@@ -141,28 +141,33 @@ def test_connector_budget_deadline_and_tenant_bulkheads(monkeypatch):
     finally: connector_scope.reset(token)
 
 
-def test_connector_child_excludes_proxy_secrets_and_pins_command(monkeypatch):
+def test_connector_dispatches_fixed_kind_and_bounds_pipe(monkeypatch):
     captured = {}
     monkeypatch.setenv("HTTP_PROXY", "http://not-used.invalid")
     monkeypatch.setenv("OPERIA_AUTH_SIGNING_KEY", "do-not-inherit-this-secret")
     class Process:
         returncode = 0
-        def communicate(self, payload=None, timeout=None):
-            captured["payload"] = json.loads(payload); return b'{"status":200,"body_base64":"b2s="}', None
+        def communicate(self, payload=None, timeout=None, maximum=None):
+            captured["payload"] = json.loads(payload); captured["maximum"] = maximum
+            return b'{"status":200,"body_base64":"b2s="}', None
         def kill(self): pass
-    def popen(command, **kwargs): captured.update(command=command, **kwargs); return Process()
-    monkeypatch.setattr(outbound.subprocess, "Popen", popen)
+        def close(self): captured["closed"] = True
+    def spawn(kind): captured["kind"] = kind; return Process()
+    monkeypatch.setattr(outbound, "spawn_worker", spawn)
     assert outbound._run_transport({"kind": "https", "url": "https://provider.example/"}, 1, 20) == (200, b"ok")
-    assert captured["command"] == [sys.executable, "-m", "operia.security.connector_worker"]
-    assert captured["shell"] is False and "HTTP_PROXY" not in captured["env"] and "OPERIA_AUTH_SIGNING_KEY" not in captured["env"]
+    assert captured["kind"] == "https" and captured["maximum"] == 4136 and captured["closed"]
 
 
 def test_connector_timeout_kills_real_child(monkeypatch):
-    original_popen, children = subprocess.Popen, []
-    def sleeping(command, **kwargs):
-        process = original_popen([sys.executable, "-c", "import time; time.sleep(60)"], **kwargs)
+    from operia.security.sandbox_runtime import DEFAULT_ROOT, identity
+    from operia.security.windows_sandbox import launch
+    children = []
+    def sleeping(kind):
+        process = launch(DEFAULT_ROOT / identity(), "scripts.sandbox_probe")
+        communicate = process.communicate
+        process.communicate = lambda payload=None, **kwargs: communicate(b'{"action":"sleep"}', **kwargs)
         children.append(process); return process
-    monkeypatch.setattr(outbound.subprocess, "Popen", sleeping)
+    monkeypatch.setattr(outbound, "spawn_worker", sleeping)
     before = time.monotonic()
     with pytest.raises(outbound.ConnectorRejected, match="deadline"):
         outbound._run_transport({"kind": "https"}, .2, 20)

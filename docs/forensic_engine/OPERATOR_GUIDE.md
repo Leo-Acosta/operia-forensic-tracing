@@ -72,3 +72,12 @@ no equivale a confirmacion tecnica. Los historicos e informes anteriores no camb
 Las consultas de red y la IA local estan apagadas por defecto y la ejecucion shell
 fue retirada. Ver [capas de seguridad](../SECURITY_LAYERS.md) para configuracion,
 limites y el contrato para futuros conectores.
+
+
+## Aislamiento Windows y pentest local
+
+Ejecutar `python scripts/prepare_worker_sandbox.py` desde la raiz antes de
+trabajos nuevos y despues de actualizar el runtime. AppContainer/Job son
+obligatorios, sin fallback a ejecucion normal. La IA directa a localhost queda
+bloqueada hasta disponer de pasarela separada; no agregar excepciones de loopback.
+Ver [operacion, resultados y limites](../LOCAL_PENTEST.md).

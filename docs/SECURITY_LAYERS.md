@@ -1,7 +1,8 @@
 # Capas de seguridad y contrato de conectores
 
 Estado: 2026-10-16. Controles de aplicacion implementados y probados con datos
-sinteticos; no constituyen una certificacion de invulnerabilidad ni un pentest.
+sinteticos. Pentest local acotado y contencion Windows: [informe](LOCAL_PENTEST.md).
+No constituyen una certificacion de invulnerabilidad.
 
 ## Fronteras implementadas
 
@@ -9,8 +10,8 @@ sinteticos; no constituyen una certificacion de invulnerabilidad ni un pentest.
 |---|---|---|
 | Acceso entre organizaciones/casos | Sesion obligatoria, permiso por modulo/metodo, filtros ORM heredados por caso y documento padre, validacion de referencias | Es control de aplicacion; no RLS ni defensa ante administradores de la base |
 | Referencias manipuladas | Artefactos seleccionados dentro de la revision incorporada, hashes y FK de caso, validacion de IDs en hipotesis | El texto profesional sigue requiriendo revision humana |
-| SSRF y fuga mediante conectores | Salida HTTPS denegada por defecto, hosts exactos configurados, todos los resultados DNS publicos, conexion a IP validada con SNI/TLS del host original, sin proxies de entorno ni redirecciones | No reemplaza firewall de egreso; proceso hijo con deadline comun de hasta 12 s; no es sandbox de SO |
-| Ejecucion de comandos | Retirada de shell arbitraria por API; los workers usan exclusivamente comandos fijos | El worker aun requiere aislamiento de SO y cuenta sin privilegios |
+| SSRF y fuga mediante conectores | Salida HTTPS denegada por defecto, hosts exactos configurados, todos los resultados DNS publicos, conexion a IP validada con SNI/TLS del host original, sin proxies de entorno ni redirecciones | No reemplaza firewall de egreso; proceso hijo con deadline comun de hasta 12 s; AppContainer/Job en Windows, sin fallback |
+| Ejecucion de comandos | Retirada de shell arbitraria por API; los workers usan exclusivamente comandos fijos | AppContainer sin red para el analizador, Job de 256 MiB/10 s CPU/1 proceso; supervisor aun requiere cuenta sin privilegios |
 | Recuperacion indebida de administrador | Recuperacion local apagada por defecto; requiere habilitacion de configuracion y solicitud local | No mantenerla habilitada durante operacion normal |
 | Solicitudes excesivas | 8 MiB, lectura en 15 s, 240 solicitudes/minuto por peer, 20 POST de identidad/minuto y 8 solicitudes simultaneas | Cuotas locales por proceso; gateway compartido requerido para despliegues multiples |
 | Respuestas de proveedores | Cuerpo maximo 256 KiB, encoding identity, redirecciones rechazadas, JSON acotado sin duplicados ni no finitos, tiempo de lectura limitado | El padre termina el proceso cuando vence el presupuesto total |
@@ -24,9 +25,9 @@ sinteticos; no constituyen una certificacion de invulnerabilidad ni un pentest.
 - `OPERIA_CONNECTOR_ALLOWED_HOSTS=[]`: ninguna salida del cliente de conectores.
   Para habilitar un proveedor aprobado usar una lista JSON de hosts exactos,
   por ejemplo `["ipinfo.io"]`. No usar destinos procedentes de la evidencia.
-- `OPERIA_LOCAL_AI_ENABLED=false`: IA local separada. Si se habilita, solo admite
-  `http://127.0.0.1:11434/api/generate`, sin destinos elegibles por el usuario,
-  sin proxy/redireccion, solicitud de hasta 2 MiB y respuesta hasta 1 MiB.
+- `OPERIA_LOCAL_AI_ENABLED=false`: IA local directa bloqueada por AppContainer.
+  No se agrega excepcion de loopback; se requiere una pasarela separada y validada.
+  Los flags y permisos existentes no permiten omitir esta frontera.
 - `OPERIA_LOCAL_RECOVERY_ENABLED=false`: no hay recuperacion automatica por HTTP.
   Un operador del host puede habilitarla temporalmente en entorno local y apagarla
   inmediatamente despues. Se conserva la autenticacion normal.
@@ -70,7 +71,8 @@ Antes de exponer evidencia real a Internet: TLS en gateway, cuotas compartidas p
 cuenta/organizacion, configuracion estricta de proxies, firewall de egreso,
 identidades/secretos administrados, aislamiento de worker, cifrado y permisos de
 backups, observabilidad/alertas y auditoria de dependencias/CVE y pentest con alcance
-autorizado. La auditoria CVE de esta etapa se documenta en SECURITY_AUDIT.md; no se realizo un pentest. No se
+autorizado. La auditoria CVE se documenta en SECURITY_AUDIT.md y el pentest local en
+LOCAL_PENTEST.md; falta una evaluacion del despliegue productivo. No se
 promete proteccion contra DDoS distribuido, administradores hostiles o compromiso
 del equipo. Estos requisitos no deben confundirse con los controles ya presentes.
 
@@ -84,5 +86,6 @@ Cada finalidad requiere una concesion explicita en Organization.settings_json, a
 de la allowlist global. IA local requiere tambien concesion local_ai y permiso ai:use.
 Los hijos no heredan secretos ni proxies; limites de 4 operaciones globales, 1 por
 organizacion y 20/minuto por organizacion, con plazo comun maximo de 12 segundos.
-El sistema operativo sigue siendo una frontera pendiente: cuenta dedicada, firewall
-y sandbox para codigo no confiable. Politicas y clave de firma: [auditoria](SECURITY_AUDIT.md).
+Windows aplica AppContainer y Job Object, con runtime RX sin secretos y perfiles
+individuales. Siguen pendientes cuenta dedicada del supervisor, firewall de egreso
+y validacion de produccion. Operacion y limites: [pentest local](LOCAL_PENTEST.md).

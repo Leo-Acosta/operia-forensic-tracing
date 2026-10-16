@@ -3,11 +3,8 @@ import base64
 from contextlib import contextmanager
 import json
 import logging
-import os
-from pathlib import Path
 import re
 import subprocess
-import sys
 from threading import Lock
 import time
 from urllib.parse import urlsplit
@@ -15,6 +12,8 @@ from operia.core.config import settings
 from operia.security.context import connector_scope
 from operia.security.errors import ConnectorRejected
 from operia.forensic_engine.canonical import read_json
+from operia.security.sandbox_runtime import spawn_worker
+from operia.security.windows_sandbox import SandboxUnavailable
 
 _lock = Lock()
 _active = {}
@@ -46,22 +45,21 @@ def connector_slot(scope):
 
 
 def _run_transport(payload, timeout, maximum):
-    env = {key: os.environ[key] for key in ("SystemRoot", "WINDIR", "TEMP", "TMP") if key in os.environ}
-    env.update({"PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"})
-    process = subprocess.Popen([sys.executable, "-m", "operia.security.connector_worker"],
-        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, shell=False,
-        cwd=str(Path(__file__).resolve().parents[2]), env=env,
-        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+    started = time.monotonic()
     try:
-        output, _ = process.communicate(json.dumps(payload, ensure_ascii=True).encode(), timeout=timeout)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        process.communicate(timeout=2)
-        raise ConnectorRejected("connector_deadline_exceeded") from None
-    except BaseException:
-        process.kill()
-        process.communicate(timeout=2)
-        raise
+        process = spawn_worker(payload["kind"])
+        try:
+            remaining = timeout - (time.monotonic() - started)
+            if remaining <= 0:
+                raise ConnectorRejected("connector_deadline_exceeded")
+            output, _ = process.communicate(json.dumps(payload, ensure_ascii=True).encode(),
+                timeout=remaining, maximum=maximum * 2 + 4096)
+        except subprocess.TimeoutExpired:
+            raise ConnectorRejected("connector_deadline_exceeded") from None
+        finally:
+            process.close()
+    except SandboxUnavailable:
+        raise ConnectorRejected("connector_sandbox_unavailable") from None
     if process.returncode != 0 or len(output) > maximum * 2 + 4096:
         raise ConnectorRejected("connector_worker_error")
     try:
