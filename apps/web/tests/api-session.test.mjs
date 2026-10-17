@@ -24,6 +24,38 @@ function deferred() {
   return { promise, resolve };
 }
 
+test('request queue bounds concurrency and discards queued writes after session change', async () => {
+  const pending = [], entered = deferred();
+  let requests = 0;
+  const { api, switchSession } = await runtime(() => {
+    requests++;
+    const response = deferred(); pending.push(response);
+    if (requests === 4) entered.resolve();
+    return response.promise;
+  });
+  const first = Array.from({ length: 4 }, () => api.apiGet('/cases'));
+  const queued = api.apiPost('/reports/case/1/generate');
+  const outcomes = Promise.allSettled([...first, queued]);
+  await entered.promise;
+  assert.equal(requests, 4);
+  switchSession();
+  for (const response of pending) response.resolve(Response.json({}));
+  const results = await outcomes;
+  assert.ok(results.every(result => result.status === 'rejected'));
+  assert.equal(requests, 4, 'queued mutation must not reach the server with an old session');
+});
+
+test('request queue releases slots after failed requests', async () => {
+  let calls = 0;
+  const { api } = await runtime(async () => {
+    if (++calls <= 4) throw new TypeError('synthetic failure');
+    return Response.json({ ok: true });
+  });
+  const results = await Promise.allSettled(Array.from({ length: 6 }, () => api.apiGet('/cases')));
+  assert.equal(results.filter(result => result.status === 'fulfilled').length, 2);
+  assert.equal(calls, 6);
+});
+
 test('authorized response remains readable', async () => {
   const { api } = await runtime(async () => Response.json({ synthetic: true }));
   assert.equal((await api.apiGet('/cases')).synthetic, true);

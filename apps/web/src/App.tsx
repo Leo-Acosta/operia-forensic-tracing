@@ -1,4 +1,9 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { EvidenceWorkspace } from "@/components/evidence/evidence-workspace";
+import { ReportRegister } from "@/components/reports/report-register";
+import { FormField } from "@/components/forms/form-field";
+import { Input } from "@/components/ui/input";
+import { fetchScopedDownload } from "@/lib/scoped-download";
 import LocalAiGateway from "./LocalAiGateway";
 import CaseAccessPanel from "./CaseAccessPanel";
 import { ApplicationShell } from "@/components/layout/application-shell";
@@ -1426,6 +1431,10 @@ export function App() {
   const [caseAccess, setCaseAccess] = useState<{ caseId: number; token: string; capabilities: string[] } | null>(null);
   const [caseCollectionsLoading, setCaseCollectionsLoading] = useState(false);
   const [caseCollectionsError, setCaseCollectionsError] = useState("");
+  const editorReturnFocus = useRef<HTMLElement | null>(null);
+  const [caseTask, setCaseTask] = useState("");
+  const caseTaskLock = useRef(false);
+  const [caseFeedback, setCaseFeedback] = useState("");
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
   const [evidence, setEvidence] = useState<EvidenceItem[]>([]);
   const [participants, setParticipants] = useState<CaseParticipant[]>([]);
@@ -1533,6 +1542,7 @@ export function App() {
   const [editingParticipant, setEditingParticipant] = useState<CaseParticipant | null>(null);
   const [evidenceForm, setEvidenceForm] = useState({ description: "", responsible: "", custodian: "" });
   const [editingEvidence, setEditingEvidence] = useState<EvidenceItem | null>(null);
+  const [evidenceUploadVersion, setEvidenceUploadVersion] = useState(0);
   const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
   const [custodyForm, setCustodyForm] = useState({ action_type: "revisión", detailed_description: "", user_responsible: "" });
   const [editingCustody, setEditingCustody] = useState<CustodyAction | null>(null);
@@ -1542,7 +1552,7 @@ export function App() {
   if (custodyScope.current.caseId !== selectedCaseId || custodyScope.current.token !== authToken) {
     custodyScope.current = { caseId: selectedCaseId, token: authToken, generation: custodyScope.current.generation + 1 };
   }
-  useEffect(() => { setEditingCustody(null); setCustodyReason(""); setEditingParticipant(null); setEditingEvidence(null); setPendingNavigation(null); setCaseDetailTab("summary"); }, [selectedCaseId, authToken]);
+  useEffect(() => { setEditingCustody(null); setCustodyReason(""); setEditingParticipant(null); setEditingEvidence(null); setPendingNavigation(null); setCaseDetailTab("summary"); setEvidenceForm({ description: "", responsible: "", custodian: "" }); setEvidenceFile(null); setCustodyForm({ action_type: "revisión", detailed_description: "", user_responsible: "" }); setCaseFeedback(""); setCaseTask(""); caseTaskLock.current = false; }, [selectedCaseId, authToken]);
   const [damageItems, setDamageItems] = useState<DamageItem[]>([]);
   const [damageForm, setDamageForm] = useState(emptyDamageForm);
   const [damageState, setDamageState] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -1796,6 +1806,7 @@ export function App() {
     try {
       if (["workflow", "dashboard", "cases", "evidence", "reports", "casePresentation"].includes(key)) {
         if (!getAuthToken()) return;
+        if (["workflow", "evidence", "reports", "casePresentation"].includes(key) && cases.length) return;
         await refreshCore();
         return;
       }
@@ -1942,7 +1953,7 @@ export function App() {
   }
 
   function requestNavigation(action: () => void) {
-    if (editingParticipant || editingEvidence || editingCustody) setPendingNavigation(() => action);
+    if (editingParticipant || editingEvidence || editingCustody || evidenceFile || evidenceForm.description.trim() || (reportPreview && executiveSummaryDraft !== reportPreview.executive_summary)) setPendingNavigation(() => action);
     else action();
   }
 
@@ -1954,21 +1965,54 @@ export function App() {
     if (caseId !== selectedCaseId) requestNavigation(() => setSelectedCaseId(caseId));
   }
 
-  async function downloadReport(reportId: number) {
-    const token = getAuthToken();
+  function captureCaseContext() {
     const generation = custodyScope.current.generation;
+    const token = getAuthToken();
+    return () => generation === custodyScope.current.generation && token === getAuthToken();
+  }
+
+  async function runCaseTask(label: string, action: () => Promise<unknown>) {
+    if (caseTaskLock.current) return;
+    const current = captureCaseContext();
+    caseTaskLock.current = true;
+    setCaseTask(label); setCaseFeedback(""); setError("");
     try {
-      const response = await fetch(`${API_BASE}/exports/reports/${reportId}/pdf`, { headers: authHeaders(), cache: "no-store" });
-      if (!response.ok) throw new Error("No se pudo descargar el informe. Verificá tu sesión y el permiso de exportación.");
-      const blob = await response.blob();
-      if (token !== getAuthToken() || generation !== custodyScope.current.generation) return;
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url; link.download = `operia-informe-${reportId}.pdf`; link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      await action();
+      if (current()) setCaseFeedback(previous => previous || `${label}: operación terminada. Revisá el resultado registrado.`);
     } catch (err) {
-      if (token === getAuthToken() && generation === custodyScope.current.generation) setError(err instanceof Error ? err.message : "No se pudo descargar el informe.");
+      if (current()) setError(err instanceof Error ? err.message : "No se pudo completar la operación.");
+    } finally {
+      if (current()) { setCaseTask(""); caseTaskLock.current = false; }
     }
+  }
+
+  async function downloadArtifact(path: string, filename: string) {
+    const current = captureCaseContext();
+    const blob = await fetchScopedDownload(`${API_BASE}${path}`, getAuthToken(), current);
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url; link.download = filename; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  async function downloadReport(reportId: number) {
+    if (!canCase("export", "reports:read") || !reports.some(item => item.id === reportId && item.case_id === selectedCaseId)) throw new Error("No tenés permiso de exportación para este informe.");
+    await downloadArtifact(`/exports/reports/${reportId}/pdf`, `operia-informe-${reportId}.pdf`);
+  }
+
+  function renderEvidenceUpload() {
+    return <form className="premium-form" onSubmit={event => { event.preventDefault(); void runCaseTask("Incorporar evidencia", () => uploadEvidence(event)); }} aria-label="Incorporar evidencia al expediente" aria-busy={Boolean(caseTask)}>
+      <p className="premium-form-help">Los campos con * son obligatorios. Solo se registra el archivo al confirmar la carga.</p>
+      <fieldset disabled={!canCase("evidence", "evidence:write") || Boolean(caseTask)}><legend className="sr-only">Datos y archivo de evidencia</legend>
+        <FormField label="Descripción de evidencia"><textarea required maxLength={10000} value={evidenceForm.description} onChange={e => setEvidenceForm({ ...evidenceForm, description: e.target.value })} /></FormField>
+        <FormField label="Responsable"><Input value={evidenceForm.responsible} onChange={e => setEvidenceForm({ ...evidenceForm, responsible: e.target.value })} /></FormField>
+        <FormField label="Custodio"><Input value={evidenceForm.custodian} onChange={e => setEvidenceForm({ ...evidenceForm, custodian: e.target.value })} /></FormField>
+        <FormField label="Archivo original" hint="La API calcula el hash y registra la custodia. El archivo no se envía a conectores externos."><Input key={`${authToken}:${selectedCaseId}:${evidenceUploadVersion}`} type="file" required onChange={e => setEvidenceFile(e.target.files?.[0] || null)} /></FormField>
+        <Button type="submit" disabled={!evidenceFile || !evidenceForm.description.trim()}><Upload size={16} />{caseTask || "Subir y calcular hash"}</Button>
+      </fieldset>
+      {!canCase("evidence", "evidence:write") && <p className="premium-permissions-note">Requiere un expediente activo y permiso para incorporar evidencia.</p>}
+    </form>;
   }
 
   function guardPermission(permission: string, actionLabel: string) {
@@ -2431,7 +2475,8 @@ export function App() {
 
   async function uploadEvidence(event: FormEvent) {
     event.preventDefault();
-    if (!selectedCaseId || !evidenceFile) return;
+    if (!selectedCaseId || !evidenceFile || !canCase("evidence", "evidence:write")) throw new Error("No tenés permiso para incorporar evidencia.");
+    const current = captureCaseContext();
     const params = new URLSearchParams({
       description: evidenceForm.description,
       responsible: evidenceForm.responsible,
@@ -2440,15 +2485,19 @@ export function App() {
     const form = new FormData();
     form.append("file", evidenceFile);
     await apiPostForm<EvidenceItem>(`/evidence/case/${selectedCaseId}/upload?${params.toString()}`, form);
+    if (!current()) return;
     setEvidenceForm({ description: "", responsible: "", custodian: "" });
     setEvidenceFile(null);
+    setEvidenceUploadVersion(version => version + 1);
     await refreshCaseCollections(selectedCaseId);
   }
 
   async function createParticipant(event: FormEvent) {
     event.preventDefault();
-    if (!selectedCaseId) return;
+    if (!selectedCaseId || !canCase("participants", "cases:write")) throw new Error("No tenés permiso para registrar datos en este expediente.");
+    const current = captureCaseContext();
     await apiPost<CaseParticipant>(`/cases/${selectedCaseId}/participants`, participantForm);
+    if (!current()) return;
     setParticipantForm({
       participant_type: "damnificado",
       person_type: "persona_fisica",
@@ -2469,8 +2518,10 @@ export function App() {
 
   async function saveParticipant(event: FormEvent) {
     event.preventDefault();
-    if (!editingParticipant) return;
+    if (!editingParticipant || editingParticipant.case_id !== selectedCaseId || !canCase("participants", "cases:write")) throw new Error("No tenés permiso para guardar este registro.");
+    const current = captureCaseContext();
     await apiPut<CaseParticipant>(`/cases/participants/${editingParticipant.id}`, editingParticipant);
+    if (!current()) return;
     setEditingParticipant(null);
     await refreshCaseCollections(selectedCaseId);
   }
@@ -2483,7 +2534,8 @@ export function App() {
 
   async function saveEvidence(event: FormEvent) {
     event.preventDefault();
-    if (!editingEvidence) return;
+    if (!editingEvidence || editingEvidence.case_id !== selectedCaseId || !canCase("evidence", "evidence:write")) throw new Error("No tenés permiso para guardar este registro.");
+    const current = captureCaseContext();
     await apiPut<EvidenceItem>(`/evidence/${editingEvidence.id}`, {
       case_id: editingEvidence.case_id,
       evidence_type: editingEvidence.evidence_type,
@@ -2503,6 +2555,7 @@ export function App() {
       integrity_status: editingEvidence.integrity_status || "pendiente de validacion",
       confidence_level: editingEvidence.confidence_level || "medio"
     });
+    if (!current()) return;
     setEditingEvidence(null);
     await refreshCaseCollections(selectedCaseId);
   }
@@ -2515,20 +2568,22 @@ export function App() {
 
   async function createCustodyAction(event: FormEvent) {
     event.preventDefault();
-    if (!selectedCaseId) return;
+    if (!selectedCaseId || !canCase("evidence", "evidence:write")) throw new Error("No tenés permiso para registrar datos en este expediente.");
+    const current = captureCaseContext();
     await apiPost("/evidence/custody-actions", {
       ...custodyForm,
       case_id: Number(selectedCaseId),
       evidence_id: latestEvidence?.id,
       hash_after: latestEvidence?.sha256_hash || ""
     });
+    if (!current()) return;
     setCustodyForm({ action_type: "revisión", detailed_description: "", user_responsible: "" });
     await refreshCaseCollections(selectedCaseId);
   }
 
   async function saveCustodyAction(event: FormEvent) {
     event.preventDefault();
-    if (!editingCustody) return;
+    if (!editingCustody || !canCase("evidence", "evidence:write")) throw new Error("No tenés permiso para rectificar custodia.");
     if (!custodyReason.trim() || editingCustody.case_id !== Number(selectedCaseId)) return;
     const caseId = editingCustody.case_id;
     const generation = custodyScope.current.generation;
@@ -2544,7 +2599,7 @@ export function App() {
     } catch (err) {
       if (custodyScope.current.generation !== generation || getAuthToken() !== token) return;
       handleUiError(err, "No se pudo registrar la rectificación. Recargá la cadena si otra revisión fue incorporada.");
-      return;
+      throw err;
     }
     setEditingCustody(null);
     setCustodyReason("");
@@ -3132,12 +3187,16 @@ export function App() {
   }
 
   async function generateReport() {
+    if (!canCase("reports", "reports:write")) throw new Error("No tenés permiso para esta operación de informes.");
+    const current = captureCaseContext();
     if (!selectedCaseId) return;
     if (!guardPermission("reports:write", "generar informes")) return;
     localStorage.setItem("operia_analyst_name", analystName);
     const author = encodeURIComponent(analystName.trim());
     const report = await apiPost<ReportItem>(`/reports/case/${selectedCaseId}/generate?author=${author}`);
+    if (!current()) return;
     await refreshCaseCollections(selectedCaseId);
+    if (!current()) return;
     setReviewResult({ generated_report_id: report.id, status: "generated" });
   }
 
@@ -3161,20 +3220,27 @@ export function App() {
   }
 
   async function reviewReport() {
-    if (!latestReport) return;
+    const targetReport = reports.find(item => item.id === (reportPreview?.report_id ?? latestReport?.id) && item.case_id === selectedCaseId);
+    if (!canCase("review", "reports:write")) throw new Error("No tenés permiso para esta operación de informes.");
+    const current = captureCaseContext();
+    if (!targetReport) return;
     if (!guardPermission("reports:write", "revisar informes")) return;
-    const result = await apiPost<ReportReviewResult>(`/reports/${latestReport.id}/review`);
+    const result = await apiPost<ReportReviewResult>(`/reports/${targetReport.id}/review`);
+    if (!current()) return;
     setReviewAudit(result);
+    if (!current()) return;
     setReviewResult(result);
     if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
-    await loadReportPreview(latestReport.id);
+    if (!current()) return;
+    await loadReportPreview(targetReport.id);
   }
 
   async function loadReportPreview(reportId = latestReport?.id) {
-    if (!reportId) return;
+    if (!reportId || !canCase("read", "reports:read") || !reports.some(item => item.id === reportId && item.case_id === selectedCaseId)) return;
+    const current = captureCaseContext();
     const preview = await apiGet<ReportPreview>(`/reports/${reportId}/preview`);
-    setReportPreview(preview);
-    setExecutiveSummaryDraft(preview.executive_summary);
+    if (!current()) return;
+    setReportPreview(preview); setExecutiveSummaryDraft(preview.executive_summary);
   }
 
   async function promoteBlockchainTransaction(transaction: BlockchainTransactionItem) {
@@ -3303,45 +3369,56 @@ export function App() {
       setCtfDashboardMessage("Genera un informe antes de exportar el PDF.");
       return;
     }
-    window.open(`${API_BASE}/exports/reports/${latestReport.id}/pdf`, "_blank", "noopener,noreferrer");
+    void runCaseTask("Descargar informe", () => downloadReport(latestReport.id));
     setCtfDashboardState("success");
     setCtfDashboardMessage("Exportación PDF iniciada. El manifiesto queda registrado por el backend.");
   }
 
   async function saveExecutiveSummary() {
-    if (!latestReport || !executiveSummaryDraft.trim()) return;
-    const updated = await apiPut<ReportItem>(`/reports/${latestReport.id}/executive-summary`, {
+    const targetReport = reports.find(item => item.id === (reportPreview?.report_id ?? latestReport?.id) && item.case_id === selectedCaseId);
+    if (!canCase("reports", "reports:write")) throw new Error("No tenés permiso para esta operación de informes.");
+    const current = captureCaseContext();
+    if (!targetReport || !executiveSummaryDraft.trim()) return;
+    const updated = await apiPut<ReportItem>(`/reports/${targetReport.id}/executive-summary`, {
       executive_summary: executiveSummaryDraft,
-      author: analystName || latestReport.author
+      author: analystName || targetReport.author
     });
+    if (!current()) return;
     setReviewResult({ status: "executive_summary_updated", report_id: updated.id });
     if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+    if (!current()) return;
     await loadReportPreview(updated.id);
   }
 
   async function requestFinalExport() {
-    if (!latestReport) return;
+    const targetReport = reports.find(item => item.id === (reportPreview?.report_id ?? latestReport?.id) && item.case_id === selectedCaseId);
+    if (!targetReport || !canCase("export", "reports:read") || !canCase("approve", "reports:write")) throw new Error("Se requieren permisos de aprobación y exportación.");
+    const current = captureCaseContext();
     if (!guardPermission("reports:write", "sellar y exportar el informe final")) return;
     setError("");
     try {
       const readiness = await apiGet<ExportOutcome>(
-        `/reports/${latestReport.id}/exportability`
+        `/reports/${targetReport.id}/exportability`
       );
+      if (!current()) return;
       setExportFinalResult(readiness);
       if (!readiness.can_export_final) return;
-      const response = await fetch(`${API_BASE}/exports/reports/${latestReport.id}/pdf/seal-final`, {
+      const response = await fetch(`${API_BASE}/exports/reports/${targetReport.id}/pdf/seal-final`, {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
-          analyst_name: analystName || latestReport.author,
+          analyst_name: analystName || targetReport.author,
           declaration: "Cierre pericial final con checklist verificado, anexos incorporados y exportación sellada."
         })
       });
+      if (!current()) return;
       if (!response.ok) {
-        setExportFinalResult(await readExportOutcome(response));
+        const outcome = await readExportOutcome(response);
+        if (current()) setExportFinalResult(outcome);
         return;
       }
       const blob = await response.blob();
+      if (!current()) return;
       const url = URL.createObjectURL(blob);
       setExportFinalResult({
         status: "sealed",
@@ -3349,10 +3426,12 @@ export function App() {
         sha256: response.headers.get("x-operia-sha256"),
         manifest_id: response.headers.get("x-operia-export-manifest-id")
       });
-      window.open(url, "_blank");
+      const link = document.createElement("a"); link.href = url; link.download = `operia-final-${targetReport.id}.pdf`; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
       if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
-      await loadReportPreview(latestReport.id);
+      if (current()) await loadReportPreview(targetReport.id);
     } catch (error) {
+      if (!current()) return;
       const message = error instanceof Error ? error.message : "No se pudo evaluar la exportación final.";
       setExportFinalResult({ status: "blocked", message: extractReadableMessage(message, "No se pudo evaluar la exportación final.") });
       handleUiError(error, message, { focusIdentity: true });
@@ -3402,27 +3481,43 @@ export function App() {
   }
 
   async function verifyEvidenceIntegrity(evidenceId: number) {
-    setModulePayload(await apiGet(`/evidence/${evidenceId}/integrity`));
-    if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+    if (!canCase("evidence", "evidence:write") || !evidence.some(item => item.id === evidenceId && item.case_id === selectedCaseId)) throw new Error("No tenés permiso para verificar esta evidencia.");
+    const current = captureCaseContext();
+    const result = await apiGet<{ ok: boolean; message?: string; integrity_status?: string }>(`/evidence/${evidenceId}/integrity`);
+    if (!current()) return;
+    await refreshCaseCollections(selectedCaseId);
+    if (!current()) return;
+    if (!result.ok) throw new Error(result.message || "La verificación detectó una diferencia de integridad.");
+    setCaseFeedback(`Evidencia ${evidenceId}: integridad verificada por la API.`);
   }
 
   async function refreshReportAnnexes() {
-    if (!latestReport) return;
-    const updated = await apiPost<ReportItem>(`/reports/${latestReport.id}/annexes/refresh`);
+    const targetReport = reports.find(item => item.id === (reportPreview?.report_id ?? latestReport?.id) && item.case_id === selectedCaseId);
+    if (!canCase("reports", "reports:write")) throw new Error("No tenés permiso para esta operación de informes.");
+    const current = captureCaseContext();
+    if (!targetReport) return;
+    const updated = await apiPost<ReportItem>(`/reports/${targetReport.id}/annexes/refresh`);
+    if (!current()) return;
     setReviewResult({ status: "annexes_refreshed", report_id: updated.id });
     if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+    if (!current()) return;
     await loadReportPreview(updated.id);
   }
 
   async function transitionReportStatus(status: string) {
-    if (!latestReport) return;
-    const updated = await apiPost<ReportItem>(`/reports/${latestReport.id}/versions/transition`, {
+    const targetReport = reports.find(item => item.id === (reportPreview?.report_id ?? latestReport?.id) && item.case_id === selectedCaseId);
+    if (!canCase("reports", "reports:write")) throw new Error("No tenés permiso para esta operación de informes.");
+    const current = captureCaseContext();
+    if (!targetReport) return;
+    const updated = await apiPost<ReportItem>(`/reports/${targetReport.id}/versions/transition`, {
       status,
-      user: analystName || latestReport.author,
+      user: analystName || targetReport.author,
       note: `Cambio de version a ${status}`
     });
+    if (!current()) return;
     setReviewResult({ status: "version_transition", report_id: updated.id, next_status: updated.status, version: updated.version });
     if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+    if (!current()) return;
     await loadReportPreview(updated.id);
   }
 
@@ -3673,7 +3768,7 @@ export function App() {
         <div className="button-row">
           <button className="secondary-button" onClick={() => setActive("reports")}><FileText size={16} /> Corregir informe</button>
           <button className="secondary-button" onClick={() => setActive("legalKnowledge")}><Gavel size={16} /> Revisar matriz legal</button>
-          <button className="secondary-button" onClick={requestFinalExport} disabled={!latestReport}><Download size={16} /> Evaluar exportación</button>
+          <button className="secondary-button" onClick={() => void runCaseTask("Evaluar exportación", requestFinalExport)} disabled={!latestReport || !canCase("approve", "reports:write") || !canCase("export", "reports:read") || Boolean(caseTask)}><Download size={16} /> Evaluar exportación</button>
         </div>
       </div>
     );
@@ -3750,32 +3845,32 @@ export function App() {
           ))}
         </div>
 
-        <form className="compact-form damage-form" onSubmit={createDamageItem}>
+        <form className="compact-form damage-form premium-form" onSubmit={createDamageItem}><fieldset disabled={!canCase("write", "cases:write") || damageState === "saving"}><legend className="sr-only">Cuantificación del daño</legend>
           <div className="inline-grid">
-            <input placeholder="Concepto del daño" value={damageForm.concept} onChange={(e) => setDamageForm({ ...damageForm, concept: e.target.value })} />
+            <FormField label="Concepto del daño"><input placeholder="Concepto del daño" value={damageForm.concept} onChange={(e) => setDamageForm({ ...damageForm, concept: e.target.value })} /></FormField>
             <div className="inline-grid tight">
-              <input type="number" min="0" step="0.01" placeholder="Monto" value={damageForm.amount} onChange={(e) => setDamageForm({ ...damageForm, amount: e.target.value })} />
-              <select value={damageForm.currency} onChange={(e) => setDamageForm({ ...damageForm, currency: e.target.value })}>
+              <FormField label="Monto"><input type="number" min="0" step="0.01" placeholder="Monto" value={damageForm.amount} onChange={(e) => setDamageForm({ ...damageForm, amount: e.target.value })} /></FormField>
+              <FormField label="Moneda"><select value={damageForm.currency} onChange={(e) => setDamageForm({ ...damageForm, currency: e.target.value })}>
                 <option value="ARS">ARS</option>
                 <option value="USD">USD</option>
                 <option value="EUR">EUR</option>
-              </select>
+              </select></FormField>
             </div>
           </div>
           <div className="inline-grid">
-            <input placeholder="Fecha base o período" value={damageForm.base_date} onChange={(e) => setDamageForm({ ...damageForm, base_date: e.target.value })} />
-            <select value={damageForm.certainty_level} onChange={(e) => setDamageForm({ ...damageForm, certainty_level: e.target.value })}>
+            <FormField label="Fecha base o período"><input placeholder="Fecha base o período" value={damageForm.base_date} onChange={(e) => setDamageForm({ ...damageForm, base_date: e.target.value })} /></FormField>
+            <FormField label="Nivel de certeza"><select value={damageForm.certainty_level} onChange={(e) => setDamageForm({ ...damageForm, certainty_level: e.target.value })}>
               <option value="alto">Certeza alta</option>
               <option value="medio">Certeza media</option>
               <option value="bajo">Certeza baja</option>
-            </select>
+            </select></FormField>
           </div>
-          <textarea placeholder="Fuente del valor: comprobante, factura, extracto, presupuesto, ticket o declaración documentada" value={damageForm.value_source} onChange={(e) => setDamageForm({ ...damageForm, value_source: e.target.value })} />
-          <textarea placeholder="Fórmula o criterio de cálculo utilizado" value={damageForm.formula_used} onChange={(e) => setDamageForm({ ...damageForm, formula_used: e.target.value })} />
-          <textarea placeholder="Evidencia que sostiene el rubro: hash, archivo, captura, transacción, factura o constancia" value={damageForm.supporting_evidence} onChange={(e) => setDamageForm({ ...damageForm, supporting_evidence: e.target.value })} />
-          <textarea placeholder="Observaciones, límites o datos faltantes" value={damageForm.observations} onChange={(e) => setDamageForm({ ...damageForm, observations: e.target.value })} />
+          <FormField label="Fuente del valor: comprobante, factura, extracto, presupuesto, ticket o declaración documentada"><textarea placeholder="Fuente del valor: comprobante, factura, extracto, presupuesto, ticket o declaración documentada" value={damageForm.value_source} onChange={(e) => setDamageForm({ ...damageForm, value_source: e.target.value })} /></FormField>
+          <FormField label="Fórmula o criterio de cálculo utilizado"><textarea placeholder="Fórmula o criterio de cálculo utilizado" value={damageForm.formula_used} onChange={(e) => setDamageForm({ ...damageForm, formula_used: e.target.value })} /></FormField>
+          <FormField label="Evidencia que sostiene el rubro: hash, archivo, captura, transacción, factura o constancia"><textarea placeholder="Evidencia que sostiene el rubro: hash, archivo, captura, transacción, factura o constancia" value={damageForm.supporting_evidence} onChange={(e) => setDamageForm({ ...damageForm, supporting_evidence: e.target.value })} /></FormField>
+          <FormField label="Observaciones, límites o datos faltantes"><textarea placeholder="Observaciones, límites o datos faltantes" value={damageForm.observations} onChange={(e) => setDamageForm({ ...damageForm, observations: e.target.value })} /></FormField>
           <button disabled={!selectedCaseId || damageState === "saving"}><Calculator size={17} /> Registrar daño económico</button>
-        </form>
+        </fieldset></form>
 
         {damageMessage && <div className={`action-feedback ${damageState}`}>{damageMessage}</div>}
 
@@ -3799,7 +3894,7 @@ export function App() {
 
   function renderWorkflow() {
     return (
-      <div className="workflow">
+      <div className="workflow premium-operating-forms">
         <section className="work-surface">
           <div className="section-head">
             <div>
@@ -3831,10 +3926,10 @@ export function App() {
 
         <div className="step-grid">
           <StepCard number={1} title="Crear un caso" done={Boolean(selectedCase)}>
-            <form className="compact-form" onSubmit={createCase}>
-              <input placeholder="Código del caso" value={caseForm.case_code} onChange={(e) => setCaseForm({ ...caseForm, case_code: e.target.value })} required />
-              <input placeholder="Título" value={caseForm.title} onChange={(e) => setCaseForm({ ...caseForm, title: e.target.value })} required />
-              <select
+            <form className="compact-form premium-form" onSubmit={event => { event.preventDefault(); void runCaseTask("Crear caso", () => createCase(event)); }}><fieldset disabled={!(identitySession.authenticated && canUse("cases:write")) || Boolean(caseTask)}><legend className="sr-only">Crear caso</legend>
+              <FormField label="Código del caso"><input placeholder="Código del caso" value={caseForm.case_code} onChange={(e) => setCaseForm({ ...caseForm, case_code: e.target.value })} required /></FormField>
+              <FormField label="Título"><input placeholder="Título" value={caseForm.title} onChange={(e) => setCaseForm({ ...caseForm, title: e.target.value })} required /></FormField>
+              <FormField label="Tipo de incidente"><select
                 value={caseForm.incident_type}
                 onChange={(e) => {
                   const selected = attackTypes.find((item) => item.value === e.target.value);
@@ -3843,18 +3938,18 @@ export function App() {
                 }}
               >
                 {attackTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-              </select>
-              <textarea placeholder="Descripción inicial" value={caseForm.description} onChange={(e) => setCaseForm({ ...caseForm, description: e.target.value })} />
+              </select></FormField>
+              <FormField label="Descripción"><textarea placeholder="Descripción inicial" value={caseForm.description} onChange={(e) => setCaseForm({ ...caseForm, description: e.target.value })} /></FormField>
               <button><Briefcase size={17} /> Crear caso</button>
-            </form>
+            </fieldset></form>
           </StepCard>
 
           <StepCard number={2} title="Registrar personas y entidades" done={participants.length > 0}>
-            <form className="compact-form" onSubmit={createParticipant}>
+            <form className="compact-form premium-form" onSubmit={event => { event.preventDefault(); void runCaseTask("Registrar participante", () => createParticipant(event)); }}><fieldset disabled={!(canCase("participants", "cases:write")) || Boolean(caseTask)}><legend className="sr-only">Registrar participante</legend>
               <div className="inline-grid">
-                <select value={participantForm.participant_type} onChange={(e) => setParticipantForm({ ...participantForm, participant_type: e.target.value })}>
+                <FormField label="Relación con el expediente"><select value={participantForm.participant_type} onChange={(e) => setParticipantForm({ ...participantForm, participant_type: e.target.value })}>
                   <option value="damnificado">Damnificado</option>
-                  <option value="victima">V?ctima</option>
+                  <option value="victima">Víctima</option>
                   <option value="testigo">Testigo</option>
                   <option value="denunciante">Denunciante</option>
                   <option value="sospechoso">Sospechoso</option>
@@ -3863,28 +3958,28 @@ export function App() {
                   <option value="entidad_financiera">Entidad financiera</option>
                   <option value="plataforma_digital">Plataforma digital</option>
                   <option value="otro">Otro</option>
-                </select>
-                <select value={participantForm.person_type} onChange={(e) => setParticipantForm({ ...participantForm, person_type: e.target.value })}>
+                </select></FormField>
+                <FormField label="Tipo de persona o entidad"><select value={participantForm.person_type} onChange={(e) => setParticipantForm({ ...participantForm, person_type: e.target.value })}>
                   <option value="persona_fisica">Persona física</option>
                   <option value="persona_juridica">Persona jurídica</option>
                   <option value="organismo">Organismo</option>
                   <option value="cuenta_digital">Cuenta digital</option>
                   <option value="alias_identidad">Alias/identidad digital</option>
                   <option value="desconocido">Desconocido</option>
-                </select>
+                </select></FormField>
               </div>
-              <input placeholder="Nombre, razon social, alias o identificador" value={participantForm.display_name} onChange={(e) => setParticipantForm({ ...participantForm, display_name: e.target.value })} required />
+              <FormField label="Nombre o identificador"><input placeholder="Nombre, razon social, alias o identificador" value={participantForm.display_name} onChange={(e) => setParticipantForm({ ...participantForm, display_name: e.target.value })} required /></FormField>
               <div className="inline-grid">
-                <input placeholder="Tipo documento" value={participantForm.document_type} onChange={(e) => setParticipantForm({ ...participantForm, document_type: e.target.value })} />
-                <input placeholder="Documento / CUIT / ID" value={participantForm.document_number} onChange={(e) => setParticipantForm({ ...participantForm, document_number: e.target.value })} />
+                <FormField label="Tipo de documento"><input placeholder="Tipo documento" value={participantForm.document_type} onChange={(e) => setParticipantForm({ ...participantForm, document_type: e.target.value })} /></FormField>
+                <FormField label="Documento o identificador"><input placeholder="Documento / CUIT / ID" value={participantForm.document_number} onChange={(e) => setParticipantForm({ ...participantForm, document_number: e.target.value })} /></FormField>
               </div>
               <div className="inline-grid">
-                <input placeholder="Email" value={participantForm.email} onChange={(e) => setParticipantForm({ ...participantForm, email: e.target.value })} />
-                <input placeholder="Telefono" value={participantForm.phone} onChange={(e) => setParticipantForm({ ...participantForm, phone: e.target.value })} />
+                <FormField label="Correo electrónico"><input placeholder="Email" value={participantForm.email} onChange={(e) => setParticipantForm({ ...participantForm, email: e.target.value })} /></FormField>
+                <FormField label="Teléfono"><input placeholder="Telefono" value={participantForm.phone} onChange={(e) => setParticipantForm({ ...participantForm, phone: e.target.value })} /></FormField>
               </div>
-              <textarea placeholder="Relacion con el caso / rol investigativo" value={participantForm.relationship_to_case} onChange={(e) => setParticipantForm({ ...participantForm, relationship_to_case: e.target.value })} />
+              <FormField label="Relación con el caso"><textarea placeholder="Relacion con el caso / rol investigativo" value={participantForm.relationship_to_case} onChange={(e) => setParticipantForm({ ...participantForm, relationship_to_case: e.target.value })} /></FormField>
               <button disabled={!selectedCaseId}><Users size={17} /> Registrar participante</button>
-            </form>
+            </fieldset></form>
             <div className="mini-list">
               {participants.slice(0, 5).map((item) => (
                 <span key={item.id}>{item.participant_type}: {item.display_name} ({item.person_type})</span>
@@ -3893,28 +3988,22 @@ export function App() {
           </StepCard>
 
           <StepCard number={3} title="Cargar evidencia y calcular hash" done={Boolean(latestEvidence?.sha256_hash)}>
-            <form className="compact-form" onSubmit={uploadEvidence}>
-              <textarea placeholder="Descripción de evidencia" value={evidenceForm.description} onChange={(e) => setEvidenceForm({ ...evidenceForm, description: e.target.value })} required />
-              <input placeholder="Responsable" value={evidenceForm.responsible} onChange={(e) => setEvidenceForm({ ...evidenceForm, responsible: e.target.value })} />
-              <input placeholder="Custodio" value={evidenceForm.custodian} onChange={(e) => setEvidenceForm({ ...evidenceForm, custodian: e.target.value })} />
-              <input type="file" onChange={(e) => setEvidenceFile(e.target.files?.[0] || null)} />
-              <button disabled={!selectedCaseId || !evidenceFile}><Upload size={17} /> Subir y hashear</button>
-            </form>
+            {renderEvidenceUpload()}
             {latestEvidence && <code>SHA-256: {latestEvidence.sha256_hash}</code>}
           </StepCard>
 
           <StepCard number={4} title="Registrar cadena de custodia" done={custody.length > 0}>
-            <form className="compact-form" onSubmit={createCustodyAction}>
-              <input placeholder="Accion" value={custodyForm.action_type} onChange={(e) => setCustodyForm({ ...custodyForm, action_type: e.target.value })} />
-              <input placeholder="Responsable" value={custodyForm.user_responsible} onChange={(e) => setCustodyForm({ ...custodyForm, user_responsible: e.target.value })} />
-              <textarea placeholder="Detalle de la acción" value={custodyForm.detailed_description} onChange={(e) => setCustodyForm({ ...custodyForm, detailed_description: e.target.value })} required />
+            <form className="compact-form premium-form" onSubmit={event => { event.preventDefault(); void runCaseTask("Registrar custodia", () => createCustodyAction(event)); }}><fieldset disabled={!(canCase("evidence", "evidence:write")) || Boolean(caseTask)}><legend className="sr-only">Registrar custodia</legend>
+              <FormField label="Acción de custodia"><input placeholder="Accion" value={custodyForm.action_type} onChange={(e) => setCustodyForm({ ...custodyForm, action_type: e.target.value })} /></FormField>
+              <FormField label="Responsable de la acción"><input placeholder="Responsable" value={custodyForm.user_responsible} onChange={(e) => setCustodyForm({ ...custodyForm, user_responsible: e.target.value })} /></FormField>
+              <FormField label="Descripción del evento"><textarea placeholder="Detalle de la acción" value={custodyForm.detailed_description} onChange={(e) => setCustodyForm({ ...custodyForm, detailed_description: e.target.value })} required /></FormField>
               <button disabled={!selectedCaseId}><Fingerprint size={17} /> Registrar custodia</button>
-            </form>
+            </fieldset></form>
           </StepCard>
 
           <StepCard number={5} title="Analizar IP, URL o dato cybercrime" done={Boolean(indicatorResult)}>
             <div className="compact-form">
-              <input value={indicator} onChange={(e) => setIndicator(e.target.value)} placeholder="IP, dominio o URL" />
+              <FormField label="IP, dominio o URL"><input value={indicator} onChange={(e) => setIndicator(e.target.value)} placeholder="IP, dominio o URL" /></FormField>
               <button onClick={analyzeIndicator} disabled={!indicator}><Globe2 size={17} /> Analizar indicador</button>
             </div>
             {renderIndicatorOutcome()}
@@ -3922,7 +4011,7 @@ export function App() {
 
           <StepCard number={6} title="Tipificar incidente con normativa argentina" done={Boolean(legalTypification?.principal_typification || legalMappings.length)}>
             <div className="compact-form">
-              <input value={legalQuery} onChange={(e) => setLegalQuery(e.target.value)} />
+              <FormField label="Consulta legal"><input value={legalQuery} onChange={(e) => setLegalQuery(e.target.value)} /></FormField>
               <button onClick={() => searchAndTypifyLegal(false)}><Gavel size={17} /> Tipificar y sugerir norma</button>
               <button className="secondary-button" onClick={() => searchAndTypifyLegal(true)} disabled={!selectedCaseId || legalApplyState === "applying"}>
                 <CheckCircle2 size={17} /> {legalApplyState === "applying" ? "Aplicando..." : legalApplyState === "applied" ? "Aplicado al caso" : "Aplicar al caso"}
@@ -3967,7 +4056,7 @@ export function App() {
 
           <StepCard number={8} title="Ampliar análisis técnico-jurídico" done={Boolean(aiResult)}>
             <div className="compact-form">
-              <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} />
+              <FormField label="Consigna de análisis"><textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} /></FormField>
               <button onClick={runAiAssist}><Bot size={17} /> {latestReport ? "Ampliar informe" : "Analizar caso"}</button>
             </div>
             {latestReport && <p className="notice">Con informe generado, esta acción agrega hipótesis, conclusiones y fundamentación legal al reporte.</p>}
@@ -3976,9 +4065,9 @@ export function App() {
 
           <StepCard number={9} title="Generar informe" done={reports.length > 0}>
             <div className="compact-form">
-              <input placeholder="Analista / operador interviniente" value={analystName} onChange={(e) => setAnalystName(e.target.value)} />
+              <FormField label="Analista / operador interviniente"><input placeholder="Analista / operador interviniente" value={analystName} onChange={(e) => setAnalystName(e.target.value)} /></FormField>
             </div>
-            <button onClick={generateReport} disabled={!selectedCaseId}><FileText size={17} /> Generar informe integral</button>
+            <button onClick={() => void runCaseTask("Generar informe", generateReport)} disabled={!canCase("reports", "reports:write") || Boolean(caseTask)}><FileText size={17} /> Generar informe integral</button>
             {latestReport && <p className="notice">Último informe: {latestReport.title}</p>}
             <div className="summary-list">
               <span>Nivel de exportabilidad: {exportabilitySnapshot.level}</span>
@@ -3987,15 +4076,15 @@ export function App() {
           </StepCard>
 
           <StepCard number={10} title="Revisar informe" done={Boolean(reviewResult) && latestReport?.review_score !== undefined}>
-            <button onClick={reviewReport} disabled={!latestReport}><FileCheck2 size={17} /> Revisar informe</button>
+            <button onClick={() => void runCaseTask("Revisar informe", reviewReport)} disabled={!latestReport || !canCase("review", "reports:write") || Boolean(caseTask)}><FileCheck2 size={17} /> Revisar informe</button>
             {renderReviewOutcome()}
           </StepCard>
 
           <StepCard number={11} title="Exportar PDF" done={Boolean(latestReport)}>
             {latestReport ? (
-              <a className="download-button" href={`${API_BASE}/exports/reports/${latestReport.id}/pdf`} target="_blank">
+              <Button disabled={!canCase("export", "reports:read") || Boolean(caseTask)} onClick={() => void runCaseTask("Descargar informe", () => downloadReport(latestReport.id))}>
                 <Download size={17} /> Exportar PDF con manifiesto
-              </a>
+              </Button>
             ) : (
               <EmptyState text="Genera un informe antes de exportar." />
             )}
@@ -4016,13 +4105,13 @@ export function App() {
 
           <StepCard number={13} title="Cerrar caso" done={closureStatus?.already_closed}>
             <div className="compact-form">
-              <textarea value={closureNote} onChange={(e) => setClosureNote(e.target.value)} />
+              <FormField label="Nota de cierre del expediente"><textarea value={closureNote} onChange={(e) => setClosureNote(e.target.value)} /></FormField>
               <button onClick={closeCase} disabled={!selectedCaseId || closureStatus?.already_closed}>
                 <CheckCircle2 size={17} /> Cerrar caso
               </button>
             </div>
             <div className="button-row">
-              <button className="secondary-button" onClick={requestFinalExport} disabled={!latestReport}>
+              <button className="secondary-button" onClick={() => void runCaseTask("Evaluar exportación", requestFinalExport)} disabled={!latestReport || !canCase("approve", "reports:write") || !canCase("export", "reports:read") || Boolean(caseTask)}>
                 <Download size={16} /> Exportar final sellado
               </button>
               <button className="secondary-button" onClick={() => setActive("reports")} disabled={!latestReport}>
@@ -4306,9 +4395,7 @@ export function App() {
                     <FileCheck2 size={16} /> Ver detalle
                   </button>
                   {latestCaseReport && (
-                    <a className="download-button secondary history-download" href={`${API_BASE}/exports/reports/${latestCaseReport.id}/pdf`} target="_blank" rel="noreferrer">
-                      <Download size={16} /> Descargar informe
-                    </a>
+                    <Button variant="outline" onClick={() => requestNavigation(() => { setSelectedCaseId(item.id); setActive("reports"); })}><FileText size={16} />Abrir informes</Button>
                   )}
                   <button className="danger" onClick={() => deleteCaseFromHistory(item.id, item.title)}>
                     <Trash2 size={16} /> Eliminar
@@ -4363,7 +4450,7 @@ export function App() {
               <small>{prettySpanish(item.relationship_to_case || item.role_description || "Relación pendiente")}</small>
             </div>
             <div className="record-actions">
-              <button className="icon-button" disabled={!canCase("participants", "cases:write")} onClick={() => setEditingParticipant(item)} title="Editar participante"><Save size={15} /></button>
+              <button className="icon-button" disabled={!canCase("participants", "cases:write")} onClick={() => { editorReturnFocus.current = document.activeElement as HTMLElement; setEditingParticipant(item); }} title="Editar participante"><Save size={15} /></button>
               <button className="icon-button danger" disabled={!canCase("participants", "cases:write")} onClick={() => deleteParticipant(item.id)} title="Eliminar participante"><Trash2 size={15} /></button>
             </div>
           </div>
@@ -4386,7 +4473,7 @@ export function App() {
               <code>{item.sha256_hash || "hash pendiente"}</code>
             </div>
             <div className="record-actions">
-              <button className="icon-button" disabled={!canCase("evidence", "evidence:write")} onClick={() => setEditingEvidence(item)} title="Editar evidencia"><Save size={15} /></button>
+              <button className="icon-button" disabled={!canCase("evidence", "evidence:write")} onClick={() => { editorReturnFocus.current = document.activeElement as HTMLElement; setEditingEvidence(item); }} title="Editar evidencia"><Save size={15} /></button>
               <button className="icon-button danger" disabled={!canCase("evidence", "evidence:write")} onClick={() => deleteEvidence(item.id)} title="Eliminar evidencia"><Trash2 size={15} /></button>
             </div>
           </div>
@@ -4413,7 +4500,7 @@ export function App() {
             <div className="record-actions">
               {custody.some((event) => event.ledger_entry?.previous_action_id === item.id)
                 ? <small>Con rectificación posterior registrada</small>
-                : <button className="secondary" disabled={!canCase("evidence", "evidence:write")} onClick={() => { setCustodyReason(""); setEditingCustody(item); }} title="Agregar rectificación"><Save size={15} /> Rectificar</button>}
+                : <button className="secondary" disabled={!canCase("evidence", "evidence:write")} onClick={() => { editorReturnFocus.current = document.activeElement as HTMLElement; setCustodyReason(""); setEditingCustody(item); }} title="Agregar rectificación"><Save size={15} /> Rectificar</button>}
             </div>
           </div>
         ))}
@@ -4471,7 +4558,7 @@ export function App() {
               <span>{professionalReportStatus(item.status)} | Score {item.review_score}</span>
               <small>Exportabilidad estimada: {exportabilitySnapshot.level} ({exportabilitySnapshot.score}/100)</small>
             </div>
-            <Button variant="outline" size="sm" disabled={!canCase("export", "reports:read")} onClick={() => downloadReport(item.id)}>Exportar PDF</Button>
+            <Button variant="outline" size="sm" disabled={!canCase("export", "reports:read")} onClick={() => void runCaseTask("Descargar informe", () => downloadReport(item.id))}>Exportar PDF</Button>
           </div>
         ))}
         {!reports.length && <EmptyState text="Sin informes generados." />}
@@ -4579,216 +4666,65 @@ export function App() {
         {selectedCaseId && identitySession.user?.role === "admin" && <CaseAccessPanel key={`${identitySession.user.id}:${selectedCaseId}`} caseId={Number(selectedCaseId)} users={identityUsers} />}
 
         {editingParticipant && (
-          <form className="edit-drawer" onSubmit={saveParticipant}>
-            <h3>Editar participante</h3>
+          <Dialog open onOpenChange={open => { if (!open && !caseTask) setEditingParticipant(null); }}><DialogContent className="premium-editor-dialog" onCloseAutoFocus={event => { event.preventDefault(); const target = editorReturnFocus.current; if (target?.isConnected) target.focus(); else document.getElementById("main-content")?.focus(); }}><form className="premium-form" onSubmit={event => { event.preventDefault(); void runCaseTask("Editar participante", () => saveParticipant(event)); }}>
+            <DialogHeader><DialogTitle>Editar participante</DialogTitle><DialogDescription>Solo se aplican cambios al confirmar. Los eventos originales de custodia se conservan.</DialogDescription></DialogHeader>{error && <p role="alert" className="premium-form-error">{error}</p>}<fieldset disabled={!canCase("participants", "cases:write") || Boolean(caseTask)}><legend className="sr-only">Editar participante</legend>
             <div className="inline-grid">
-              <input value={editingParticipant.display_name} onChange={(e) => setEditingParticipant({ ...editingParticipant, display_name: e.target.value })} />
-              <input value={editingParticipant.participant_type} onChange={(e) => setEditingParticipant({ ...editingParticipant, participant_type: e.target.value })} />
+              <FormField label="Nombre o identificador"><input value={editingParticipant.display_name} onChange={(e) => setEditingParticipant({ ...editingParticipant, display_name: e.target.value })} /></FormField>
+              <FormField label="Relación con el expediente"><input value={editingParticipant.participant_type} onChange={(e) => setEditingParticipant({ ...editingParticipant, participant_type: e.target.value })} /></FormField>
             </div>
             <div className="inline-grid">
-              <input value={editingParticipant.document_type || ""} onChange={(e) => setEditingParticipant({ ...editingParticipant, document_type: e.target.value })} />
-              <input value={editingParticipant.document_number || ""} onChange={(e) => setEditingParticipant({ ...editingParticipant, document_number: e.target.value })} />
+              <FormField label="Tipo de documento"><input value={editingParticipant.document_type || ""} onChange={(e) => setEditingParticipant({ ...editingParticipant, document_type: e.target.value })} /></FormField>
+              <FormField label="Documento o identificador"><input value={editingParticipant.document_number || ""} onChange={(e) => setEditingParticipant({ ...editingParticipant, document_number: e.target.value })} /></FormField>
             </div>
-            <textarea value={editingParticipant.relationship_to_case || ""} onChange={(e) => setEditingParticipant({ ...editingParticipant, relationship_to_case: e.target.value })} />
+            <FormField label="Relación con el caso"><textarea value={editingParticipant.relationship_to_case || ""} onChange={(e) => setEditingParticipant({ ...editingParticipant, relationship_to_case: e.target.value })} /></FormField>
             <div className="actions-line">
-              <button><Save size={16} /> Guardar</button>
-              <button type="button" className="secondary" onClick={() => setEditingParticipant(null)}>Cancelar</button>
+              <Button><Save size={16} /> Guardar</Button>
+              <Button type="button" className="secondary" onClick={() => setEditingParticipant(null)}>Cancelar</Button>
             </div>
-          </form>
+          </fieldset></form></DialogContent></Dialog>
         )}
 
         {editingEvidence && (
-          <form className="edit-drawer" onSubmit={saveEvidence}>
-            <h3>Editar evidencia</h3>
+          <Dialog open onOpenChange={open => { if (!open && !caseTask) setEditingEvidence(null); }}><DialogContent className="premium-editor-dialog" onCloseAutoFocus={event => { event.preventDefault(); const target = editorReturnFocus.current; if (target?.isConnected) target.focus(); else document.getElementById("main-content")?.focus(); }}><form className="premium-form" onSubmit={event => { event.preventDefault(); void runCaseTask("Editar evidencia", () => saveEvidence(event)); }}>
+            <DialogHeader><DialogTitle>Editar evidencia</DialogTitle><DialogDescription>Solo se aplican cambios al confirmar. Los eventos originales de custodia se conservan.</DialogDescription></DialogHeader>{error && <p role="alert" className="premium-form-error">{error}</p>}<fieldset disabled={!canCase("evidence", "evidence:write") || Boolean(caseTask)}><legend className="sr-only">Editar evidencia</legend>
             <div className="inline-grid">
-              <input value={editingEvidence.evidence_type} onChange={(e) => setEditingEvidence({ ...editingEvidence, evidence_type: e.target.value })} />
-              <input value={editingEvidence.integrity_status} onChange={(e) => setEditingEvidence({ ...editingEvidence, integrity_status: e.target.value })} />
+              <FormField label="Tipo de evidencia"><input value={editingEvidence.evidence_type} onChange={(e) => setEditingEvidence({ ...editingEvidence, evidence_type: e.target.value })} /></FormField>
+              <FormField label="Estado de integridad" hint="Se actualiza mediante la verificación del archivo."><input readOnly value={editingEvidence.integrity_status} /></FormField>
             </div>
-            <textarea value={editingEvidence.description} onChange={(e) => setEditingEvidence({ ...editingEvidence, description: e.target.value })} />
-            <input value={editingEvidence.sha256_hash || ""} onChange={(e) => setEditingEvidence({ ...editingEvidence, sha256_hash: e.target.value })} />
+            <FormField label="Descripción"><textarea value={editingEvidence.description} onChange={(e) => setEditingEvidence({ ...editingEvidence, description: e.target.value })} /></FormField>
+            <FormField label="SHA-256 registrado" hint="Referencia de integridad; no se modifica desde este editor."><input readOnly value={editingEvidence.sha256_hash || ""} /></FormField>
             <div className="actions-line">
-              <button><Save size={16} /> Guardar</button>
-              <button type="button" className="secondary" onClick={() => setEditingEvidence(null)}>Cancelar</button>
+              <Button><Save size={16} /> Guardar</Button>
+              <Button type="button" className="secondary" onClick={() => setEditingEvidence(null)}>Cancelar</Button>
             </div>
-          </form>
+          </fieldset></form></DialogContent></Dialog>
         )}
 
         {editingCustody && (
-          <form className="edit-drawer" onSubmit={saveCustodyAction}>
-            <h3>Rectificar evento #{editingCustody.id}</h3>
+          <Dialog open onOpenChange={open => { if (!open && !caseTask) setEditingCustody(null); }}><DialogContent className="premium-editor-dialog" onCloseAutoFocus={event => { event.preventDefault(); const target = editorReturnFocus.current; if (target?.isConnected) target.focus(); else document.getElementById("main-content")?.focus(); }}><form className="premium-form" onSubmit={event => { event.preventDefault(); void runCaseTask("Rectificar evento de custodia", () => saveCustodyAction(event)); }}>
+            <DialogHeader><DialogTitle>Rectificar evento de custodia</DialogTitle><DialogDescription>Solo se aplican cambios al confirmar. Los eventos originales de custodia se conservan.</DialogDescription></DialogHeader>{error && <p role="alert" className="premium-form-error">{error}</p>}<fieldset disabled={!canCase("evidence", "evidence:write") || Boolean(caseTask)}><legend className="sr-only">Rectificar evento de custodia</legend>
             <p>El original se conserva. El autor se registra desde tu sesión autenticada.</p>
-            <label>Motivo obligatorio<textarea required maxLength={2000} value={custodyReason} onChange={(e) => setCustodyReason(e.target.value)} /></label>
-            <textarea value={editingCustody.detailed_description} onChange={(e) => setEditingCustody({ ...editingCustody, detailed_description: e.target.value })} />
-            <input value={editingCustody.status || ""} onChange={(e) => setEditingCustody({ ...editingCustody, status: e.target.value })} />
+            <FormField label="Motivo de la rectificación" hint="El evento original permanece inmutable."><textarea required maxLength={2000} value={custodyReason} onChange={(e) => setCustodyReason(e.target.value)} /></FormField>
+            <FormField label="Descripción del evento"><textarea value={editingCustody.detailed_description} onChange={(e) => setEditingCustody({ ...editingCustody, detailed_description: e.target.value })} /></FormField>
+            <FormField label="Estado del evento"><input value={editingCustody.status || ""} onChange={(e) => setEditingCustody({ ...editingCustody, status: e.target.value })} /></FormField>
             <div className="actions-line">
-              <button disabled={!custodyReason.trim()}><Save size={16} /> Registrar rectificación</button>
-              <button type="button" className="secondary" onClick={() => setEditingCustody(null)}>Cancelar</button>
+              <Button disabled={!custodyReason.trim()}><Save size={16} /> Registrar rectificación</Button>
+              <Button type="button" className="secondary" onClick={() => setEditingCustody(null)}>Cancelar</Button>
             </div>
-          </form>
+          </fieldset></form></DialogContent></Dialog>
         )}
       </div>
     );
   }
 
   function renderEvidence() {
-    return (
-      <section className="work-surface">
-        <div className="section-head">
-          <div>
-            <h2>Evidencia del Caso</h2>
-            <p>{selectedCase ? `${selectedCase.case_code} - ${selectedCase.title}` : "Selecciona un caso."}</p>
-          </div>
-        </div>
-        <div className="table">
-            {evidence.map((item) => (
-              <div className="record" key={item.id}>
-                <strong>{item.evidence_type}</strong>
-                <span>{item.description}</span>
-                <code>{item.sha256_hash || "hash pendiente"}</code>
-                <div className="button-row">
-                  <button className="secondary-button" onClick={() => verifyEvidenceIntegrity(item.id)}>Verificar integridad</button>
-                  <a className="download-button secondary" href={`${API_BASE}/evidence/${item.id}/download`} target="_blank">Descargar</a>
-                </div>
-              </div>
-            ))}
-          {!evidence.length && <EmptyState text="Sin evidencia para el caso seleccionado." />}
-        </div>
-      </section>
-    );
-  }
-
-  function renderReports() {
-    return (
-      <section className="work-surface">
-        <div className="section-head">
-          <div>
-            <h2>Informes</h2>
-            <p>Vista previa profesional, resumen editable, contradicciones y exportabilidad final.</p>
-          </div>
-          <button onClick={generateReport} disabled={!selectedCaseId}><FileText size={17} /> Generar informe</button>
-        </div>
-        {latestReport && (
-          <div className="report-toolbar">
-            <button onClick={() => loadReportPreview()}><FileCheck2 size={16} /> Vista previa profesional</button>
-            <button onClick={reviewReport}><CheckCircle2 size={16} /> Revisar</button>
-            <button onClick={requestFinalExport} className={reportPreview?.can_export_final ? "" : "secondary"}>
-              <Download size={16} /> Sellar y exportar final
-            </button>
-            <button onClick={refreshReportAnnexes} className="secondary"><FileText size={16} /> Actualizar anexos</button>
-            <a className="download-button secondary" href={`${API_BASE}/exports/reports/${latestReport.id}/pdf`} target="_blank">
-              <Download size={16} /> Exportar borrador PDF
-            </a>
-          </div>
-        )}
-        {reportPreview && (
-          <div className="report-preview">
-            <div className="preview-cover">
-              <div>
-                <span className="eyebrow">Vista previa del informe</span>
-                <h3>{reportPreview.title}</h3>
-                <p>{prettySpanish(reportPreview.exportability.level)} · Score {reportPreview.exportability.score}/100 · Revisión {reportPreview.review_score}</p>
-              </div>
-              <span className={`badge ${reportPreview.can_export_final ? "success" : ""}`}>
-                {reportPreview.can_export_final ? "Exportable como final" : "No exportable como final"}
-              </span>
-            </div>
-            {reportPreview.final_seal && (
-              <div className="notice success">
-                Sello pericial final: {reportPreview.final_seal.seal_id} - Version {reportPreview.final_seal.report_version}
-              </div>
-            )}
-            {!!reportPreview.warnings.length && (
-              <div className="requirements">
-                <strong>Alertas de vista previa</strong>
-                {reportPreview.warnings.map((item) => <span key={item}>{prettySpanish(item)}</span>)}
-              </div>
-            )}
-            <div className="editor-panel">
-              <label>Resumen ejecutivo editable</label>
-              <textarea value={executiveSummaryDraft} onChange={(event) => setExecutiveSummaryDraft(event.target.value)} />
-              <button onClick={saveExecutiveSummary} disabled={!executiveSummaryDraft.trim()}>
-                <Save size={16} /> Guardar resumen ejecutivo
-              </button>
-            </div>
-            <div className="preview-grid">
-              <div>
-                <h4>Checklist pericial final</h4>
-                <div className="summary-list">
-                  <span>Estado: {reportPreview.final_checklist.ready ? "Completo" : "Incompleto"}</span>
-                  <span>Score: {reportPreview.final_checklist.score}/100</span>
-                </div>
-                {reportPreview.final_checklist.items.map((item) => (
-                  <div className={`preview-section ${item.ok ? "" : "warning"}`} key={item.key}>
-                    <strong>{item.ok ? "Cumplido" : "Pendiente"} · {prettySpanish(item.label)}</strong>
-                    <small>{prettySpanish(item.message)}</small>
-                  </div>
-                ))}
-              </div>
-              <div>
-                <h4>Versionado del informe</h4>
-                <div className="button-row">
-                  {["borrador", "preliminar", "revisado", "final", "corregido", "reabierto"].map((status) => (
-                    <button key={status} className="secondary" onClick={() => transitionReportStatus(status)}>
-                      {prettySpanish(status)}
-                    </button>
-                  ))}
-                </div>
-                <p className="notice">La versión final solo se permite si el checklist pericial está completo.</p>
-              </div>
-            </div>
-            <div className="preview-grid">
-              <div>
-                <h4>Secciones renderizables</h4>
-                {reportPreview.sections.map((section) => (
-                  <div className="preview-section" key={section.title}>
-                    <strong>{prettySpanish(section.title)}</strong>
-                    <span>{section.word_count} palabras {section.has_tables ? "? contiene tabla" : ""}</span>
-                    <small>{prettySpanish(section.excerpt)}</small>
-                  </div>
-                ))}
-              </div>
-              <div>
-                <h4>Contradicciones legal-probatorias</h4>
-                {reportPreview.contradictions.issues.map((issue, index) => (
-                  <div className="preview-section warning" key={`${issue.norm_reference}-${index}`}>
-                    <strong>{issue.norm_reference} · {prettySpanish(issue.legal_element)}</strong>
-                    <span>{prettySpanish(issue.severity)}</span>
-                    <small>{prettySpanish(issue.message)} {prettySpanish(issue.recommended_action)}</small>
-                  </div>
-                ))}
-                {!reportPreview.contradictions.issues.length && <EmptyState text="Sin contradicciones bloqueantes detectadas." />}
-              </div>
-            </div>
-            <div>
-              <h4>Anexos reales</h4>
-              <div className="preview-grid">
-                {reportPreview.annexes.items.map((item, index) => (
-                  <div className="preview-section" key={`${item.type}-${index}`}>
-                    <strong>{prettySpanish(item.title)}</strong>
-                    <span>{prettySpanish(item.type)} {item.sha256 ? ` · SHA-256 ${item.sha256}` : ""}</span>
-                    <small>{prettySpanish(item.detail || item.integrity_status || `Elementos: ${item.rows || 1}`)}</small>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-        {renderExportFinalOutcome()}
-        <div className="table">
-          {reports.map((item) => (
-            <div className="record record-grid" key={item.id}>
-              <strong>{item.title}</strong>
-              <span>{professionalReportStatus(item.status)}</span>
-              <em>Score {item.review_score}</em>
-              <span>{exportabilitySnapshot.level}</span>
-              <button className="text-link" onClick={() => loadReportPreview(item.id)}>Preview</button>
-              <a href={`${API_BASE}/exports/reports/${item.id}/pdf`} target="_blank">PDF</a>
-            </div>
-          ))}
-          {!reports.length && <EmptyState text="Sin informes para el caso seleccionado." />}
-        </div>
-      </section>
-    );
+    return <EvidenceWorkspace key={`${authToken}:${selectedCaseId}`} items={evidence} caseId={selectedCaseId} caseCode={selectedCase?.case_code}
+      loading={caseCollectionsLoading} error={caseCollectionsError} canVerify={canCase("evidence", "evidence:write")} canDownload={canCase("export", "evidence:read")} busy={Boolean(caseTask)}
+      upload={renderEvidenceUpload()} onVerify={id => void runCaseTask("Verificar integridad", () => verifyEvidenceIntegrity(id))}
+      onDownload={id => void runCaseTask("Descargar evidencia", async () => {
+        if (!canCase("export", "evidence:read") || !evidence.some(item => item.id === id && item.case_id === selectedCaseId)) throw new Error("No tenés permiso para descargar esta evidencia.");
+        await downloadArtifact(`/evidence/${id}/download`, `operia-evidencia-${id}.bin`);
+      })} />;
   }
 
   function renderRubricCompliance() {
@@ -4797,10 +4733,10 @@ export function App() {
       <div className="report-card rubric-panel">
         <div className="panel-head">
           <div>
-            <h4>Cumplimiento de Rúbrica</h4>
+            <h3>Cumplimiento de Rúbrica</h3>
             <p>Written Legal Evidence Report 2026: secciones A-D y resumen investigativo final.</p>
           </div>
-          <button onClick={updateRubricEvaluation} disabled={!selectedCaseId || rubricState === "updating"}>
+          <button onClick={() => void runCaseTask("Evaluar rúbrica", updateRubricEvaluation)} disabled={!canCase("review", "reports:write") || Boolean(caseTask) || rubricState === "updating"}>
             <RefreshCcw size={16} /> {rubricState === "updating" ? "Actualizando..." : "Actualizar evaluación"}
           </button>
         </div>
@@ -4857,14 +4793,16 @@ export function App() {
             ? "El informe está listo para sellado final. Exportá solo cuando el analista lo haya validado."
             : "Completá los controles pendientes antes de intentar el sellado final.";
 
+    if (caseCollectionsLoading) return <div role="status" aria-label="Cargando informes"><Skeleton className="h-48 w-full" /></div>;
+    if (!selectedCaseId || caseCollectionsError) return <section className="premium-panel"><h2>Informes del expediente</h2><p>{caseCollectionsError || "Seleccioná un expediente desde Casos para consultar sus informes."}</p></section>;
     return (
-      <section className="work-surface">
-        <div className="section-head">
+      <section className="premium-report-workspace" aria-label="Control de informes">
+        <div className="premium-section-intro">
           <div>
             <h2>Informes</h2>
             <p>Control profesional del informe: contenido incluido, faltantes, versionado, anexos y exportación final.</p>
           </div>
-          <button onClick={generateReport} disabled={!selectedCaseId}><FileText size={17} /> Generar informe</button>
+          <Button onClick={() => void runCaseTask("Generar informe", generateReport)} disabled={!canCase("reports", "reports:write") || Boolean(caseTask)}><FileText size={17} /> Generar informe</Button>
         </div>
         <div className="module-guidance">
           <div>
@@ -4882,19 +4820,20 @@ export function App() {
         </div>
         {latestReport && (
           <div className="report-toolbar">
-            <button onClick={() => loadReportPreview()}><FileCheck2 size={16} /> Vista previa profesional</button>
-            <button onClick={reviewReport}><CheckCircle2 size={16} /> Revisar</button>
-            <button
-              onClick={requestFinalExport}
+            <Button variant="outline" disabled={!canCase("read", "reports:read") || Boolean(caseTask)} onClick={() => requestNavigation(() => void runCaseTask("Abrir vista previa", () => loadReportPreview()))}><FileCheck2 size={16} /> Vista previa profesional</Button>
+            <Button variant="outline" disabled={!canCase("review", "reports:write") || Boolean(caseTask)} onClick={() => void runCaseTask("Revisar informe", reviewReport)}><CheckCircle2 size={16} /> Revisar</Button>
+            <Button
+              disabled={!canCase("approve", "reports:write") || !canCase("export", "reports:read") || !reportPreview?.can_export_final || Boolean(caseTask)}
+              onClick={() => void runCaseTask("Sellar y exportar", requestFinalExport)}
               className={reportPreview?.can_export_final ? "" : "secondary"}
               title={reportPreview?.can_export_final ? "Exportar informe final sellado" : "Primero completá los controles pendientes"}
             >
               <Download size={16} /> Sellar y exportar final
-            </button>
-            <button onClick={refreshReportAnnexes} className="secondary"><FileText size={16} /> Actualizar anexos</button>
-            <a className="download-button secondary" href={`${API_BASE}/exports/reports/${latestReport.id}/pdf`} target="_blank">
+            </Button>
+            <Button variant="outline" disabled={!canCase("reports", "reports:write") || Boolean(caseTask)} onClick={() => void runCaseTask("Actualizar anexos", refreshReportAnnexes)}><FileText size={16} /> Actualizar anexos</Button>
+            <Button variant="outline" disabled={!canCase("export", "reports:read") || Boolean(caseTask)} onClick={() => void runCaseTask("Descargar informe", () => downloadReport(reportPreview?.report_id ?? latestReport.id))}>
               <Download size={16} /> Exportar borrador PDF
-            </a>
+            </Button>
           </div>
         )}
         {!latestReport && <EmptyState text="Todavia no hay informe para el caso seleccionado. Genera un informe para activar la vista de control final." />}
@@ -4975,19 +4914,19 @@ export function App() {
             <div className="preview-grid">
               <div className="report-card">
                 <h4>Resumen ejecutivo editable</h4>
-                <textarea className="executive-editor" value={executiveSummaryDraft} onChange={(event) => setExecutiveSummaryDraft(event.target.value)} />
-                <button onClick={saveExecutiveSummary} disabled={!executiveSummaryDraft.trim()}>
+                <FormField label="Resumen ejecutivo" hint="Guardar genera el registro de versión correspondiente; el historial se conserva."><textarea className="executive-editor" disabled={!canCase("reports", "reports:write") || Boolean(caseTask)} value={executiveSummaryDraft} onChange={(event) => setExecutiveSummaryDraft(event.target.value)} /></FormField>
+                <Button disabled={!canCase("reports", "reports:write") || Boolean(caseTask) || !executiveSummaryDraft.trim()} onClick={() => void runCaseTask("Guardar resumen", saveExecutiveSummary)}>
                   <Save size={16} /> Guardar resumen ejecutivo
-                </button>
+                </Button>
               </div>
               <div className="report-card">
                 <h4>Versionado del informe</h4>
                 <p>Usa estos estados para controlar madurez documental. La version final exige checklist completo.</p>
                 <div className="version-row">
                   {["borrador", "preliminar", "revisado", "final", "corregido", "reabierto"].map((status) => (
-                    <button key={status} className={latestReport?.status === status ? "" : "secondary"} onClick={() => transitionReportStatus(status)}>
+                    <Button key={status} variant={(reportPreview?.status || latestReport?.status) === status ? "default" : "outline"} disabled={!canCase("reports", "reports:write") || Boolean(caseTask) || (status === "final" && (!canCase("approve", "reports:write") || !reportPreview?.can_export_final))} onClick={() => void runCaseTask("Cambiar versión", () => transitionReportStatus(status))}>
                       {prettySpanish(status)}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -5038,20 +4977,9 @@ export function App() {
           </div>
         )}
         {!reportPreview && renderExportFinalOutcome()}
-        <div className="report-list">
-          <h4>Informes del caso</h4>
-          {reports.map((item) => (
-            <div className="record record-grid" key={item.id}>
-              <strong>{item.title}</strong>
-              <span>{professionalReportStatus(item.status)}</span>
-              <em>Score {item.review_score}</em>
-              <span>{exportabilitySnapshot.level}</span>
-              <button className="text-link" onClick={() => loadReportPreview(item.id)}>Preview</button>
-              <a href={`${API_BASE}/exports/reports/${item.id}/pdf`} target="_blank">PDF</a>
-            </div>
-          ))}
-          {!reports.length && <EmptyState text="Sin informes para el caso seleccionado." />}
-        </div>
+        <ReportRegister reports={reports} caseId={selectedCaseId} canRead={canCase("read", "reports:read")} canExport={canCase("export", "reports:read")} busy={Boolean(caseTask)}
+          onPreview={id => requestNavigation(() => void runCaseTask("Abrir vista previa", () => loadReportPreview(id)))}
+          onDownload={id => void runCaseTask("Descargar informe", () => downloadReport(id))} />
       </section>
     );
   }
@@ -7384,9 +7312,9 @@ export function App() {
   return (
     <ApplicationShell active={active} items={modules.filter(item => item.key !== "settings" || canUse("settings:read"))}
       sections={navigationSections} onNavigate={navigateTo} user={identitySession.user}
-      caseCode={selectedCase?.case_code} loading={loading || caseCollectionsLoading} onIdentity={() => setActive("identity")}>
+      caseCode={selectedCase?.case_code} loading={loading || caseCollectionsLoading} onIdentity={() => navigateTo("identity")}>
         {error && (
-          <div className={`error ${isAuthenticationErrorMessage(error) ? "auth-error" : ""}`}>
+          <div role="alert" className={`error ${isAuthenticationErrorMessage(error) ? "auth-error" : ""}`}>
             <span>{error}</span>
             {isAuthenticationErrorMessage(error) && (
               <button className="secondary-button" onClick={() => setActive("identity")}>
@@ -7395,10 +7323,11 @@ export function App() {
             )}
           </div>
         )}
+        <div className="premium-operation-status" role="status" aria-live="polite" aria-atomic="true">{caseTask ? `${caseTask}…` : caseFeedback}</div>
         {renderActive()}
         <Dialog open={Boolean(pendingNavigation)} onOpenChange={open => { if (!open) setPendingNavigation(null); }}>
           <DialogContent showCloseButton={false} className="max-w-md"><DialogHeader><DialogTitle>Hay un borrador abierto</DialogTitle><DialogDescription>Si cambiás de contexto, se descartarán los cambios sin guardar. Los registros de evidencia y custodia ya guardados se conservarán.</DialogDescription></DialogHeader>
-            <DialogFooter><Button variant="outline" onClick={() => setPendingNavigation(null)}>Seguir editando</Button><Button onClick={() => { const action = pendingNavigation; setPendingNavigation(null); setEditingParticipant(null); setEditingEvidence(null); setEditingCustody(null); setCustodyReason(""); action?.(); }}>Descartar borrador y continuar</Button></DialogFooter>
+            <DialogFooter><Button variant="outline" onClick={() => setPendingNavigation(null)}>Seguir editando</Button><Button onClick={() => { const action = pendingNavigation; setPendingNavigation(null); setEditingParticipant(null); setEditingEvidence(null); setEditingCustody(null); setCustodyReason(""); setEvidenceForm({ description: "", responsible: "", custodian: "" }); setEvidenceFile(null); setEvidenceUploadVersion(version => version + 1); setExecutiveSummaryDraft(reportPreview?.executive_summary || ""); action?.(); }}>Descartar borrador y continuar</Button></DialogFooter>
           </DialogContent>
         </Dialog>
     </ApplicationShell>

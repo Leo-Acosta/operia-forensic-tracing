@@ -6,8 +6,10 @@ actuales. E2 se implementa en [custodia append-only](CUSTODY_APPEND_ONLY.md).
 E3 incorpora [permisos por expediente](CASE_ACCESS_CONTROL.md). E4 ya incorpora la
 [base visual con shadcn/ui y Tailwind](FRONTEND_VISUAL_BASE.md): navegación, listado
 de casos y expediente, validados con datos sintéticos y regresión completa.
-La próxima prioridad es extender E4 a evidencias, formularios e informes y completar
-la revisión de accesibilidad y recorridos; el resto de módulos conserva su interfaz.
+E4 también incorpora [evidencias, formularios e informes](E4_EVIDENCE_REPORTS.md),
+con accesibilidad de los recorridos intervenidos, descargas autenticadas y pruebas.
+La próxima prioridad visual es migrar los módulos heredados restantes y validar
+con lectores de pantalla y dispositivos físicos; no hay certificación global WCAG.
 
 ## Near Term
 

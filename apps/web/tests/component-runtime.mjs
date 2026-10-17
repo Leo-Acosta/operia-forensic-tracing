@@ -5,8 +5,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const sourceRoot = fileURLToPath(new URL('../src/', import.meta.url));
 
-export async function loadComponent(relative) {
-  const context = vm.createContext({ console, setTimeout, clearTimeout, URL, TextEncoder, TextDecoder });
+export async function loadComponent(relative, globals = {}) {
+  const context = vm.createContext({ console, setTimeout, clearTimeout, URL, TextEncoder, TextDecoder, ...globals });
   const cache = new Map();
   async function load(file) {
     if (cache.has(file)) return cache.get(file);

@@ -1,0 +1,132 @@
+{
+  "schema": "operia-e4-evidence-reports-audit/1",
+  "date": "2026-10-17",
+  "base_commit": "83ac684",
+  "scope": [
+    "evidence inventory and upload",
+    "operating forms and dossier modal editors",
+    "professional reports and authenticated downloads",
+    "accessibility of touched E4 flows"
+  ],
+  "backend_changed": false,
+  "migrations": false,
+  "preservation": {
+    "tables_unchanged": 74,
+    "schema_unchanged": true,
+    "files_unchanged_and_restored": 116,
+    "triggers": 9,
+    "integrity": "ok",
+    "backup_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7",
+    "restored_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7"
+  },
+  "validation": {
+    "backend": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "1",
+      "tests": "273",
+      "time": "626.781",
+      "timestamp": "2026-10-17T20:26:40.530096-03:00"
+    },
+    "frontend_tests": 22,
+    "axe": {
+      "wcag_tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21a",
+        "wcag21aa"
+      ],
+      "violations": 0,
+      "scope": "SSR real evidence workspace, loading state, report register and labeled file control",
+      "color_contrast": "not available in JSDOM; excluded explicitly",
+      "certification": false
+    },
+    "npm_audit": {
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      },
+      "dependencies": {
+        "prod": 138,
+        "dev": 70,
+        "optional": 75,
+        "peer": 12,
+        "peerOptional": 0,
+        "total": 269
+      }
+    },
+    "browser": {
+      "data": "separate synthetic SQLite and storage on localhost",
+      "roles": [
+        "administrator",
+        "reader with read-only grant"
+      ],
+      "checks": [
+        "synthetic file upload generated hash and append-only custody",
+        "authenticated download bytes equal uploaded bytes",
+        "integrity verification succeeded",
+        "executive summary saved and readable by reader",
+        "reader cannot upload, verify, edit, approve or export",
+        "case scope excludes other cases",
+        "all controls in evidence, report summary, custody editor and operating workflow have accessible names",
+        "modal initial focus, Escape close, focus return",
+        "report reflow at CSS width 480; page scrollWidth 449",
+        "computed text contrast checked; permission notice corrected and regression test added"
+      ],
+      "synthetic_histories": {
+        "chain_of_custody_actions": {
+          "before": 2,
+          "after": 3,
+          "old_rows_unchanged": true
+        },
+        "custody_ledger_entries": {
+          "before": 2,
+          "after": 3,
+          "old_rows_unchanged": true
+        },
+        "report_versions": {
+          "before": 1,
+          "after": 2,
+          "old_rows_unchanged": true
+        },
+        "export_manifests": {
+          "before": 0,
+          "after": 0,
+          "old_rows_unchanged": true
+        }
+      },
+      "screenshot": "capture failed; no stale screenshots reused",
+      "services_stopped": true
+    },
+    "build": {
+      "modules": 1706,
+      "main_kb": 378.08,
+      "passed": true
+    }
+  },
+  "security": {
+    "api_client_concurrency": 4,
+    "server_security_limits_unchanged": true,
+    "queued_old_session_requests_discarded": true,
+    "downloads": "Bearer, no-store, redirects rejected, scope checked before and after body",
+    "late_case_results_discarded": true,
+    "original_custody_events_not_edited": true
+  },
+  "limitations": [
+    "Automated checks cover the touched E4 components, not a whole-product WCAG certification",
+    "No physical device, NVDA or JAWS certification",
+    "Legacy modules outside the requested flows retain previous UI and require their own accessibility review",
+    "Revocation cannot retract data already received; no push invalidation",
+    "Local restricted-ACL backup is not encrypted external DR or WORM",
+    "Real Ollama integration remains opt-in and skipped"
+  ],
+  "hours": {
+    "registered": 0,
+    "unverified_hours_not_charged": true
+  }
+}

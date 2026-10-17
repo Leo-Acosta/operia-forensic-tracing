@@ -60,7 +60,7 @@ function verifyResponseSession(response: Response) {
   if (responseSessions.get(response) !== getAuthToken()) throw new Error("Respuesta descartada por cambio de sesión.");
 }
 
-async function parseResponse(response: Response) {
+async function parseResponseBody(response: Response) {
   verifyResponseSession(response);
   const contentType = response.headers.get("content-type") ?? "";
   if (!response.ok) {
@@ -92,14 +92,35 @@ async function parseResponse(response: Response) {
   return value;
 }
 
+let activeRequests = 0;
+const waitingRequests: Array<() => void> = [];
+const responseReleases = new WeakMap<Response, () => void>();
+
+async function parseResponse(response: Response) {
+  try { return await parseResponseBody(response); }
+  finally { responseReleases.get(response)?.(); responseReleases.delete(response); }
+}
+
 async function safeFetch(input: RequestInfo | URL, init?: RequestInit) {
+  const token = getAuthToken();
+  if (activeRequests >= 4) await new Promise<void>(resolve => waitingRequests.push(resolve));
+  else activeRequests++;
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    const next = waitingRequests.shift();
+    if (next) next(); else activeRequests--;
+  };
   try {
-    const token = getAuthToken();
+    if (token !== getAuthToken()) throw new Error("Solicitud descartada por cambio de sesión.");
     const response = await fetch(input, init);
     responseSessions.set(response, token);
     verifyResponseSession(response);
+    responseReleases.set(response, release);
     return response;
   } catch (error) {
+    release();
     if (error instanceof TypeError) {
       throw new Error("No se pudo conectar con el backend local de OPERIA. Verificá que la API esté iniciada y volvé a intentar.");
     }

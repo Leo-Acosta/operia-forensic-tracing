@@ -1,6 +1,7 @@
 @layer theme, base, legacy, components, utilities;
 @import "tailwindcss";
 @import "./styles.css" layer(legacy);
+@import "./record-workspaces.css";
 
 @theme inline {
   --color-background: var(--background);
@@ -159,7 +160,7 @@
   .premium-dossier .editable-record { border-color: #e8edf3; border-radius: 8px; }
   .premium-dossier .editable-record strong { font-size: 12px; }
   .premium-dossier .editable-record small, .premium-dossier .editable-record span { font-size: 11px; }
-  .premium-permissions-note { font-size: 11px; color: #6f8197; background: #f0f4f8; padding: 12px 16px; border: 1px solid #e0e7ef; border-radius: 8px; margin: 0; }
+  .premium-permissions-note { font-size: 11px; color: #526377; background: #f0f4f8; padding: 12px 16px; border: 1px solid #e0e7ef; border-radius: 8px; margin: 0; }
   @media (max-width: 1200px) { .premium-sidebar { width: 224px; flex-basis: 224px; } .premium-topbar { padding-inline: 26px; } .premium-main { padding: 28px 26px 20px; } .premium-case-toolbar { flex-wrap: wrap; } .premium-case-toolbar > div:first-child { flex-basis: 100%; } .premium-case-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .premium-stat-card { padding: 18px; } }
   @media (max-width: 900px) { .premium-sidebar { display: none; } .premium-menu-trigger { display: inline-flex; } .premium-page-heading { margin-bottom: 24px; } }
   @media (max-width: 600px) { .premium-main { padding: 23px 16px 18px; } .premium-topbar { padding-inline: 12px; height: 65px; } .premium-breadcrumb > span, .premium-breadcrumb > svg, .premium-case-context, .premium-user-copy, .premium-cases-card-title > span { display: none; } .premium-section-intro { align-items: stretch; flex-direction: column; gap: 15px; } .premium-section-intro > button { align-self: flex-start; } .premium-stat-grid { grid-template-columns: 1fr; gap: 10px; } .premium-stat-card { padding: 16px 19px; } .premium-stat-card strong { margin: 5px 0; font-size: 25px; } .premium-case-toolbar { padding: 15px; gap: 8px; } .premium-filter { flex: 1; } .premium-filter select { width: 100%; } .premium-table-footer { padding-inline: 16px; } .premium-table-footer > span:last-child, .premium-content-footer > span:last-child { display: none; } .premium-case-card-grid { grid-template-columns: 1fr; padding: 16px; } .premium-dossier-header { padding: 18px 18px 0; } .premium-dossier-title-row h2 { font-size: 23px; } .premium-dossier-emblem { display: none; } .premium-dossier-bottom { align-items: flex-start; flex-direction: column; } .premium-dossier-counts { gap: 20px; } .premium-dossier-meta { gap: 8px; flex-direction: column; } .premium-dossier-meta span + span { border: 0; padding: 0; } .premium-dossier .detail-panel { padding: 18px; } }

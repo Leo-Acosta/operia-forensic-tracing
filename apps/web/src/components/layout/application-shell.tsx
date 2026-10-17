@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronRight, Fingerprint, Menu, ShieldCheck, UserRound, X, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -11,6 +11,9 @@ type Props<K extends string> = {
 };
 
 export function ApplicationShell<K extends string>({ active, items, sections, onNavigate, user, caseCode, loading, onIdentity, children }: Props<K>) {
+  const mainRef = useRef<HTMLElement>(null);
+  const previousActive = useRef(active);
+  useEffect(() => { if (previousActive.current !== active) { previousActive.current = active; mainRef.current?.focus(); } }, [active]);
   const [open, setOpen] = useState(false);
   const current = items.find(item => item.key === active);
   const go = (key: K) => { onNavigate(key); setOpen(false); };
@@ -55,7 +58,7 @@ export function ApplicationShell<K extends string>({ active, items, sections, on
           </Button>
         </div>
       </div>
-      <main id="main-content" tabIndex={-1} className="premium-main" aria-busy={loading}>
+      <main ref={mainRef} id="main-content" tabIndex={-1} className="premium-main" aria-busy={loading}>
         <div className="premium-page-heading"><div><p className="premium-eyebrow">{current?.section || "OPERIA"} / ESPACIO DE TRABAJO</p><h1>{current?.label || "OPERIA"}</h1></div>
           {loading && <span className="premium-loading-label" role="status"><span />Actualizando datos…</span>}
         </div>

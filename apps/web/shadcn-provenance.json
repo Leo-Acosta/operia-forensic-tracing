@@ -33,7 +33,7 @@
     "component": "sheet",
     "source": "https://ui.shadcn.com/r/styles/new-york-v4/sheet.json",
     "registry_sha256": "bdf118300491675f05a9181af491217ba690929338aefd108437c2b07d25432f",
-    "adaptation": "cn import resolves to local clsx/tailwind-merge utility"
+    "adaptation": "cn import resolves to local clsx/tailwind-merge utility; accessible close label localized to Spanish"
   },
   {
     "component": "skeleton",
@@ -45,6 +45,6 @@
     "component": "dialog",
     "source": "https://ui.shadcn.com/r/styles/new-york-v4/dialog.json",
     "registry_sha256": "0115e3a57aa55a978c5fed0d77f7e98edd694215aae3e569def3fff722ba9f26",
-    "adaptation": "cn import resolves to local clsx/tailwind-merge utility; registry button import resolves to local ui/button"
+    "adaptation": "cn import resolves to local clsx/tailwind-merge utility; registry button import resolves to local ui/button; accessible close label localized to Spanish"
   }
 ]
