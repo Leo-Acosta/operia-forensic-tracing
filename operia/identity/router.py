@@ -20,10 +20,17 @@ VALID_STATUSES = {"active", "inactive", "suspended"}
 
 
 def as_dict(obj) -> dict:
-    data = {column.name: getattr(obj, column.name) for column in obj.__table__.columns}
-    data.pop("password_hash", None)
-    data.pop("token_hash", None)
-    return data
+    # Closed response contracts: new database columns must not become public.
+    common = {"id", "created_at", "updated_at"}
+    allowed = {
+        User: common | PROFILE_FIELDS | {"organization_id", "email", "role", "status", "failed_login_attempts", "last_login_at"},
+        Organization: common | {"name", "slug", "status"},
+        Role: common | {"organization_id", "name", "description", "permissions_json"},
+        Membership: common | {"organization_id", "user_id", "role_id", "status"},
+    }.get(type(obj))
+    if allowed is None:
+        raise ValueError("identity_response_model_rejected")
+    return {field: getattr(obj, field) for field in sorted(allowed)}
 
 
 def apply_user_updates(user: User, payload: dict, allowed_fields: set[str]) -> list[str]:

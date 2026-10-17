@@ -130,6 +130,8 @@ storage/
 
 ## Documentation
 
+- [Estado E0/E1: diagnóstico, respaldo y configuración segura](docs/E0_E1_SECURITY_BASELINE.md)
+
 - [Architecture](docs/ARCHITECTURE.md)
 - [API Routes](docs/API_ROUTES.md)
 - [Modules](docs/MODULES.md)

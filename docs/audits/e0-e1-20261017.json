@@ -1,0 +1,75 @@
+{
+  "schema": "operia-e0-e1-audit/1",
+  "date": "2026-10-17",
+  "baseline_commit": "92cea60",
+  "branch": "feature/operia-native-mobile-engine",
+  "scope": [
+    "E0 local diagnosis and verified recovery",
+    "E1 configuration and secret exposure"
+  ],
+  "preservation": {
+    "schema": "operia-e0-e1-preservation/1",
+    "tables_identical": 72,
+    "files_verified": 116,
+    "sqlite_integrity": "ok",
+    "backup_sha256": "b2aaad233d98b5f11e2b9546c1cefe5f575d214bf6943eeea86f30e155a16371",
+    "restored_sha256": "b2aaad233d98b5f11e2b9546c1cefe5f575d214bf6943eeea86f30e155a16371",
+    "manifest_sha256": "ab1c719ae6d758f885a9c6aa6e8d3e9bf8ce07d8de53b3d7bd1298f70028293d",
+    "plaintext_backup_acl_restricted": true,
+    "original_values_and_bytes_unchanged": true,
+    "verified_after_final_suite": true,
+    "persistent_file_inventory_unchanged": true
+  },
+  "controls": {
+    "settings_permission": "settings:read; current catalog admin only",
+    "anonymous_settings_status": 401,
+    "non_admin_settings_status": 403,
+    "database_urls_in_settings_responses": false,
+    "internal_storage_paths_in_settings_responses": false,
+    "organization_settings_json_in_identity_responses": false,
+    "identity_response_field_allowlists": true,
+    "diagnostic_writes": false,
+    "sqlalchemy_and_validation_errors": "fixed codes and request ID; no original exception or input",
+    "schema_migration_required": false,
+    "existing_sessions_rotated": false,
+    "worker_or_connector_limits_changed": false
+  },
+  "validation": {
+    "baseline_focused_passed": 50,
+    "final_focused_passed": 33,
+    "full_regression": {
+      "passed": 233,
+      "skipped": 1,
+      "failures": 0,
+      "errors": 0,
+      "seconds": 931.017,
+      "warnings": 4,
+      "single_final_suite": true
+    },
+    "frontend_build": "tsc/Vite 6.4.4 passed; 1583 modules",
+    "new_application_dependencies": false,
+    "real_provider_inference_repeated": false,
+    "bandit": {
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 15,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0
+    }
+  },
+  "test_correction": {
+    "prior_failure": "CPU probe assumed kernel quota observed within 6 wall seconds",
+    "observation": "kernel termination STATUS_QUOTA_EXCEEDED independently observed",
+    "new_test_wait_seconds": 20,
+    "new_test_wall_budget_seconds": 25,
+    "production_limits_changed": false,
+    "reference": "https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_basic_limit_information"
+  },
+  "limitations": [
+    "Windows and SQLite local validation, no production deployment certification",
+    "Backups are local plaintext protected by ACL, not external encrypted disaster recovery",
+    "Per-file copies plus SQLite backup are not one atomic cross-storage snapshot",
+    "Browser sessions remain in localStorage; MFA and production session strategy pending",
+    "Custody append-only E2 and individual case ACL E3 remain pending",
+    "No new browser visual QA or real acquisition validation"
+  ]
+}

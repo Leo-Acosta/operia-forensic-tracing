@@ -1,5 +1,9 @@
 # Roadmap
 
+Estado actualizado al 2026-10-17: consultar la [matriz E0/E1](E0_E1_SECURITY_BASELINE.md).
+Las listas siguientes conservan la planificación inicial y no acreditan pendientes
+actuales. Las próximas prioridades son E2 (custodia append-only) y E3 (ACL por expediente).
+
 ## Near Term
 
 - Refactor shared models into canonical modules.

@@ -1,9 +1,12 @@
-from fastapi import APIRouter
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException
 
 from operia.core.config import settings
 from operia.core.migrations import migration_status
+from operia.identity.dependencies import require_permission
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_permission("settings:read"))])
 
 
 @router.get("/")
@@ -12,28 +15,28 @@ def read_settings() -> dict[str, object]:
         "app_name": settings.app_name,
         "env": settings.env,
         "api_prefix": settings.api_prefix,
-        "storage_dir": str(settings.storage_dir),
-        "database_url": settings.database_url,
     }
 
 
 @router.get("/readiness")
 def readiness() -> dict[str, object]:
-    migrations = migration_status()
+    try:
+        migrations = migration_status()
+    except Exception:
+        # Driver messages can contain credentials, SQL and host paths.
+        logging.getLogger("operia.security").warning("settings_readiness_unavailable")
+        raise HTTPException(503, "settings_readiness_unavailable") from None
     return {
         "database": {
             "dialect": migrations["dialect"],
             "schema_version": migrations["current_schema_version"],
             "alembic_heads": migrations["alembic_heads"],
             "alembic_available": migrations["alembic_available"],
-            "migrations": migrations["registered"],
+            "registered_migration_count": len(migrations["registered"]),
             "postgres_ready": migrations["postgres_ready"],
         },
         "storage": {
-            "root": str(settings.storage_dir),
-            "evidence": str(settings.evidence_dir),
-            "uploads": str(settings.uploads_dir),
-            "exports": str(settings.exports_dir),
+            "mode": "managed_local_storage",
         },
         "saas_readiness": {
             "organizations": True,

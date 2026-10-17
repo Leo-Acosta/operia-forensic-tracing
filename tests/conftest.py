@@ -36,12 +36,14 @@ def client(monkeypatch):
 
     import operia.core.bootstrap as bootstrap
     import operia.core.database as database
+    import operia.core.migrations as migrations
     import operia.legal_report.config as legal_config
     import operia.legal_report.bootstrap as legal_bootstrap
     import operia.legal_knowledge.bootstrap as legal_knowledge_bootstrap
     import operia.mind.bootstrap as mind_bootstrap
 
     monkeypatch.setattr(database, "engine", engine)
+    monkeypatch.setattr(migrations, "engine", engine)
     monkeypatch.setattr(database, "SessionLocal", TestingSessionLocal)
     monkeypatch.setattr(bootstrap, "engine", engine)
     monkeypatch.setattr(legal_bootstrap, "SessionLocal", TestingSessionLocal)

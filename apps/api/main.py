@@ -20,6 +20,8 @@ def create_app() -> FastAPI:
         description="Unified forensic tracing platform for OPERIA modules.",
         version="0.1.0",
     )
+    from operia.security.safe_errors import install_safe_errors
+    install_safe_errors(app)
 
     app.add_middleware(
         CORSMiddleware,

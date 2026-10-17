@@ -102,8 +102,8 @@ def test_local_admin_recovery_resets_admin_access(client, monkeypatch):
     assert me.json()["user"]["role"] == "admin"
 
 
-def test_settings_readiness_exposes_alembic_head(client):
-    response = client.get("/api/settings/readiness")
+def test_settings_readiness_exposes_alembic_head(client, admin_headers):
+    response = client.get("/api/settings/readiness", headers=admin_headers)
     assert response.status_code == 200
     database = response.json()["database"]
     assert "20260528_0001" in database["alembic_heads"]

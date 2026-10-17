@@ -1,5 +1,10 @@
 # SaaS Readiness
 
+Registro inicial conservado como antecedente. El estado actual y los límites
+verificados están en [E0/E1](E0_E1_SECURITY_BASELINE.md), actualizado al 2026-10-17.
+Autenticación, aislamiento organizacional y secretos ya recibieron correcciones;
+eso no acredita permisos individuales por expediente ni preparación productiva.
+
 The platform now has initial SaaS boundaries:
 
 - `Organization`

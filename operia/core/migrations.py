@@ -42,16 +42,16 @@ def record_schema_version(version: str = CURRENT_SCHEMA_VERSION, description: st
 
 
 def migration_status() -> dict[str, object]:
-    ensure_migration_registry()
     inspector = inspect(engine)
-    with engine.begin() as connection:
-        rows = connection.execute(
-            text("SELECT version, description, applied_at FROM schema_migrations ORDER BY id DESC")
-        ).mappings().all()
+    rows = []
+    if inspector.has_table("schema_migrations"):
+        with engine.connect() as connection:
+            rows = connection.execute(
+                text("SELECT version, description, applied_at FROM schema_migrations ORDER BY id DESC")
+            ).mappings().all()
     heads = _migration_heads_from_files()
     alembic_available = _alembic_is_available()
     return {
-        "database_url": settings.database_url,
         "dialect": engine.dialect.name,
         "current_schema_version": CURRENT_SCHEMA_VERSION,
         "alembic_heads": heads,
