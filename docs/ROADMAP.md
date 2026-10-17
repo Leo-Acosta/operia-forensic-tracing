@@ -3,8 +3,11 @@
 Estado actualizado al 2026-10-17: consultar la [matriz E0/E1](E0_E1_SECURITY_BASELINE.md).
 Las listas siguientes conservan la planificación inicial y no acreditan pendientes
 actuales. E2 se implementa en [custodia append-only](CUSTODY_APPEND_ONLY.md).
-E3 incorpora [permisos por expediente](CASE_ACCESS_CONTROL.md). La próxima prioridad
-es E4 (frontend premium con shadcn/ui y validación visual en navegador).
+E3 incorpora [permisos por expediente](CASE_ACCESS_CONTROL.md). E4 ya incorpora la
+[base visual con shadcn/ui y Tailwind](FRONTEND_VISUAL_BASE.md): navegación, listado
+de casos y expediente, validados con datos sintéticos y regresión completa.
+La próxima prioridad es extender E4 a evidencias, formularios e informes y completar
+la revisión de accesibilidad y recorridos; el resto de módulos conserva su interfaz.
 
 ## Near Term
 

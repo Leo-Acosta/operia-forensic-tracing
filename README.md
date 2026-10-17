@@ -134,6 +134,7 @@ storage/
 - [E2: custodia append-only y rectificaciones versionadas](docs/CUSTODY_APPEND_ONLY.md)
 
 - [Estado E0/E1: diagnóstico, respaldo y configuración segura](docs/E0_E1_SECURITY_BASELINE.md)
+- [E4: base visual premium, permisos y validación](docs/FRONTEND_VISUAL_BASE.md)
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [API Routes](docs/API_ROUTES.md)

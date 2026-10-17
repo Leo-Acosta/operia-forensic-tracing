@@ -1,6 +1,13 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import LocalAiGateway from "./LocalAiGateway";
 import CaseAccessPanel from "./CaseAccessPanel";
+import { ApplicationShell } from "@/components/layout/application-shell";
+import { CasesWorkspace } from "@/components/cases/cases-workspace";
+import { DossierHeader } from "@/components/cases/dossier-header";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { ReactNode } from "react";
 import {
   BarChart3,
@@ -748,7 +755,7 @@ type NavigationSection = "Operación" | "Forense" | "Inteligencia" | "Administra
 const modules: Array<{ key: ModuleKey; label: string; icon: typeof BarChart3; section: NavigationSection }> = [
   { key: "workflow", label: "Flujo Operativo", icon: CheckCircle2, section: "Operación" },
   { key: "dashboard", label: "Dashboard", icon: BarChart3, section: "Operación" },
-  { key: "caseDetail", label: "Detalle del Caso", icon: FileCheck2, section: "Operación" },
+  { key: "caseDetail", label: "Expediente", icon: FileCheck2, section: "Operación" },
   { key: "cases", label: "Casos", icon: Briefcase, section: "Operación" },
   { key: "evidence", label: "Evidencia", icon: Fingerprint, section: "Operación" },
   { key: "reports", label: "Informes", icon: FileText, section: "Operación" },
@@ -1411,11 +1418,15 @@ function StepCard({
 }
 
 export function App() {
-  const [active, setActive] = useState<ModuleKey>("workflow");
+  const [active, setActive] = useState<ModuleKey>("cases");
   const [caseDetailTab, setCaseDetailTab] = useState<CaseDetailTab>("summary");
   const [dashboard, setDashboard] = useState<DashboardPayload>({});
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState<number | "">("");
+  const [caseAccess, setCaseAccess] = useState<{ caseId: number; token: string; capabilities: string[] } | null>(null);
+  const [caseCollectionsLoading, setCaseCollectionsLoading] = useState(false);
+  const [caseCollectionsError, setCaseCollectionsError] = useState("");
+  const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
   const [evidence, setEvidence] = useState<EvidenceItem[]>([]);
   const [participants, setParticipants] = useState<CaseParticipant[]>([]);
   const [custody, setCustody] = useState<CustodyAction[]>([]);
@@ -1531,7 +1542,7 @@ export function App() {
   if (custodyScope.current.caseId !== selectedCaseId || custodyScope.current.token !== authToken) {
     custodyScope.current = { caseId: selectedCaseId, token: authToken, generation: custodyScope.current.generation + 1 };
   }
-  useEffect(() => { setEditingCustody(null); setCustodyReason(""); }, [selectedCaseId, authToken]);
+  useEffect(() => { setEditingCustody(null); setCustodyReason(""); setEditingParticipant(null); setEditingEvidence(null); setPendingNavigation(null); setCaseDetailTab("summary"); }, [selectedCaseId, authToken]);
   const [damageItems, setDamageItems] = useState<DamageItem[]>([]);
   const [damageForm, setDamageForm] = useState(emptyDamageForm);
   const [damageState, setDamageState] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -1618,6 +1629,8 @@ export function App() {
   );
 
   function clearCaseCollections() {
+    setCaseAccess(null);
+    setCaseCollectionsError("");
     setEvidence([]);
     setParticipants([]);
     setReports([]);
@@ -1657,7 +1670,10 @@ export function App() {
     const token = getAuthToken();
     const current = () => requestId === caseCollectionsRequest.current && caseId === custodyScope.current.caseId && generation === custodyScope.current.generation && token === getAuthToken();
     clearCaseCollections();
-    if (!caseId) return;
+    if (!caseId || !token) { setCaseCollectionsLoading(false); return; }
+    setCaseCollectionsLoading(true);
+    try {
+    const accessData = await apiGet<{ capabilities: string[] }>(`/cases/${caseId}/access/me`);
     const [
       participantData,
       evidenceData,
@@ -1697,6 +1713,7 @@ export function App() {
       ? await apiGet<PresentationSlide[]>(`/reports/presentations/${presentationData[0].id}/slides`).catch(() => []) : [];
     const closureData = await apiGet<ClosureStatus>(`/cases/${caseId}/closure-status`);
     if (!current()) return;
+    setCaseAccess({ caseId: Number(caseId), token, capabilities: accessData.capabilities });
     setParticipants(participantData);
     setEvidence(evidenceData);
     setReports(reportData);
@@ -1720,10 +1737,17 @@ export function App() {
     setReportPreview(null);
     setExecutiveSummaryDraft("");
     setClosureStatus(closureData);
+    } catch (err) {
+      if (current()) setCaseCollectionsError(err instanceof Error ? err.message : "No se pudo consultar el expediente.");
+      throw err;
+    } finally {
+      if (current()) setCaseCollectionsLoading(false);
+    }
   }
 
   async function refreshCore() {
     const token = getAuthToken();
+    const generation = custodyScope.current.generation;
     setError("");
     const [dashboardData, casesData] = await Promise.all([
       apiGet<DashboardPayload>("/dashboard/"),
@@ -1735,7 +1759,7 @@ export function App() {
         return [item.id, caseReports] as const;
       })
     );
-    if (token !== getAuthToken()) return;
+    if (token !== getAuthToken() || generation !== custodyScope.current.generation) return;
     setDashboard(dashboardData);
     setCases(casesData);
     setHistoryReportsByCase(Object.fromEntries(reportPairs));
@@ -1771,6 +1795,7 @@ export function App() {
     setError("");
     try {
       if (["workflow", "dashboard", "cases", "evidence", "reports", "casePresentation"].includes(key)) {
+        if (!getAuthToken()) return;
         await refreshCore();
         return;
       }
@@ -1904,6 +1929,46 @@ export function App() {
   function canUse(permission: string) {
     const granted = activePermissions();
     return granted.includes("*") || granted.includes(permission);
+  }
+
+  function canCase(capability: string, permission: string) {
+    return canUse(permission) && caseAccess?.caseId === selectedCaseId && caseAccess.token === getAuthToken() && caseAccess.capabilities.includes(capability);
+  }
+
+  function canModifySelectedCase() {
+    return canCase("write", "cases:write") || canCase("participants", "cases:write") ||
+      canCase("evidence", "evidence:write") || canCase("analysis", "evidence:write") || canCase("analysis", "ai:use") ||
+      ["reports", "review", "approve"].some(capability => canCase(capability, "reports:write"));
+  }
+
+  function requestNavigation(action: () => void) {
+    if (editingParticipant || editingEvidence || editingCustody) setPendingNavigation(() => action);
+    else action();
+  }
+
+  function navigateTo(module: ModuleKey) {
+    if (module !== active) requestNavigation(() => { setEditingParticipant(null); setEditingEvidence(null); setEditingCustody(null); setCustodyReason(""); setActive(module); });
+  }
+
+  function selectCase(caseId: number | "") {
+    if (caseId !== selectedCaseId) requestNavigation(() => setSelectedCaseId(caseId));
+  }
+
+  async function downloadReport(reportId: number) {
+    const token = getAuthToken();
+    const generation = custodyScope.current.generation;
+    try {
+      const response = await fetch(`${API_BASE}/exports/reports/${reportId}/pdf`, { headers: authHeaders(), cache: "no-store" });
+      if (!response.ok) throw new Error("No se pudo descargar el informe. Verificá tu sesión y el permiso de exportación.");
+      const blob = await response.blob();
+      if (token !== getAuthToken() || generation !== custodyScope.current.generation) return;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url; link.download = `operia-informe-${reportId}.pdf`; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      if (token === getAuthToken() && generation === custodyScope.current.generation) setError(err instanceof Error ? err.message : "No se pudo descargar el informe.");
+    }
   }
 
   function guardPermission(permission: string, actionLabel: string) {
@@ -4151,35 +4216,12 @@ export function App() {
   }
 
   function renderCases() {
-    return (
-      <section className="work-surface">
-        <div className="section-head">
-          <div>
-            <h2>Casos Registrados</h2>
-            <p>Sistema compartido de casos preparado para SaaS.</p>
-          </div>
-        </div>
-        <div className="case-list">
-          <div className="case-list-header">
-            <span>Código</span>
-            <span>Expediente</span>
-            <span>Tipo</span>
-            <span>Estado</span>
-            <span>Acción</span>
-          </div>
-          {cases.map((item) => (
-            <button className={`case-row ${selectedCaseId === item.id ? "selected" : ""}`} key={item.id} onClick={() => setSelectedCaseId(item.id)}>
-              <code>{item.case_code}</code>
-              <strong>{item.title}</strong>
-              <span>{prettySpanish(item.incident_type)}</span>
-              <em>{prettySpanish(item.status)}</em>
-              <small>{selectedCaseId === item.id ? "Seleccionado" : "Abrir"}</small>
-            </button>
-          ))}
-          {!cases.length && <EmptyState text="No hay casos registrados." />}
-        </div>
-      </section>
-    );
+    return <CasesWorkspace key={authToken} cases={cases} selectedId={selectedCaseId} loading={loading}
+      authenticated={identitySession.authenticated} canCreate={canUse("cases:write")} error={error}
+      onOpen={id => requestNavigation(() => { setSelectedCaseId(id); setCaseDetailTab("summary"); setActive("caseDetail"); })}
+      onCreate={() => { startNewCaseDraft(); setActive("workflow"); }}
+      onRefresh={() => { setLoading(true); refreshCore().catch(err => setError(err.message)).finally(() => setLoading(false)); }}
+      onSignIn={() => setActive("identity")} />;
   }
 
   function renderHistory() {
@@ -4290,7 +4332,7 @@ export function App() {
       { label: "Narrativa del caso", ok: Boolean(selectedCase?.description), detail: selectedCase?.description ? "Cargada" : "Falta descripción inicial" },
       { label: "Participantes", ok: participants.length > 0, detail: `${participants.length} registro(s)` },
       { label: "Evidencia preservada", ok: evidence.length > 0, detail: `${evidence.length} evidencia(s)` },
-      { label: "Hashes", ok: evidence.length > 0 && evidence.every((item) => Boolean(item.sha256_hash)), detail: evidence.length ? "Integridad verificable" : "Sin archivos" },
+      { label: "Hashes", ok: evidence.length > 0 && evidence.every((item) => Boolean(item.sha256_hash)), detail: evidence.length ? evidence.every(item => Boolean(item.sha256_hash)) ? "Hashes registrados" : "Hay evidencias sin hash" : "Sin evidencia registrada" },
       { label: "Custodia", ok: custody.length > 0, detail: `${custody.length} acción(es)` },
       { label: "Daño económico", ok: damageItems.length > 0, detail: damageItems.length ? formatMoney(damageTotal, damageItems[0]?.currency || "ARS") : "Sin cuantificar" },
       { label: "Mapeo legal", ok: legalMappings.some((item) => item.decision_status !== "descartado"), detail: `${legalMappings.length} norma(s)` },
@@ -4305,7 +4347,7 @@ export function App() {
       { key: "damage", label: "Daño", count: damageItems.length },
       { key: "legal", label: "Legal", count: legalMappings.length },
       { key: "reports", label: "Informes", count: reports.length },
-      { key: "audit", label: "Auditor?a", count: auditLogs.length }
+      { key: "audit", label: "Auditoría", count: canUse("audit:read") ? auditLogs.length : undefined }
     ];
 
     const renderParticipantsPanel = () => (
@@ -4321,8 +4363,8 @@ export function App() {
               <small>{prettySpanish(item.relationship_to_case || item.role_description || "Relación pendiente")}</small>
             </div>
             <div className="record-actions">
-              <button className="icon-button" onClick={() => setEditingParticipant(item)} title="Editar"><Save size={15} /></button>
-              <button className="icon-button danger" onClick={() => deleteParticipant(item.id)} title="Eliminar"><Trash2 size={15} /></button>
+              <button className="icon-button" disabled={!canCase("participants", "cases:write")} onClick={() => setEditingParticipant(item)} title="Editar participante"><Save size={15} /></button>
+              <button className="icon-button danger" disabled={!canCase("participants", "cases:write")} onClick={() => deleteParticipant(item.id)} title="Eliminar participante"><Trash2 size={15} /></button>
             </div>
           </div>
         ))}
@@ -4344,8 +4386,8 @@ export function App() {
               <code>{item.sha256_hash || "hash pendiente"}</code>
             </div>
             <div className="record-actions">
-              <button className="icon-button" onClick={() => setEditingEvidence(item)} title="Editar"><Save size={15} /></button>
-              <button className="icon-button danger" onClick={() => deleteEvidence(item.id)} title="Eliminar"><Trash2 size={15} /></button>
+              <button className="icon-button" disabled={!canCase("evidence", "evidence:write")} onClick={() => setEditingEvidence(item)} title="Editar evidencia"><Save size={15} /></button>
+              <button className="icon-button danger" disabled={!canCase("evidence", "evidence:write")} onClick={() => deleteEvidence(item.id)} title="Eliminar evidencia"><Trash2 size={15} /></button>
             </div>
           </div>
         ))}
@@ -4371,7 +4413,7 @@ export function App() {
             <div className="record-actions">
               {custody.some((event) => event.ledger_entry?.previous_action_id === item.id)
                 ? <small>Con rectificación posterior registrada</small>
-                : <button className="secondary" onClick={() => { setCustodyReason(""); setEditingCustody(item); }} title="Agregar rectificación"><Save size={15} /> Rectificar</button>}
+                : <button className="secondary" disabled={!canCase("evidence", "evidence:write")} onClick={() => { setCustodyReason(""); setEditingCustody(item); }} title="Agregar rectificación"><Save size={15} /> Rectificar</button>}
             </div>
           </div>
         ))}
@@ -4408,7 +4450,7 @@ export function App() {
       <div className="detail-panel wide">
         <div className="panel-head">
           <div>
-            <h3>Cuantificaci?n económica del daño</h3>
+            <h3>Cuantificación económica del daño</h3>
             <p className="muted">Rubros económicos asociados exclusivamente al caso seleccionado.</p>
           </div>
         </div>
@@ -4429,7 +4471,7 @@ export function App() {
               <span>{professionalReportStatus(item.status)} | Score {item.review_score}</span>
               <small>Exportabilidad estimada: {exportabilitySnapshot.level} ({exportabilitySnapshot.score}/100)</small>
             </div>
-            <a className="text-link" href={`${API_BASE}/exports/reports/${item.id}/pdf`} target="_blank">Exportar PDF</a>
+            <Button variant="outline" size="sm" disabled={!canCase("export", "reports:read")} onClick={() => downloadReport(item.id)}>Exportar PDF</Button>
           </div>
         ))}
         {!reports.length && <EmptyState text="Sin informes generados." />}
@@ -4446,7 +4488,7 @@ export function App() {
     const renderAuditPanel = () => (
       <div className="detail-panel wide">
         <div className="panel-head">
-          <h3>Auditor?a del caso</h3>
+          <h3>Auditoría del caso</h3>
         </div>
         <div className="audit-list">
           {auditLogs.slice(0, 20).map((item) => (
@@ -4462,50 +4504,22 @@ export function App() {
     );
 
     return (
-      <div className="case-detail">
-        {selectedCaseId && identitySession.user?.role === "admin" && <CaseAccessPanel key={`${identitySession.user.id}:${selectedCaseId}`} caseId={Number(selectedCaseId)} users={identityUsers} />}
-        <section className="work-surface">
-          <div className="section-head">
-            <div>
-              <h2>Expediente Maestro del Caso</h2>
-              <p>{selectedCase ? `${selectedCase.case_code} - ${selectedCase.title}` : "Selecciona un caso para ver su expediente completo."}</p>
-            </div>
-            <select value={selectedCaseId} onChange={(event) => setSelectedCaseId(Number(event.target.value) || "")}>
-              <option value="">Seleccionar caso</option>
-              {cases.map((item) => <option value={item.id} key={item.id}>{item.case_code}</option>)}
-            </select>
-          </div>
-          {selectedCase ? (
-            <div className="case-dossier-hero">
-              <div className="dossier-main">
-                <span className="eyebrow">{selectedCase.case_code}</span>
-                <h3>{selectedCase.title}</h3>
-                <p>{prettySpanish(selectedCase.description || "Sin narrativa inicial cargada.")}</p>
-                <div className="dossier-badges">
-                  <span>{prettySpanish(selectedCase.status)}</span>
-                  <span>{prettySpanish(selectedCase.incident_type)}</span>
-                  <span>{exportabilitySnapshot.level} · {exportabilitySnapshot.score}/100</span>
-                </div>
-              </div>
-              <div className="dossier-actions">
-                <button onClick={() => setActive("workflow")}><CheckCircle2 size={16} /> Flujo</button>
-                <button className="secondary-button" onClick={() => setActive("reports")}><FileText size={16} /> Informes</button>
-                <button className="secondary-button" onClick={() => setActive("legalKnowledge")}><Gavel size={16} /> Legal</button>
-              </div>
-            </div>
-          ) : <EmptyState text="No hay caso seleccionado." />}
-          {locked && <p className="notice success">Caso cerrado: las modificaciones futuras deberian tratarse como reapertura o correccion auditada.</p>}
-        </section>
-
-        <section className="work-surface compact-surface">
-          <div className="dossier-tabs">
-            {tabs.map((tab) => (
-              <button key={tab.key} className={caseDetailTab === tab.key ? "active" : ""} onClick={() => setCaseDetailTab(tab.key)}>
-                {tab.label}{typeof tab.count === "number" ? ` ${tab.count}` : ""}
-              </button>
-            ))}
-          </div>
-
+      <div className="case-detail premium-dossier">
+        <DossierHeader item={selectedCase} cases={cases} selectedId={selectedCaseId} onSelect={selectCase}
+          onBack={() => navigateTo("cases")} onWorkflow={() => navigateTo("workflow")}
+          onReports={() => navigateTo("reports")} onLegal={() => navigateTo("legalKnowledge")}
+          counts={{ evidence: evidence.length, custody: custody.length, reports: reports.length, participants: participants.length }}
+          loading={caseCollectionsLoading} readOnly={!caseCollectionsLoading && Boolean(caseAccess) && !canModifySelectedCase()} />
+        {locked && <p className="premium-permissions-note">Expediente cerrado. Las rectificaciones conservan los eventos originales.</p>}
+        {caseCollectionsError && <div role="alert" className="premium-permissions-note">{caseCollectionsError}</div>}
+        {selectedCase && !caseCollectionsLoading && Boolean(caseAccess) && !canModifySelectedCase() && <p className="premium-permissions-note">Acceso de consulta. Las acciones habilitadas dependen de tu rol y de las concesiones de este expediente.</p>}
+        <Tabs value={caseDetailTab} onValueChange={value => setCaseDetailTab(value as CaseDetailTab)} className="work-surface compact-surface gap-0">
+          <div className="premium-dossier-tabs"><TabsList variant="line" aria-label="Secciones del expediente" className="h-10 gap-2">
+            {tabs.map(tab => <TabsTrigger key={tab.key} value={tab.key} disabled={tab.key === "audit" && !canUse("audit:read")} title={tab.key === "audit" && !canUse("audit:read") ? "Tu rol no tiene permiso para consultar auditoría" : undefined} className="px-3 text-xs">{tab.label}{typeof tab.count === "number" && <span className="ml-1 text-[10px] text-muted-foreground">{caseCollectionsLoading ? "—" : tab.count}</span>}</TabsTrigger>)}
+          </TabsList></div>
+          <TabsContent value={caseDetailTab} className="outline-none">
+          {caseCollectionsLoading ? <div role="status" aria-label="Cargando expediente" className="space-y-4 p-4"><Skeleton className="h-10 w-1/2" /><Skeleton className="h-36 w-full" /><Skeleton className="h-20 w-full" /></div>
+          : caseCollectionsError || !selectedCase ? <p className="premium-permissions-note">No hay datos del expediente disponibles para mostrar.</p> : <>
           {caseDetailTab === "summary" && (
             <div className="dossier-grid">
               <div className="detail-panel wide">
@@ -4533,7 +4547,7 @@ export function App() {
                   <div><span>Evidencia</span><strong>{evidence.length}</strong></div>
                   <div><span>Custodia</span><strong>{custody.length}</strong></div>
                   <div><span>Informes</span><strong>{reports.length}</strong></div>
-                  <div><span>Daño estimado</span><strong>{formatMoney(damageTotal, damageItems[0]?.currency || "ARS")}</strong></div>
+                  <div><span>Daño estimado</span><strong>{damageItems.length ? formatMoney(damageTotal, damageItems[0]?.currency || "ARS") : "Sin cuantificar"}</strong></div>
                 </div>
               </div>
               <div className="detail-panel">
@@ -4548,7 +4562,7 @@ export function App() {
                       <small>{new Date(latestAudit.created_at).toLocaleString()}</small>
                     </div>
                   </div>
-                ) : <EmptyState text="Sin actividad auditada." />}
+                ) : <EmptyState text={canUse("audit:read") ? "Sin actividad auditada." : "La auditoría requiere un permiso adicional de tu rol."} />}
               </div>
             </div>
           )}
@@ -4559,7 +4573,10 @@ export function App() {
           {caseDetailTab === "legal" && renderLegalPanel()}
           {caseDetailTab === "reports" && renderReportsPanel()}
           {caseDetailTab === "audit" && renderAuditPanel()}
-        </section>
+          </>}
+          </TabsContent>
+        </Tabs>
+        {selectedCaseId && identitySession.user?.role === "admin" && <CaseAccessPanel key={`${identitySession.user.id}:${selectedCaseId}`} caseId={Number(selectedCaseId)} users={identityUsers} />}
 
         {editingParticipant && (
           <form className="edit-drawer" onSubmit={saveParticipant}>
@@ -7365,38 +7382,9 @@ export function App() {
   }
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <img src="/assets/operia-forensic-tracing.png" alt="Operia Forensic Tracing" />
-        </div>
-        <nav>
-          {navigationSections.map((section) => (
-            <div className="nav-section" key={section}>
-              <span>{section}</span>
-              {modules.filter((item) => item.section === section).map((item) => {
-                const Icon = item.icon;
-                return (
-                  <button key={item.key} className={active === item.key ? "active" : ""} onClick={() => setActive(item.key)}>
-                    <Icon size={18} />
-                    {item.label}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </nav>
-      </aside>
-
-      <main>
-        <header>
-          <div>
-            <p>Plataforma modular forense</p>
-            <h1>{modules.find((item) => item.key === active)?.label}</h1>
-          </div>
-          <span className="status">{loading ? "Cargando" : "Operativo"}</span>
-        </header>
-
+    <ApplicationShell active={active} items={modules.filter(item => item.key !== "settings" || canUse("settings:read"))}
+      sections={navigationSections} onNavigate={navigateTo} user={identitySession.user}
+      caseCode={selectedCase?.case_code} loading={loading || caseCollectionsLoading} onIdentity={() => setActive("identity")}>
         {error && (
           <div className={`error ${isAuthenticationErrorMessage(error) ? "auth-error" : ""}`}>
             <span>{error}</span>
@@ -7408,8 +7396,12 @@ export function App() {
           </div>
         )}
         {renderActive()}
-      </main>
-    </div>
+        <Dialog open={Boolean(pendingNavigation)} onOpenChange={open => { if (!open) setPendingNavigation(null); }}>
+          <DialogContent showCloseButton={false} className="max-w-md"><DialogHeader><DialogTitle>Hay un borrador abierto</DialogTitle><DialogDescription>Si cambiás de contexto, se descartarán los cambios sin guardar. Los registros de evidencia y custodia ya guardados se conservarán.</DialogDescription></DialogHeader>
+            <DialogFooter><Button variant="outline" onClick={() => setPendingNavigation(null)}>Seguir editando</Button><Button onClick={() => { const action = pendingNavigation; setPendingNavigation(null); setEditingParticipant(null); setEditingEvidence(null); setEditingCustody(null); setCustodyReason(""); action?.(); }}>Descartar borrador y continuar</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+    </ApplicationShell>
   );
 }
 

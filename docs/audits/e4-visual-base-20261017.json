@@ -1,0 +1,91 @@
+{
+  "schema": "operia-e4-visual-base-audit/1",
+  "date": "2026-10-17",
+  "base_commit": "711181d",
+  "scope": "E4 base: navigation, case list and dossier; gradual migration of legacy modules",
+  "preservation": {
+    "tables_unchanged": 74,
+    "schema_unchanged": true,
+    "sqlite_integrity": "ok",
+    "triggers": 9,
+    "persistent_files_unchanged": true,
+    "files_backed_up_and_restored": 116,
+    "backup_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7",
+    "restore_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7",
+    "no_backend_migrations": true
+  },
+  "validation": {
+    "backend_junit": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "1",
+      "tests": "273",
+      "time": "521.850",
+      "timestamp": "2026-10-17T19:56:47.860216-03:00"
+    },
+    "frontend_tests_passed": 11,
+    "build": "tsc + Vite passed",
+    "modules_transformed": 1702,
+    "npm_audit": {
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      },
+      "dependencies": {
+        "prod": 138,
+        "dev": 31,
+        "optional": 75,
+        "peer": 10,
+        "peerOptional": 0,
+        "total": 230
+      }
+    },
+    "browser": {
+      "data": "isolated synthetic SQLite and storage; localhost only",
+      "css_widths_checked": [
+        480,
+        780,
+        1170,
+        2560
+      ],
+      "checks": [
+        "accent-insensitive search",
+        "closed filter",
+        "table/card switch",
+        "actual dossier counts",
+        "read-only and no-grants accounts",
+        "session switch clears old case data",
+        "keyboard tabs",
+        "mobile Sheet Escape and focus return",
+        "local table overflow",
+        "cancel navigation preserves draft",
+        "discard navigation closes draft without submission",
+        "mobile search width 384px at CSS viewport 480px; filters wrap below search"
+      ],
+      "saved_capture": "desktop synthetic administrator view and mobile synthetic reader view"
+    }
+  },
+  "security": {
+    "role_and_case_capabilities_required": true,
+    "late_session_and_case_responses_discarded": true,
+    "custody_update_delete_not_added": true,
+    "dossier_pdf_bearer_download": true,
+    "no_remote_fonts_or_assets": true
+  },
+  "limitations": [
+    "Not a full redesign of all modules or full WCAG certification",
+    "No real-device testing; browser CSS widths recorded",
+    "Ollama opt-in test skipped; no new real inference",
+    "Windows local backups have restricted ACL; not encrypted external DR or WORM",
+    "Revocation cannot retract already received data; no push invalidation added"
+  ],
+  "hours_ledger": {
+    "registered": 0,
+    "no_unverified_hours_charged": true
+  }
+}
