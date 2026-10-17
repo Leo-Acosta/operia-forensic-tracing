@@ -16,6 +16,8 @@ def scoped_case(db: Session, case_id: int, user: CurrentUser) -> Case:
     # Null tenancy is deliberately not a wildcard, including for administrators.
     if not user.organization_id or not case or case.organization_id != user.organization_id:
         raise HTTPException(404, "Caso no disponible en tu organización")
+    from operia.identity.case_access import require_case
+    require_case(db, user, case_id)
     return case
 
 

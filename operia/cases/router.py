@@ -97,6 +97,8 @@ def create_case(
         item.organization_id = current_user.organization_id
     db.add(item)
     db.flush()
+    from operia.identity.case_access import grant_creator
+    grant_creator(db, item, current_user)
     write_audit(db, "create_case", "cases", current_user, case_id=item.id, entity_type="case", entity_id=str(item.id), details=item.case_code)
     db.commit()
     db.refresh(item)

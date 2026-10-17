@@ -7,15 +7,15 @@ from operia.identity.dependencies import require_user, CurrentUser
 from operia.identity.permissions import has_permission
 
 
-def case_predicate(model, organization_id):
+def case_predicate(model, organization_id, actor=None, access="read"):
     from operia.cases.models import Case
     from operia.identity.models import User, AuthToken, Membership
     if model in (User, AuthToken, Membership):
         return model.organization_id == organization_id
     if model is Case:
-        return model.organization_id == organization_id
+        return model.id.in_(SessionScope.case_ids(organization_id, actor, access))
     if hasattr(model, "case_id"):
-        inherited = model.case_id.in_(SessionScope.case_ids(organization_id))
+        inherited = model.case_id.in_(SessionScope.case_ids(organization_id, actor, access))
         if inspect(model).columns.case_id.nullable and hasattr(model, "organization_id"):
             inherited = or_(inherited, and_(model.case_id.is_(None), model.organization_id == organization_id))
     else:
@@ -24,7 +24,7 @@ def case_predicate(model, organization_id):
             for fk in column.foreign_keys:
                 parent = next((m.class_ for m in Base.registry.mappers if m.local_table is fk.column.table), None)
                 if parent is not None and parent is not model and hasattr(parent, "case_id"):
-                    inherited = getattr(model, column.key).in_(select(getattr(parent, fk.column.key)).where(case_predicate(parent, organization_id)))
+                    inherited = getattr(model, column.key).in_(select(getattr(parent, fk.column.key)).where(case_predicate(parent, organization_id, actor, access)))
                     break
             else:
                 continue
@@ -38,7 +38,10 @@ def case_predicate(model, organization_id):
 
 class SessionScope:
     @staticmethod
-    def case_ids(organization_id):
+    def case_ids(organization_id, actor=None, access="read"):
+        if actor is not None:
+            from operia.identity.case_access import allowed_ids
+            return allowed_ids(actor, access)
         from sqlalchemy import select
         from operia.cases.models import Case
         return select(Case.id).where(Case.organization_id == organization_id)
@@ -47,11 +50,12 @@ class SessionScope:
 @event.listens_for(Session, "do_orm_execute")
 def scoped_queries(state):
     org = state.session.info.get("request_organization")
-    if org is None or not state.is_select:
+    if org is None or not (state.is_select or state.is_update or state.is_delete):
         return
+    access = "read" if state.is_select else state.session.info.get("case_capability", "write")
     for mapper in Base.registry.mappers:
         model = mapper.class_
-        predicate = case_predicate(model, org)
+        predicate = case_predicate(model, org, state.session.info.get("request_actor"), access)
         if predicate is not None:
             state.statement = state.statement.options(with_loader_criteria(model, predicate, include_aliases=True))
 
@@ -61,6 +65,12 @@ def validate_writes(db, context, instances):
     org = db.info.get("request_organization")
     if org is None:
         return
+    # Serialize authorization revalidation and the following write against
+    # grant/revoke transactions, including when a route already holds the lock.
+    if db.info.get("request_actor") and db.bind.dialect.name == "sqlite":
+        connection = db.connection()
+        if not connection.connection.driver_connection.in_transaction:
+            connection.exec_driver_sql("BEGIN IMMEDIATE")
     from operia.cases.models import Case
     from operia.forensic_jobs.models import EvidenceIntegration, AnalysisProjection
     for item in list(db.new) + list(db.dirty) + list(db.deleted):
@@ -93,6 +103,23 @@ def validate_writes(db, context, instances):
                 raise HTTPException(404, "Organización incompatible")
             if hasattr(item, "organization_id") and item in db.new:
                 item.organization_id = org
+        actor = db.info.get("request_actor")
+        target_case = item.id if isinstance(item, Case) and item not in db.new else item_case_id
+        if actor and target_case is not None and item.__tablename__ != "case_access_events":
+            from operia.identity.case_access import require_case
+            require_case(db, actor, target_case)
+            require_case(db, actor, target_case, db.info.get("case_capability", "write"))
+            # Compound workflows must carry every affected capability; an
+            # analysis grant alone cannot create evidence or publish a report.
+            if db.info.get("case_writing"):
+                capability = {"evidence": "evidence", "chain_of_custody_actions": "evidence",
+                    "custody_ledger_entries": "evidence", "reports": "reports", "report_sections": "reports",
+                    "report_versions": "reports", "case_participants": "participants",
+                    "native_mobile_reviews": "review", "native_mobile_exports": "export"}.get(item.__tablename__)
+                if capability:
+                    require_case(db, actor, target_case, capability)
+            if item.__tablename__ == "reports" and getattr(item, "status", "").strip().lower() in {"final", "finalizado", "aprobado", "cerrado"}:
+                require_case(db, actor, target_case, "approve")
         if item_case_id is not None:
             for column in inspect(type(item)).columns:
                 for fk in column.foreign_keys:
@@ -136,13 +163,13 @@ def validate_writes(db, context, instances):
 
 async def enforce_scope(request: Request, db: Session = Depends(get_db), user: CurrentUser = Depends(require_user)):
     if not user.organization_id:
-        raise HTTPException(403, "Organización requerida")
+        raise HTTPException(404 if "/mobile-forensics/" in request.url.path else 403, "Organización requerida")
     from operia.core.config import settings
     module = request.url.path.removeprefix(settings.api_prefix + "/").split("/", 1)[0]
     writing = request.method not in ("GET", "HEAD", "OPTIONS")
     permissions = {"evidence": "evidence", "reports": "reports", "exports": "reports", "legal-report": "reports", "rubrics": "reports",
                    "legal": "legal", "legal-knowledge": "legal", "cases": "cases", "cybercrime": "evidence",
-                   "geo": "evidence", "geo-trace": "evidence", "geo-proximity": "evidence"}
+                   "geo": "evidence", "geo-trace": "evidence", "geo-proximity": "evidence", "mobile-forensics": "evidence"}
     permission = permissions.get(module, "cases") + (":write" if writing else ":read")
     if module in ("ai", "mind", "ai-security") and writing:
         permission = "ai:use"
@@ -153,6 +180,8 @@ async def enforce_scope(request: Request, db: Session = Depends(get_db), user: C
     if not has_permission(user.role, permission):
         raise HTTPException(403, "Permiso insuficiente")
     db.info["request_organization"] = user.organization_id
+    db.info["request_actor"] = user
+    db.info["case_writing"] = writing
     from operia.cases.models import Case
     body = {}
     if request.headers.get("content-type", "").split(";", 1)[0] == "application/json":
@@ -179,7 +208,8 @@ async def enforce_scope(request: Request, db: Session = Depends(get_db), user: C
     from operia.evidence.models import Evidence, ChainOfCustodyAction
     from operia.reports.models import Report, Presentation, PresentationSlide, ReportSection
     from operia.cases.models import Finding, Hypothesis
-    objects = {"finding_id": Finding, "hypothesis_id": Hypothesis, "report_id": Report, "evidence_id": Evidence, "action_id": ChainOfCustodyAction,
+    from operia.exports.models import ExportManifest
+    objects = {"manifest_id": ExportManifest, "finding_id": Finding, "hypothesis_id": Hypothesis, "report_id": Report, "evidence_id": Evidence, "action_id": ChainOfCustodyAction,
                "presentation_id": Presentation, "slide_id": PresentationSlide, "section_id": ReportSection}
     if request.url.path.startswith(("/api/geo/trace", "/api/geo-trace")):
         from operia.geo_trace.models import GeoTraceAnalysis
@@ -198,6 +228,15 @@ async def enforce_scope(request: Request, db: Session = Depends(get_db), user: C
                 if case_id is not None and parent_case != case_id:
                     raise HTTPException(422, "Referencias de distintos casos")
                 case_id = parent_case
+
+    from operia.identity.case_access import require_case, request_capability
+    capability = request_capability(request, module, writing)
+    db.info["case_capability"] = capability
+    if case_id is not None:
+        require_case(db, user, case_id)
+        require_case(db, user, case_id, capability)
+        if writing and "seal-final" in request.url.path:
+            require_case(db, user, case_id, "approve")
 
     from operia.identity.models import Organization
     from operia.security.context import connector_scope, organization_scope

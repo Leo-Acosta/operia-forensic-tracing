@@ -69,10 +69,13 @@ def event(db, job, state, reason=""):
 
 
 def valid_scope(db, job, acquisition):
+    from operia.identity.models import Organization
     case = db.get(Case, job.case_id)
     user = db.get(User, job.created_by)
+    organization = db.get(Organization, job.organization_id)
     device = db.get(MobileDevice, acquisition.device_id) if acquisition else None
-    return bool(case and user and user.status == "active" and has_permission(user.role, "evidence:write")
+    from operia.identity.case_access import permitted
+    return bool(case and user and organization and organization.status == "active" and permitted(db, user, job.case_id) and permitted(db, user, job.case_id, "analysis") and user.status == "active" and has_permission(user.role, "evidence:write")
         and job.organization_id and case.organization_id == job.organization_id == user.organization_id
         and acquisition and acquisition.organization_id == job.organization_id and acquisition.case_id == job.case_id
         and device and device.organization_id == job.organization_id and device.case_id == job.case_id)

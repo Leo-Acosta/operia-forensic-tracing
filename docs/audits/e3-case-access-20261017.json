@@ -1,0 +1,95 @@
+{
+  "schema": "operia-e3-case-access-audit/1",
+  "date": "2026-10-17",
+  "base_commit": "fb9cc01",
+  "preservation": {
+    "previous_tables_unchanged": 73,
+    "new_tables": [
+      "case_access_events"
+    ],
+    "new_grants": 0,
+    "sqlite_integrity": "ok",
+    "triggers": 9,
+    "files_backed_up_and_restored": 116,
+    "persistent_files_unchanged": true,
+    "pre_backup_sha256": "1b02346c363201189530e28855b76455bd5472ba449e066ff7625f9e7ccb23a9",
+    "post_backup_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7",
+    "post_restore_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7",
+    "migration_applied": true,
+    "test_harness_bootstrap_engine_leak_fixed": true,
+    "early_empty_table_creation_without_historical_changes": true,
+    "persisted_access_triggers": [
+      "case_access_no_update",
+      "case_access_no_delete",
+      "case_access_valid_scope"
+    ],
+    "candidate_migration_idempotent": true,
+    "protected_backup_folder": "storage/temp/e3-preservation-20261017",
+    "verified_after_full_suite": true,
+    "verified_after_revocation_followup": true
+  },
+  "validation": {
+    "regression_passed": 271,
+    "regression_skipped": 1,
+    "regression_failures": 0,
+    "regression_seconds": 482.776,
+    "new_backend_tests": 16,
+    "warnings": 4,
+    "frontend_session_tests_passed": 5,
+    "frontend_build": "TypeScript/Vite 6.4.4 passed; 1584 modules",
+    "new_dependencies": false,
+    "browser_visual_qa": false,
+    "bandit": {
+      "scope": [
+        "operia",
+        "apps/api"
+      ],
+      "high": 0,
+      "medium": 0,
+      "existing_low": 13,
+      "errors": 0
+    },
+    "route_scope_review": {
+      "protected_routes": 314,
+      "unexpected_unscoped_routes": []
+    },
+    "post_regression_inactive_revocation_test_passed": 1
+  },
+  "policy": {
+    "default_deny": true,
+    "role_intersection": true,
+    "organization_admin_access": "Own organization only; access administration reserved to admin",
+    "legacy_grants_backfilled": false,
+    "creator_explicit_grants": true,
+    "capabilities": [
+      "read",
+      "write",
+      "evidence",
+      "analysis",
+      "review",
+      "participants",
+      "reports",
+      "approve",
+      "export"
+    ],
+    "grant_and_revoke_events_append_only": true,
+    "audit_and_decision_same_transaction": true,
+    "worker_checks": [
+      "before_execution",
+      "during_execution",
+      "before_publication"
+    ],
+    "revocation_and_publication_serialized": true,
+    "completed_job_histories_unchanged": true,
+    "custody_protections_unchanged": true,
+    "worker_os_limits_unchanged": true
+  },
+  "limitations": [
+    "Local Windows/SQLite; no PostgreSQL validation",
+    "Host administrators can alter code/database/triggers; not WORM",
+    "Local backups use restricted Windows ACL; not encrypted external disaster recovery",
+    "No new real Ollama inference; opt-in integration test skipped",
+    "Premium shadcn/ui frontend and full visual/accessibility validation remain E4",
+    "Revocation cannot retract data already received; no push notification to open browsers"
+  ]
+}

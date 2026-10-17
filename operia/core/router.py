@@ -26,10 +26,13 @@ from operia.users_cases.router import router as users_cases_router
 from operia.identity.isolation import enforce_scope
 from operia.mobile_forensics.projection_router import router as projection_router
 
+from operia.identity.case_access import router as case_access_router
+
 api_router = APIRouter()
-api_router.include_router(projection_router, prefix="/mobile-forensics", tags=["native-projections"])
-api_router.include_router(mobile_router, prefix="/mobile-forensics", tags=["mobile-forensics"])
-api_router.include_router(native_mobile_router, prefix="/mobile-forensics", tags=["native-mobile"])
+api_router.include_router(case_access_router, tags=["case-access"])
+api_router.include_router(projection_router, dependencies=[Depends(enforce_scope)], prefix="/mobile-forensics", tags=["native-projections"])
+api_router.include_router(mobile_router, dependencies=[Depends(enforce_scope)], prefix="/mobile-forensics", tags=["mobile-forensics"])
+api_router.include_router(native_mobile_router, dependencies=[Depends(enforce_scope)], prefix="/mobile-forensics", tags=["native-mobile"])
 
 
 @api_router.get("/health", tags=["system"])

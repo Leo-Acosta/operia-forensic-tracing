@@ -20,6 +20,7 @@ The platform is built as a single FastAPI + React application, with a shared loc
 - Canonical exports with SHA-256, MD5 and manifest files.
 - React frontend with operational screens.
 - Automated test suite.
+- Explicit case permissions, audited append-only grants/revocations and worker revalidation: [E3 policy](docs/CASE_ACCESS_CONTROL.md).
 - Native mobile forensic engine for selected iOS plist and Android text artifacts (synthetic validation).
 
 ## Quick Start On Windows

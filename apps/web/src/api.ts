@@ -55,10 +55,17 @@ function cleanMessage(value: unknown): string {
   return "";
 }
 
+const responseSessions = new WeakMap<Response, string>();
+function verifyResponseSession(response: Response) {
+  if (responseSessions.get(response) !== getAuthToken()) throw new Error("Respuesta descartada por cambio de sesión.");
+}
+
 async function parseResponse(response: Response) {
+  verifyResponseSession(response);
   const contentType = response.headers.get("content-type") ?? "";
   if (!response.ok) {
     const raw = await response.text();
+    verifyResponseSession(response);
     let message = raw || `Error HTTP ${response.status}`;
     if (contentType.includes("application/json")) {
       try {
@@ -80,13 +87,18 @@ async function parseResponse(response: Response) {
     }
     throw new Error(message);
   }
-  if (contentType.includes("application/json")) return response.json();
-  return response.text();
+  const value = contentType.includes("application/json") ? await response.json() : await response.text();
+  verifyResponseSession(response);
+  return value;
 }
 
 async function safeFetch(input: RequestInfo | URL, init?: RequestInit) {
   try {
-    return await fetch(input, init);
+    const token = getAuthToken();
+    const response = await fetch(input, init);
+    responseSessions.set(response, token);
+    verifyResponseSession(response);
+    return response;
   } catch (error) {
     if (error instanceof TypeError) {
       throw new Error("No se pudo conectar con el backend local de OPERIA. Verificá que la API esté iniciada y volvé a intentar.");

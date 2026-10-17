@@ -115,6 +115,9 @@ def dashboard(db: Session = Depends(get_db)):
 def create_case(payload: CaseCreate, db: Session = Depends(get_db)):
     item = Case(**payload.model_dump())
     db.add(item)
+    db.flush()
+    from operia.identity.case_access import grant_creator
+    grant_creator(db, item, db.info["request_actor"])
     db.commit()
     db.refresh(item)
     return item

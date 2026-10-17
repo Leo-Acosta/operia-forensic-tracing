@@ -41,6 +41,10 @@ def client(monkeypatch):
     import operia.legal_report.bootstrap as legal_bootstrap
     import operia.legal_knowledge.bootstrap as legal_knowledge_bootstrap
     import operia.mind.bootstrap as mind_bootstrap
+    import operia.cybercrime.bootstrap as cybercrime_bootstrap
+    import operia.geo_trace.bootstrap as geo_trace_bootstrap
+    import operia.geo_proximity.bootstrap as geo_proximity_bootstrap
+    import operia.rubrics.bootstrap as rubrics_bootstrap
 
     monkeypatch.setattr(database, "engine", engine)
     monkeypatch.setattr(migrations, "engine", engine)
@@ -49,6 +53,9 @@ def client(monkeypatch):
     monkeypatch.setattr(legal_bootstrap, "SessionLocal", TestingSessionLocal)
     monkeypatch.setattr(legal_knowledge_bootstrap, "SessionLocal", TestingSessionLocal)
     monkeypatch.setattr(mind_bootstrap, "SessionLocal", TestingSessionLocal)
+    for module in (cybercrime_bootstrap, geo_trace_bootstrap, geo_proximity_bootstrap, rubrics_bootstrap):
+        monkeypatch.setattr(module, "engine", engine)
+    monkeypatch.setattr(geo_proximity_bootstrap, "SessionLocal", TestingSessionLocal)
     monkeypatch.setattr(legal_config, "EXPORT_DIR", storage_dir / "exports")
     monkeypatch.setattr(legal_config, "UPLOAD_DIR", storage_dir / "uploads")
 

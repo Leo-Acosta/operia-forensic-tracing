@@ -3,7 +3,8 @@
 Estado actualizado al 2026-10-17: consultar la [matriz E0/E1](E0_E1_SECURITY_BASELINE.md).
 Las listas siguientes conservan la planificación inicial y no acreditan pendientes
 actuales. E2 se implementa en [custodia append-only](CUSTODY_APPEND_ONLY.md).
-La próxima prioridad es E3 (ACL por expediente), seguida por E4 (frontend premium).
+E3 incorpora [permisos por expediente](CASE_ACCESS_CONTROL.md). La próxima prioridad
+es E4 (frontend premium con shadcn/ui y validación visual en navegador).
 
 ## Near Term
 

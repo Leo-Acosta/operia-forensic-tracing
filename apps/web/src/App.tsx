@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import LocalAiGateway from "./LocalAiGateway";
+import CaseAccessPanel from "./CaseAccessPanel";
 import type { ReactNode } from "react";
 import {
   BarChart3,
@@ -1461,6 +1462,15 @@ export function App() {
   const [articles, setArticles] = useState<LegalArticle[]>([]);
   const [modulePayload, setModulePayload] = useState<unknown>(null);
   const [authToken, setAuthTokenState] = useState(getAuthToken());
+  useEffect(() => {
+    const syncSession = () => setAuthTokenState(getAuthToken());
+    window.addEventListener("operia:auth-changed", syncSession);
+    window.addEventListener("storage", syncSession);
+    return () => {
+      window.removeEventListener("operia:auth-changed", syncSession);
+      window.removeEventListener("storage", syncSession);
+    };
+  }, []);
   const [identitySession, setIdentitySession] = useState<IdentitySession>({ authenticated: false });
   const [permissions, setPermissions] = useState<PermissionPayload>({});
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
@@ -1516,6 +1526,7 @@ export function App() {
   const [custodyForm, setCustodyForm] = useState({ action_type: "revisión", detailed_description: "", user_responsible: "" });
   const [editingCustody, setEditingCustody] = useState<CustodyAction | null>(null);
   const [custodyReason, setCustodyReason] = useState("");
+  const caseCollectionsRequest = useRef(0);
   const custodyScope = useRef({ caseId: selectedCaseId, token: authToken, generation: 0 });
   if (custodyScope.current.caseId !== selectedCaseId || custodyScope.current.token !== authToken) {
     custodyScope.current = { caseId: selectedCaseId, token: authToken, generation: custodyScope.current.generation + 1 };
@@ -1606,40 +1617,47 @@ export function App() {
     [selectedCase, evidence, custody, legalMappings, legalProbatoryMatrix, legalQualityControl, latestReport]
   );
 
+  function clearCaseCollections() {
+    setEvidence([]);
+    setParticipants([]);
+    setReports([]);
+    setPresentations([]);
+    setPresentationSlides([]);
+    setSelectedPresentationId("");
+    setPresentationReview(null);
+    setPresentationState("idle");
+    setPresentationMessage("");
+    setCustody([]);
+    setDamageItems([]);
+    setAuditLogs([]);
+    setManifests([]);
+    setLegalMappings([]);
+    setLegalMappingEvidence([]);
+    setDeepfakeAnalyses([]);
+    setBlockchainTransactions([]);
+    setIotDevices([]);
+    setLegalProbatoryMatrix(null);
+    setLegalQualityControl(null);
+    setRubricEvaluation(null);
+    setRubricState("idle");
+    setRubricMessage("");
+    setLegalElementSelection({});
+    setLegalLinkDrafts({});
+    setReportPreview(null);
+    setExecutiveSummaryDraft("");
+    setClosureStatus(null);
+    setDamageState("idle");
+    setDamageMessage("");
+  }
+
   async function refreshCaseCollections(caseId: number | "") {
-    if (!caseId) {
-      setEvidence([]);
-      setParticipants([]);
-      setReports([]);
-      setPresentations([]);
-      setPresentationSlides([]);
-      setSelectedPresentationId("");
-      setPresentationReview(null);
-      setPresentationState("idle");
-      setPresentationMessage("");
-      setCustody([]);
-      setDamageItems([]);
-      setAuditLogs([]);
-      setManifests([]);
-      setLegalMappings([]);
-      setLegalMappingEvidence([]);
-      setDeepfakeAnalyses([]);
-      setBlockchainTransactions([]);
-      setIotDevices([]);
-      setLegalProbatoryMatrix(null);
-      setLegalQualityControl(null);
-      setRubricEvaluation(null);
-      setRubricState("idle");
-      setRubricMessage("");
-      setLegalElementSelection({});
-      setLegalLinkDrafts({});
-      setReportPreview(null);
-      setExecutiveSummaryDraft("");
-      setClosureStatus(null);
-      setDamageState("idle");
-      setDamageMessage("");
-      return;
-    }
+    if (caseId && caseId !== custodyScope.current.caseId) return;
+    const requestId = ++caseCollectionsRequest.current;
+    const generation = custodyScope.current.generation;
+    const token = getAuthToken();
+    const current = () => requestId === caseCollectionsRequest.current && caseId === custodyScope.current.caseId && generation === custodyScope.current.generation && token === getAuthToken();
+    clearCaseCollections();
+    if (!caseId) return;
     const [
       participantData,
       evidenceData,
@@ -1663,7 +1681,7 @@ export function App() {
       apiGet<ReportItem[]>(`/reports/case/${caseId}`),
       apiGet<CustodyAction[]>(`/evidence/case/${caseId}/custody-actions`),
       apiGet<DamageItem[]>(`/cases/${caseId}/damage-items`),
-      apiGet<AuditLog[]>(`/audit/logs?case_id=${caseId}`),
+      apiGet<AuditLog[]>(`/audit/logs?case_id=${caseId}`).catch(() => []),
       apiGet<ExportManifest[]>(`/exports/manifests?case_id=${caseId}`),
       apiGet<LegalMapping[]>(`/legal-knowledge/case/${caseId}/mappings`),
       apiGet<LegalMappingEvidence[]>(`/legal-knowledge/case/${caseId}/mapping-evidence`),
@@ -1675,17 +1693,17 @@ export function App() {
       apiGet<RubricEvaluation>(`/rubrics/case/${caseId}/score`).catch(() => null),
       apiGet<PresentationItem[]>(`/reports/presentations/case/${caseId}`).catch(() => [])
     ]);
+    const slidesData = presentationData[0]?.id
+      ? await apiGet<PresentationSlide[]>(`/reports/presentations/${presentationData[0].id}/slides`).catch(() => []) : [];
+    const closureData = await apiGet<ClosureStatus>(`/cases/${caseId}/closure-status`);
+    if (!current()) return;
     setParticipants(participantData);
     setEvidence(evidenceData);
     setReports(reportData);
     setPresentations(presentationData);
     const nextPresentationId = presentationData[0]?.id || "";
     setSelectedPresentationId(nextPresentationId);
-    if (nextPresentationId) {
-      setPresentationSlides(await apiGet<PresentationSlide[]>(`/reports/presentations/${nextPresentationId}/slides`).catch(() => []));
-    } else {
-      setPresentationSlides([]);
-    }
+    setPresentationSlides(slidesData);
     setPresentationReview(null);
     setCustody(custodyData);
     setDamageItems(damageData);
@@ -1701,10 +1719,11 @@ export function App() {
     setRubricEvaluation(rubricData);
     setReportPreview(null);
     setExecutiveSummaryDraft("");
-    setClosureStatus(await apiGet<ClosureStatus>(`/cases/${caseId}/closure-status`));
+    setClosureStatus(closureData);
   }
 
   async function refreshCore() {
+    const token = getAuthToken();
     setError("");
     const [dashboardData, casesData] = await Promise.all([
       apiGet<DashboardPayload>("/dashboard/"),
@@ -1716,6 +1735,7 @@ export function App() {
         return [item.id, caseReports] as const;
       })
     );
+    if (token !== getAuthToken()) return;
     setDashboard(dashboardData);
     setCases(casesData);
     setHistoryReportsByCase(Object.fromEntries(reportPairs));
@@ -1726,6 +1746,8 @@ export function App() {
   }
 
   async function refreshMind() {
+    const token = getAuthToken();
+    const generation = custodyScope.current.generation;
     const caseQuery = selectedCaseId ? `?case_id=${selectedCaseId}` : "";
     const [notesData, promptsData, agentsData, graphData, auditData, briefData] = await Promise.all([
       apiGet<MindNote[]>(`/mind/notes${caseQuery}`).catch(() => []),
@@ -1735,6 +1757,7 @@ export function App() {
       apiGet<MindAuditEntry[]>(`/mind/audit${caseQuery}`).catch(() => []),
       selectedCaseId ? apiGet<MindCaseBrief>(`/mind/cases/${selectedCaseId}/brief`).catch(() => null) : Promise.resolve(null)
     ]);
+    if (token !== getAuthToken() || generation !== custodyScope.current.generation || selectedCaseId !== custodyScope.current.caseId) return;
     setMindNotes(notesData);
     setMindPrompts(promptsData);
     setMindAgents(agentsData);
@@ -1805,7 +1828,20 @@ export function App() {
   }, [active]);
 
   useEffect(() => {
-    refreshIdentity().catch(() => undefined);
+    clearCaseCollections();
+    setCases([]);
+    setSelectedCaseId("");
+    setHistoryReportsByCase({});
+    setDashboard({});
+    setModulePayload(null);
+    setMindNotes([]);
+    setMindGraph(null);
+    setMindBrief(null);
+    setMindAudit([]);
+    setMindSearchResults([]);
+    refreshIdentity().then(() => {
+      if (authToken && authToken === getAuthToken()) return refreshCore();
+    }).catch(() => undefined);
   }, [authToken]);
 
   useEffect(() => {
@@ -1824,13 +1860,15 @@ export function App() {
 
   useEffect(() => {
     refreshCaseCollections(selectedCaseId).catch((err: Error) => setError(err.message));
-  }, [selectedCaseId]);
+  }, [selectedCaseId, authToken]);
 
   async function refreshIdentity() {
+    const token = getAuthToken();
     const [session, permissionData] = await Promise.all([
       apiGet<IdentitySession>("/identity/me"),
       apiGet<PermissionPayload>("/identity/permissions")
     ]);
+    if (token !== getAuthToken()) return;
     setIdentitySession(session);
     setPermissions(permissionData);
     if (session.authenticated) {
@@ -4425,6 +4463,7 @@ export function App() {
 
     return (
       <div className="case-detail">
+        {selectedCaseId && identitySession.user?.role === "admin" && <CaseAccessPanel key={`${identitySession.user.id}:${selectedCaseId}`} caseId={Number(selectedCaseId)} users={identityUsers} />}
         <section className="work-surface">
           <div className="section-head">
             <div>
