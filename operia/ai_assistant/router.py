@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from operia.ai_assistant.prompts import build_forensic_prompt
@@ -31,23 +31,19 @@ def status() -> dict[str, object]:
 
 @router.get("/health")
 def ai_health(model_name: str = "mistral") -> dict[str, object]:
-    try:
-        response = generate_with_ollama("Responde solo: OK", model=model_name, timeout=2)
-        available = bool(response.strip())
-    except OllamaUnavailable as exc:
-        return {
-            "provider": "ollama",
-            "model": model_name,
-            "available": False,
-            "mode": "offline_degraded",
-            "message": str(exc),
-            "external_api_used": False,
-        }
+    from operia.core.config import settings
+    from operia.security.context import connector_scope
+    from operia.security.sandbox_runtime import status as sandbox_status
+    scope = connector_scope.get()
+    authorized = bool(scope and scope.local_ai and model_name in scope.local_ai_models)
+    ready = authorized and settings.local_ai_enabled and settings.local_ai_gateway_enabled and model_name in settings.local_ai_allowed_models and sandbox_status()["runtime_verified"]
     return {
         "provider": "ollama",
         "model": model_name,
-        "available": available,
-        "mode": "local",
+        "available": False,
+        "gateway_ready": bool(ready),
+        "provider_probed": False,
+        "mode": "gateway_ready" if ready else "offline_degraded",
         "external_api_used": False,
     }
 
@@ -61,11 +57,24 @@ def assist(
     prompt = str(payload.get("prompt") or "")
     model_name = str(payload.get("model_name") or "mistral")
     case = db.get(Case, payload.get("case_id")) if payload.get("case_id") else None
+    from operia.security.context import connector_scope
+    scope = connector_scope.get()
+    if scope and scope.case_id is not None and (case is None or case.id != scope.case_id):
+        raise HTTPException(422, "El caso debe estar declarado en la solicitud de IA")
+    include_context = payload.get("include_case_context", False)
+    if type(include_context) is not bool:
+        raise HTTPException(422, "include_case_context debe ser booleano")
+    if include_context and case is None:
+        raise HTTPException(422, "Se requiere caso para incluir contexto")
+    if len(prompt.encode()) > 32 * 1024:
+        raise HTTPException(422, "Prompt demasiado extenso")
     legal_context = legal_context_for_prompt(db, prompt)
-    case_context = case_context_for_prompt(case)
+    case_context = case_context_for_prompt(case, db) if include_context else ""
     guarded_prompt = build_forensic_prompt(prompt, legal_context=legal_context, case_context=case_context)
+    if len(guarded_prompt.encode()) > 64 * 1024:
+        raise HTTPException(422, "El contexto excede el limite de la pasarela")
     interaction = AIInteraction(
-        organization_id=current_user.organization_id or payload.get("organization_id"),
+        organization_id=current_user.organization_id,
         user_id=current_user.id,
         case_id=payload.get("case_id"),
         provider="ollama",
@@ -74,7 +83,7 @@ def assist(
         prompt=guarded_prompt,
         status="pending",
         requires_human_review=True,
-        safety_notes="Asistencia automatizada. No sustituye revision humana.",
+        safety_notes="Pasarela local sin herramientas ni memoria conversacional. Contexto del caso incluido: " + str(include_context) + ". Requiere revision humana.",
     )
     try:
         interaction.response = generate_with_ollama(guarded_prompt, model=model_name)

@@ -141,6 +141,7 @@ storage/
 - [Capas de seguridad y contrato de conectores](docs/SECURITY_LAYERS.md)
 - [Auditoría de seguridad y dependencias](docs/SECURITY_AUDIT.md)
 - [Pentest local y aislamiento Windows de workers/conectores](docs/LOCAL_PENTEST.md)
+- [Pasarela segura para IA local](docs/LOCAL_AI_GATEWAY.md)
 - [Testing](docs/TESTING.md)
 - [Deployment](docs/DEPLOYMENT.md)
 - [Migration Notes](docs/MIGRATION_NOTES.md)

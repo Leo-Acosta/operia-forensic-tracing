@@ -1,0 +1,129 @@
+{
+  "schema": "operia.local-ai-gateway/1",
+  "date": "2026-10-17",
+  "scope": "Local gateway implementation; synthetic provider and real AppContainers; no real model, provider activation or production deployment",
+  "architecture": {
+    "broker": "trusted supervisor, fixed 127.0.0.1:11434 POST /api/generate, no listener/proxy/configurable destination",
+    "validators": "two disposable Windows AppContainers with no network capability",
+    "direct_local_ai_worker": "rejected; old direct transport removed",
+    "other_workers": "native and HTTPS OS containment preserved",
+    "authorization": [
+      "global local_ai_enabled",
+      "global local_ai_gateway_enabled",
+      "ai:use",
+      "active organization model grant",
+      "server model allowlist",
+      "verified case matching request body"
+    ],
+    "conversation": "no returned context/history reuse, no tools, keep_alive=0; provider memory erasure is not guaranteed"
+  },
+  "limits": {
+    "user_prompt_bytes": 32768,
+    "legal_context_bytes": 16384,
+    "case_context_bytes": 8192,
+    "case_evidence_and_findings_each": 8,
+    "final_prompt_bytes": 65536,
+    "http_response_bytes": 262144,
+    "generation_tokens": 512,
+    "model_context_tokens": 4096,
+    "operation_budget_seconds": 10,
+    "inference_concurrency_per_process": 1,
+    "existing_connector_quotas_preserved": true
+  },
+  "runtime": {
+    "identity": "6d8079fa8522b36269dce726",
+    "files": 689,
+    "manifest_sha256": "ae9308d0263258b46260cb4b6f1b7b41eaf1c938743cce8c58fbb262145d6220"
+  },
+  "validation": {
+    "passed": 213,
+    "warnings": 4,
+    "seconds": 287.62,
+    "runtime": "hash-verified reconstructed Windows x64 CPython 3.12.14 environment",
+    "new_gateway_cases": [
+      "test_real_gateway_uses_fixed_protocol_and_never_reuses_provider_context",
+      "test_authorization_fails_before_provider[global]",
+      "test_authorization_fails_before_provider[gateway]",
+      "test_authorization_fails_before_provider[organization]",
+      "test_authorization_fails_before_provider[actor]",
+      "test_authorization_fails_before_provider[case]",
+      "test_authorization_fails_before_provider[models]",
+      "test_authorization_fails_before_provider[scope]",
+      "test_model_injection_denied[../mistral]",
+      "test_model_injection_denied[https://host.invalid/mistral]",
+      "test_model_injection_denied[mistral-cloud]",
+      "test_model_injection_denied[other]",
+      "test_model_injection_denied[xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx]",
+      "test_hostile_provider_responses_rejected_in_appcontainer[{\"response\":\"a\",\"response\":\"b\",\"done\":true}]",
+      "test_hostile_provider_responses_rejected_in_appcontainer[{\"response\":NaN,\"done\":true}]",
+      "test_hostile_provider_responses_rejected_in_appcontainer[{\"response\":\"partial\",\"done\":false}]",
+      "test_hostile_provider_responses_rejected_in_appcontainer[{\"response\":{},\"done\":true}]",
+      "test_hostile_provider_responses_rejected_in_appcontainer[{\"response\":\"\",\"done\":true}]",
+      "test_hostile_provider_responses_rejected_in_appcontainer[{\"response\":\"x\",\"done\":true,\"error\":\"no\"}]",
+      "test_hostile_provider_responses_rejected_in_appcontainer[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]",
+      "test_http_boundary_rejects_redirect_encoding_and_volume[redirect]",
+      "test_http_boundary_rejects_redirect_encoding_and_volume[server-error]",
+      "test_http_boundary_rejects_redirect_encoding_and_volume[html]",
+      "test_http_boundary_rejects_redirect_encoding_and_volume[compressed]",
+      "test_http_boundary_rejects_redirect_encoding_and_volume[oversize]",
+      "test_deadline_interrupts_trickling_headers_and_releases_capacity[slow]",
+      "test_deadline_interrupts_trickling_headers_and_releases_capacity[slow_body]",
+      "test_prompt_limit_capacity_and_no_sandbox_fallback",
+      "test_compromised_validator_cannot_change_model_or_add_tools",
+      "test_gateway_api_scopes_and_minimal_context_preserves_history",
+      "test_new_gateway_worker_has_no_network_capability",
+      "test_case_context_is_bounded_without_rewriting_records",
+      "test_invalid_context_consent_and_missing_case_do_not_generate"
+    ],
+    "frontend": "TypeScript and Vite 6.4.4 build passed; 1583 modules",
+    "browser_visual_qa": false,
+    "pip_check": "passed",
+    "pip_audit_known_vulnerabilities": 0,
+    "npm_audit_known_vulnerabilities": 0,
+    "bandit_scope": [
+      "operia",
+      "apps/api",
+      "scripts"
+    ],
+    "bandit_metrics": {
+      "CONFIDENCE.HIGH": 7,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 8,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 15,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 19817,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "bandit_errors": [],
+    "bandit_low_triage": "empty default/claim and bearer literals; subprocess imports including TimeoutExpired, fixed icacls command and deliberate probe child-spawn; no suppressions"
+  },
+  "preservation": {
+    "existing_tables": 72,
+    "all_existing_values_identical": true,
+    "restored_integrity_check": "ok",
+    "backup_and_restore_sha256": "b2aaad233d98b5f11e2b9546c1cefe5f575d214bf6943eeea86f30e155a16371",
+    "destructive_migration": false
+  },
+  "activation": {
+    "disabled_by_default": true,
+    "real_ollama_contacted": false,
+    "models_installed": false,
+    "operator_must_verify": [
+      "local-only Ollama configuration including OLLAMA_NO_CLOUD=1",
+      "approved preinstalled model",
+      "service account/access/egress and resources",
+      "organization grants"
+    ]
+  },
+  "limitations": [
+    "Ollama and supervisor remain trusted processes",
+    "no GPU/RAM wipe or prompt-injection immunity claim",
+    "per-process quotas need coordination across instances",
+    "provider compute cancellation after disconnect not guaranteed",
+    "no real-provider inference validation or new production pentest"
+  ]
+}

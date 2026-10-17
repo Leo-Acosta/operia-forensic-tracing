@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     connector_allowed_hosts: list[str] = []
     auth_signing_key: SecretStr | None = None
     local_ai_enabled: bool = False
+    local_ai_gateway_enabled: bool = False
+    local_ai_allowed_models: list[str] = ["mistral"]
     local_recovery_enabled: bool = False
     http_max_concurrent_requests: int = Field(default=8, ge=1, le=64)
     http_max_body_bytes: int = Field(default=8 * 1024 * 1024, ge=1024, le=32 * 1024 * 1024)

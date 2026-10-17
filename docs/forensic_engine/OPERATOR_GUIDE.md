@@ -81,3 +81,9 @@ trabajos nuevos y despues de actualizar el runtime. AppContainer/Job son
 obligatorios, sin fallback a ejecucion normal. La IA directa a localhost queda
 bloqueada hasta disponer de pasarela separada; no agregar excepciones de loopback.
 Ver [operacion, resultados y limites](../LOCAL_PENTEST.md).
+
+
+Actualizacion 2026-10-17: la [pasarela de IA local](../LOCAL_AI_GATEWAY.md) ya esta
+implementada, deshabilitada por defecto. Requiere preparacion del runtime, dos
+flags globales, modelo concedido por organizacion y caso autorizado. Los workers
+siguen sin loopback. La guia describe el servicio Ollama confiable y sus limites.

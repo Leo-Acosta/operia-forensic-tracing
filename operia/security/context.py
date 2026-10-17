@@ -13,6 +13,7 @@ class ConnectorScope:
     local_ai: bool = False
     deadline: float = field(default_factory=lambda: time.monotonic() + 12)
     request_id: str = ""
+    local_ai_models: frozenset[str] = frozenset()
 
 connector_scope: ContextVar[ConnectorScope | None] = ContextVar("operia_connector_scope", default=None)
 
@@ -20,6 +21,7 @@ connector_scope: ContextVar[ConnectorScope | None] = ContextVar("operia_connecto
 def organization_scope(user, case_id, policy_json, request_id=""):
     grants = set()
     local_ai = False
+    models = frozenset()
     try:
         if len(policy_json) > 32768:
             raise ValueError()
@@ -31,7 +33,11 @@ def organization_scope(user, case_id, policy_json, request_id=""):
                 grants.update((purpose, host) for host in rule["hosts"][:20] if isinstance(host, str))
         from operia.identity.permissions import has_permission
         local_ai = policy.get("local_ai", {}).get("enabled") is True and has_permission(user.role, "ai:use")
+        declared = policy.get("local_ai", {}).get("models", [])
+        if isinstance(declared, list):
+            models = frozenset(model for model in declared[:20] if isinstance(model, str))
     except (ValueError, TypeError, AttributeError):
         grants.clear()
         local_ai = False
-    return ConnectorScope(user.id, user.organization_id, case_id, frozenset(grants), local_ai, request_id=request_id)
+        models = frozenset()
+    return ConnectorScope(user.id, user.organization_id, case_id, frozenset(grants), local_ai, request_id=request_id, local_ai_models=models)

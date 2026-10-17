@@ -75,24 +75,3 @@ def fetch_bytes(url, timeout=8, maximum=256 * 1024, allowed_hosts=()):
         raise ConnectorRejected("connector_unavailable") from None
     finally:
         connection.close()
-
-
-
-def local_ai_bytes(prompt, model, timeout):
-    payload = json.dumps({"model": model, "prompt": prompt, "stream": False}).encode()
-    if len(payload) > 2 * 1024 * 1024:
-        raise ConnectorRejected("connector_request_too_large")
-    connection = http.client.HTTPConnection("127.0.0.1", 11434, timeout=timeout)
-    try:
-        connection.request("POST", "/api/generate", body=payload, headers={"Content-Type": "application/json", "Accept-Encoding": "identity"})
-        response = connection.getresponse()
-        if response.status != 200 or response.getheader("Content-Encoding", "identity") != "identity":
-            raise ConnectorRejected("connector_http_error")
-        raw = response.read(1024 * 1024 + 1)
-        if len(raw) > 1024 * 1024:
-            raise ConnectorRejected("connector_response_too_large")
-        return response.status, raw
-    except (OSError, http.client.HTTPException):
-        raise ConnectorRejected("connector_unavailable") from None
-    finally:
-        connection.close()

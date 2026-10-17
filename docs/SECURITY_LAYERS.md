@@ -25,9 +25,10 @@ No constituyen una certificacion de invulnerabilidad.
 - `OPERIA_CONNECTOR_ALLOWED_HOSTS=[]`: ninguna salida del cliente de conectores.
   Para habilitar un proveedor aprobado usar una lista JSON de hosts exactos,
   por ejemplo `["ipinfo.io"]`. No usar destinos procedentes de la evidencia.
-- `OPERIA_LOCAL_AI_ENABLED=false`: IA local directa bloqueada por AppContainer.
-  No se agrega excepcion de loopback; se requiere una pasarela separada y validada.
-  Los flags y permisos existentes no permiten omitir esta frontera.
+- `OPERIA_LOCAL_AI_ENABLED=false` y `OPERIA_LOCAL_AI_GATEWAY_ENABLED=false`: la
+  pasarela interna es opt-in, con caso, ai:use y modelos concedidos por organizacion.
+  Solo el broker confiable conecta al destino fijo; los validadores siguen en
+  AppContainer sin red. No hay excepcion de loopback. Ver LOCAL_AI_GATEWAY.md.
 - `OPERIA_LOCAL_RECOVERY_ENABLED=false`: no hay recuperacion automatica por HTTP.
   Un operador del host puede habilitarla temporalmente en entorno local y apagarla
   inmediatamente despues. Se conserva la autenticacion normal.
@@ -89,3 +90,10 @@ organizacion y 20/minuto por organizacion, con plazo comun maximo de 12 segundos
 Windows aplica AppContainer y Job Object, con runtime RX sin secretos y perfiles
 individuales. Siguen pendientes cuenta dedicada del supervisor, firewall de egreso
 y validacion de produccion. Operacion y limites: [pentest local](LOCAL_PENTEST.md).
+
+## Pasarela de IA local
+
+Implementada el 2026-10-17: supervisor con broker de destino fijo y dos
+validadores desechables sin red. Limites, contexto opt-in, modelos y riesgos del
+servicio de inferencia en [guia operativa](LOCAL_AI_GATEWAY.md). Los controles del
+worker nativo y el conector HTTPS no se flexibilizan.

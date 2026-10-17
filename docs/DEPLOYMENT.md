@@ -118,3 +118,9 @@ Ver [operacion, resultados y limites](LOCAL_PENTEST.md).
 El Docker API Linux existente no proporciona este backend Windows. Los trabajos
 y conectores que requieran contencion se rechazan en esa plataforma; se necesita
 un backend de aislamiento Linux validado antes de habilitarlos alli.
+
+
+Actualizacion 2026-10-17: la [pasarela de IA local](LOCAL_AI_GATEWAY.md) ya esta
+implementada, deshabilitada por defecto. Requiere preparacion del runtime, dos
+flags globales, modelo concedido por organizacion y caso autorizado. Los workers
+siguen sin loopback. La guia describe el servicio Ollama confiable y sus limites.

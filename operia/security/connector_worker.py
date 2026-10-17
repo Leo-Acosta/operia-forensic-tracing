@@ -2,7 +2,7 @@
 import base64
 import json
 import sys
-from operia.security.transport import fetch_bytes, local_ai_bytes
+from operia.security.transport import fetch_bytes
 from operia.security.errors import ConnectorRejected
 from operia.security.child_guard import require_containment
 
@@ -20,8 +20,6 @@ def main():
             if not isinstance(maximum, int) or not 1 <= maximum <= 256 * 1024:
                 raise ConnectorRejected("connector_invalid_limit")
             status, body = fetch_bytes(payload["url"], timeout, maximum, payload["allowed_hosts"])
-        elif payload["kind"] == "local_ai":
-            status, body = local_ai_bytes(payload["prompt"], payload["model"], timeout)
         else:
             raise ConnectorRejected("connector_kind_rejected")
         result = {"status": status, "body_base64": base64.b64encode(body).decode("ascii")}

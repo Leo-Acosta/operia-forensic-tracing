@@ -167,7 +167,7 @@ def test_ambiguous_json_rejected(client, raw):
 def test_connector_network_calls_remain_centralized():
     import ast
     from pathlib import Path
-    approved = {"operia/security/transport.py"}
+    approved = {"operia/security/transport.py", "operia/security/ai_gateway.py"}
     forbidden = []
     for file in Path("operia").rglob("*.py"):
         if file.as_posix() in approved:
@@ -179,6 +179,6 @@ def test_connector_network_calls_remain_centralized():
             if any(k.arg == "shell" and isinstance(k.value, ast.Constant) and k.value.value is True for k in node.keywords):
                 forbidden.append(str(file))
             target = ast.unparse(node.func)
-            if target.startswith(("requests.get", "requests.post", "httpx.get", "httpx.post", "urllib.request.urlopen", "socket.gethostbyname", "socket.create_connection")) or target == "urlopen":
+            if target.startswith(("requests.get", "requests.post", "httpx.get", "httpx.post", "urllib.request.urlopen", "socket.gethostbyname", "socket.create_connection", "http.client.HTTPConnection", "http.client.HTTPSConnection")) or target == "urlopen":
                 forbidden.append(str(file))
     assert not forbidden

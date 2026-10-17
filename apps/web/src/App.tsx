@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import LocalAiGateway from "./LocalAiGateway";
 import type { ReactNode } from "react";
 import {
   BarChart3,
@@ -6427,6 +6428,7 @@ export function App() {
           </div>
         </div>
 
+        <LocalAiGateway key={`${identitySession.user?.id || "anonymous"}:${selectedCaseId}`} caseId={selectedCaseId} allowed={canUse("ai:use")} sessionKey={authToken} />
         <div className="ai-action-grid">
           <div className="detail-panel">
             <div className="panel-head">

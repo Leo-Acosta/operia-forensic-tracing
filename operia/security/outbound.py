@@ -123,16 +123,5 @@ def fetch_json(url, timeout=8, *, purpose="generic"):
 
 
 def local_ai(prompt, model, timeout):
-    scope = connector_scope.get()
-    if not settings.local_ai_enabled or scope is None or not scope.local_ai:
-        raise ConnectorRejected("connector_local_ai_rejected")
-    if not isinstance(prompt, str) or not isinstance(model, str) or len(model) > 160 or len(prompt.encode()) > 2 * 1024 * 1024:
-        raise ConnectorRejected("connector_request_too_large")
-    status, raw = _invoke({"kind": "local_ai", "prompt": prompt, "model": model, "timeout": min(timeout, 10)}, 1024 * 1024)
-    try:
-        result = read_json(raw, limit=1024 * 1024)
-        if not isinstance(result.get("response"), str):
-            raise ValueError()
-        return result["response"]
-    except (ValueError, AttributeError):
-        raise ConnectorRejected("connector_invalid_json") from None
+    from operia.security.ai_gateway import generate
+    return generate(prompt, model, timeout)

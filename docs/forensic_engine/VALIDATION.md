@@ -169,3 +169,23 @@ comparadas por todos sus valores sin diferencias. No hay migración destructiva
 ni motor externo. IA directa a localhost permanece bloqueada hasta una pasarela
 separada. Windows es el único backend validado, no un pentest productivo.
 Detalle en [pentest local](../LOCAL_PENTEST.md).
+
+
+## Pasarela de IA local (2026-10-17)
+
+Broker interno del supervisor con destino fijo y validación en dos AppContainers
+sin red, sin excepciones de loopback. Autorización de organización/modelo/caso,
+contexto opt-in y extractos SQL acotados. No ejecuta herramientas ni reusa
+contextos del proveedor; toda salida requiere revisión humana. El motor propio
+y los conectores conservan sus límites del SO.
+
+**213 pruebas aprobadas**, cuatro advertencias de deprecación, 287.62 s desde
+el entorno reconstruido con hashes. Incluye 33 pruebas nuevas de pasarela con
+proveedor HTTP sintético, respuestas hostiles, goteo, volumen, manipulación de
+validador, permisos, organizaciones/casos, Unicode y preservación. TypeScript/Vite
+aprobado (1583 módulos), pip check correcto y auditorías Python/npm sin CVE conocidas.
+Bandit: cero altas/medias, 15 bajas revisadas, sin supresiones.
+
+Respaldo restaurado e integrity_check correctos; 72 tablas anteriores comparadas
+por todos sus valores sin cambios. Sin migración destructiva, proveedor real,
+modelo instalado ni despliegue. Ver [operación y límites](../LOCAL_AI_GATEWAY.md).

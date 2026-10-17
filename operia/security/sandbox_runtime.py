@@ -13,7 +13,7 @@ PROJECT = Path(__file__).resolve().parents[2]
 DEFAULT_ROOT = PROJECT / "storage" / "sandbox-runtime"
 MODULES = ("operia/__init__.py", "operia/security/__init__.py",
     "operia/security/connector_worker.py", "operia/security/transport.py", "operia/security/errors.py",
-    "operia/security/child_guard.py", "scripts/sandbox_probe.py")
+    "operia/security/child_guard.py", "operia/security/ai_gateway_worker.py", "scripts/sandbox_probe.py")
 
 
 def sources():
@@ -80,7 +80,7 @@ def verify(target):
 
 
 def spawn_worker(kind):
-    if kind not in ("native", "https", "local_ai"):
+    if kind not in ("native", "https", "local_ai", "ai_gateway"):
         raise SandboxUnavailable("sandbox_kind_rejected")
     if kind == "local_ai":
         # AppContainer intentionally has no loopback exemption. Never bypass it.
@@ -89,8 +89,9 @@ def spawn_worker(kind):
     if not target.is_dir():
         raise SandboxUnavailable("sandbox_runtime_not_prepared")
     verify(target)
-    child = launch(target, "operia.forensic_engine.worker_entry" if kind == "native" else
-        "operia.security.connector_worker", internet=kind == "https")
+    module = {"native": "operia.forensic_engine.worker_entry", "https": "operia.security.connector_worker",
+        "ai_gateway": "operia.security.ai_gateway_worker"}[kind]
+    child = launch(target, module, internet=kind == "https")
     child.sandbox_identity = target.name
     return child
 
