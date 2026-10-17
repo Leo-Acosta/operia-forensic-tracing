@@ -1,0 +1,82 @@
+{
+  "schema": "operia-real-ollama-validation/1",
+  "synthetic_only": true,
+  "model": "qwen2.5:0.5b",
+  "ollama_version": "0.40.5",
+  "model_unloaded_after_response": true,
+  "digest": "a8b0c51577010a279d933d14c2a8ab4b268079d44c5c8830c0a93900f1827c67",
+  "size_bytes": 397821319,
+  "generations": [
+    {
+      "done": true,
+      "seconds": 24.25,
+      "eval_count": 512,
+      "load_duration_ns": 1360109700
+    },
+    {
+      "done": true,
+      "seconds": 25.469,
+      "eval_count": 512,
+      "load_duration_ns": 1344699800
+    },
+    {
+      "done": true,
+      "seconds": 22.062,
+      "eval_count": 502,
+      "load_duration_ns": 1074076500
+    }
+  ],
+  "cross_tenant_denied": true,
+  "disabled_tenant_denied": true,
+  "case_context_isolated": true,
+  "historical_interaction_unchanged": true,
+  "transport_mocked": false,
+  "date": "2026-10-17",
+  "provider_policy": {
+    "host": "127.0.0.1:11434",
+    "cloud_disabled_log_verified": true,
+    "user_environment_persisted": true,
+    "parallel": 1,
+    "max_loaded_models": 1,
+    "restart_script_verified": true,
+    "production_organization_grants_changed": false,
+    "provider_account": "current Windows user",
+    "egress_firewall_added": false
+  },
+  "budgets": {
+    "ai_assist_seconds": 60,
+    "https_seconds": 12,
+    "connect_seconds": 2,
+    "validator_job_cpu_seconds": 10,
+    "no_network_validators": true
+  },
+  "history": {
+    "tables_identical": 72,
+    "integrity": "ok",
+    "historical_values_unchanged": true,
+    "backup_sha256": "b2aaad233d98b5f11e2b9546c1cefe5f575d214bf6943eeea86f30e155a16371",
+    "restored_sha256": "b2aaad233d98b5f11e2b9546c1cefe5f575d214bf6943eeea86f30e155a16371"
+  },
+  "limitations": [
+    "Integration and isolation validation only; not forensic quality certification",
+    "Some replies reached the 512-token cap; structured JSON is not guaranteed",
+    "Local-only mode is not an outbound firewall or RAM/GPU erasure guarantee",
+    "Larger prompts or models may exceed the bounded inference deadline"
+  ],
+  "validation": {
+    "regression_passed": 216,
+    "regression_skipped_real_opt_in": 1,
+    "regression_seconds": 348.251,
+    "real_provider_passed": 1,
+    "real_provider_seconds": 84.31,
+    "warnings": 4,
+    "frontend_build": "tsc and Vite 6.4.4: 1583 modules, passed",
+    "new_application_dependencies": false,
+    "bandit": {
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 15,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0
+    }
+  }
+}

@@ -1,5 +1,9 @@
 # Pasarela segura para IA local — 2026-10-17
 
+Este documento conserva el registro de la primera entrega. La etapa posterior
+con Ollama real, configuración local y datos sintéticos se documenta en
+[Validación local de Ollama](OLLAMA_LOCAL_VALIDATION.md).
+
 La consulta de IA usa una pasarela interna del supervisor. No abre un servidor
 nuevo ni concede loopback a AppContainer. El supervisor ya es la frontera confiable
 que autentica y lee el caso; su broker permite exclusivamente POST a

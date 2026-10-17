@@ -204,7 +204,10 @@ async def enforce_scope(request: Request, db: Session = Depends(get_db), user: C
     organization = db.get(Organization, user.organization_id)
     if not organization or organization.status != "active":
         raise HTTPException(403, "Organizacion no activa")
-    token = connector_scope.set(organization_scope(user, case_id, organization.settings_json, getattr(request.state, "request_id", "")))
+    # CPU inference has its own bounded budget; HTTPS retains its 12-second cap.
+    timeout_seconds = 60 if request.method == "POST" and request.url.path == "/api/ai/assist" else 12
+    token = connector_scope.set(organization_scope(user, case_id, organization.settings_json,
+        getattr(request.state, "request_id", ""), timeout_seconds=timeout_seconds))
     try:
         yield
     finally:

@@ -5,7 +5,7 @@ class OllamaUnavailable(RuntimeError):
     pass
 
 
-def generate_with_ollama(prompt: str, model: str = "mistral", base_url: str = "http://127.0.0.1:11434", timeout: int = 12) -> str:
+def generate_with_ollama(prompt: str, model: str = "mistral", base_url: str = "http://127.0.0.1:11434", timeout: int = 60) -> str:
     if base_url != "http://127.0.0.1:11434":
         raise OllamaUnavailable("Destino IA no autorizado")
     try:

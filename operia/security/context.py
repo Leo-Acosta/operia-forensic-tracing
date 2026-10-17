@@ -18,7 +18,7 @@ class ConnectorScope:
 connector_scope: ContextVar[ConnectorScope | None] = ContextVar("operia_connector_scope", default=None)
 
 
-def organization_scope(user, case_id, policy_json, request_id=""):
+def organization_scope(user, case_id, policy_json, request_id="", *, timeout_seconds=12):
     grants = set()
     local_ai = False
     models = frozenset()
@@ -40,4 +40,6 @@ def organization_scope(user, case_id, policy_json, request_id=""):
         grants.clear()
         local_ai = False
         models = frozenset()
-    return ConnectorScope(user.id, user.organization_id, case_id, frozenset(grants), local_ai, request_id=request_id, local_ai_models=models)
+    return ConnectorScope(user.id, user.organization_id, case_id, frozenset(grants), local_ai,
+        deadline=time.monotonic() + min(max(float(timeout_seconds), .1), 60),
+        request_id=request_id, local_ai_models=models)

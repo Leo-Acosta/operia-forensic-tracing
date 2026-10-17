@@ -33,13 +33,14 @@ def enabled(monkeypatch):
 @pytest.fixture()
 def provider(monkeypatch):
     state = {"raw": b'{"response":"synthetic reply","done":true,"context":[1,2]}', "status": 200,
-        "type": "application/json", "encoding": "identity", "calls": [], "slow": False, "slow_body": False}
+        "type": "application/json", "encoding": "identity", "calls": [], "slow": False, "slow_body": False, "delay": 0}
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args): pass
         def do_POST(self):
             raw = self.rfile.read(int(self.headers["Content-Length"]))
             state["calls"].append((self.path, dict(self.headers), json.loads(raw)))
             try:
+                time.sleep(state["delay"])
                 if state["slow"]:
                     self.wfile.write(b"HTTP/1.1 200 OK\r\nX-Trickle: ")
                     for _ in range(100): self.wfile.write(b"x"); self.wfile.flush(); time.sleep(.03)
@@ -75,6 +76,44 @@ def test_real_gateway_uses_fixed_protocol_and_never_reuses_provider_context(enab
         assert data["keep_alive"] == 0 and data["stream"] is False
         assert data["options"] == {"temperature": 0, "num_ctx": 4096, "num_predict": 512}
     assert provider["calls"][1][2]["prompt"] == "second case prompt"
+
+
+def test_inference_can_take_longer_than_connect_timeout(enabled, provider):
+    provider["delay"] = 2.2
+    assert gateway.generate("synthetic delayed inference", "mistral", 10) == "synthetic reply"
+
+
+def test_ai_budget_is_capped_and_cannot_extend_scope(enabled, provider, monkeypatch):
+    from dataclasses import replace
+    original = gateway._exchange
+    remaining = []
+    def observe(body, deadline):
+        remaining.append(deadline - time.monotonic())
+        return original(body, deadline)
+    monkeypatch.setattr(gateway, "_exchange", observe)
+    assert gateway.generate("default scope", "mistral", 999) == "synthetic reply"
+    token = connector_scope.set(replace(connector_scope.get(), deadline=time.monotonic() + 600))
+    try:
+        assert gateway.generate("capped scope", "mistral", 999) == "synthetic reply"
+    finally:
+        connector_scope.reset(token)
+    assert 0 < remaining[0] <= 12
+    assert 12 < remaining[1] <= 60
+
+
+def test_https_budget_remains_twelve_seconds_in_long_ai_scope(enabled, monkeypatch):
+    from dataclasses import replace
+    remaining = []
+    def transport(payload, timeout, maximum):
+        remaining.append(timeout)
+        return 200, b"synthetic"
+    monkeypatch.setattr(outbound, "_run_transport", transport)
+    token = connector_scope.set(replace(connector_scope.get(), deadline=time.monotonic() + 600))
+    try:
+        assert outbound._invoke({"kind": "https", "timeout": 999}, 1024) == (200, b"synthetic")
+    finally:
+        connector_scope.reset(token)
+    assert remaining == [12]
 
 
 @pytest.mark.parametrize("missing", ["global", "gateway", "organization", "actor", "case", "models", "scope"])

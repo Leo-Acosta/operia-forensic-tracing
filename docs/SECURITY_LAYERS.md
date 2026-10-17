@@ -86,7 +86,9 @@ Referencias de diseno consultadas:
 Cada finalidad requiere una concesion explicita en Organization.settings_json, ademas
 de la allowlist global. IA local requiere tambien concesion local_ai y permiso ai:use.
 Los hijos no heredan secretos ni proxies; limites de 4 operaciones globales, 1 por
-organizacion y 20/minuto por organizacion, con plazo comun maximo de 12 segundos.
+organizacion y 20/minuto por organizacion, con plazo HTTPS maximo de 12 segundos.
+La inferencia de POST /api/ai/assist tiene un presupuesto separado de hasta 60 s;
+no amplia el presupuesto HTTPS ni las capacidades de red de los validadores.
 Windows aplica AppContainer y Job Object, con runtime RX sin secretos y perfiles
 individuales. Siguen pendientes cuenta dedicada del supervisor, firewall de egreso
 y validacion de produccion. Operacion y limites: [pentest local](LOCAL_PENTEST.md).

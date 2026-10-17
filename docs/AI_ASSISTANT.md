@@ -48,4 +48,6 @@ text requiring human review. Context and provider conversation state are not
 reused. No original attachments or tools are sent.
 
 See [configuration, trust boundary and tests](LOCAL_AI_GATEWAY.md). Disabled by
-default; no real provider or model was activated by the implementation tests.
+default. The subsequent [real Ollama validation](OLLAMA_LOCAL_VALIDATION.md)
+uses synthetic cases in a temporary database and a local-only provider. CPU
+inference has a separate bounded 60-second budget; HTTPS remains capped at 12.

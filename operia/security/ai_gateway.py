@@ -64,6 +64,9 @@ def _exchange(body, deadline):
         connection.connect()
         connected["socket"] = connection.sock
         if expired.is_set(): raise ConnectorRejected("connector_deadline_exceeded")
+        # The short connect budget must not become a two-second inference limit.
+        # The watchdog still bounds the complete exchange, including trickle I/O.
+        connection.sock.settimeout(max(.001, deadline - time.monotonic()))
         connection.request("POST", "/api/generate", body=body,
             headers={"Content-Type": "application/json", "Accept-Encoding": "identity", "Connection": "close"})
         response = connection.getresponse()
@@ -98,7 +101,7 @@ def generate(prompt, model, timeout):
         raise ConnectorRejected("connector_ai_model_rejected")
     if not isinstance(prompt, str) or not 1 <= len(prompt.encode()) <= 64 * 1024:
         raise ConnectorRejected("connector_request_too_large")
-    deadline = min(scope.deadline, time.monotonic() + min(max(float(timeout), .1), 10))
+    deadline = min(scope.deadline, time.monotonic() + min(max(float(timeout), .1), 60))
     from operia.security.outbound import connector_slot
     if not _capacity.acquire(blocking=False): raise ConnectorRejected("connector_ai_capacity_exceeded")
     outcome = "rejected"
