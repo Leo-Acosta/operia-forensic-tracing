@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import LocalAiGateway from "./LocalAiGateway";
 import type { ReactNode } from "react";
 import {
@@ -89,6 +89,7 @@ type EvidenceItem = {
 };
 
 type CustodyAction = {
+  ledger_entry?: { version: number; root_action_id: number; previous_action_id: number | null; actor_name: string; recorded_at: string; reason: string } | null;
   id: number;
   case_id: number;
   evidence_id?: number;
@@ -1514,6 +1515,12 @@ export function App() {
   const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
   const [custodyForm, setCustodyForm] = useState({ action_type: "revisión", detailed_description: "", user_responsible: "" });
   const [editingCustody, setEditingCustody] = useState<CustodyAction | null>(null);
+  const [custodyReason, setCustodyReason] = useState("");
+  const custodyScope = useRef({ caseId: selectedCaseId, token: authToken, generation: 0 });
+  if (custodyScope.current.caseId !== selectedCaseId || custodyScope.current.token !== authToken) {
+    custodyScope.current = { caseId: selectedCaseId, token: authToken, generation: custodyScope.current.generation + 1 };
+  }
+  useEffect(() => { setEditingCustody(null); setCustodyReason(""); }, [selectedCaseId, authToken]);
   const [damageItems, setDamageItems] = useState<DamageItem[]>([]);
   const [damageForm, setDamageForm] = useState(emptyDamageForm);
   const [damageState, setDamageState] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -2419,30 +2426,25 @@ export function App() {
   async function saveCustodyAction(event: FormEvent) {
     event.preventDefault();
     if (!editingCustody) return;
-    await apiPut<CustodyAction>(`/evidence/custody-actions/${editingCustody.id}`, {
-      case_id: editingCustody.case_id,
-      evidence_id: editingCustody.evidence_id || null,
-      user_responsible: editingCustody.user_responsible || "",
-      action_type: editingCustody.action_type,
-      detailed_description: editingCustody.detailed_description,
-      tool_used: editingCustody.tool_used || "",
-      command_or_procedure: editingCustody.command_or_procedure || "",
-      result_obtained: editingCustody.result_obtained || "",
-      altered_evidence: false,
-      hash_before: "",
-      hash_after: editingCustody.hash_after || "",
-      validated_by: "",
-      legal_observations: editingCustody.legal_observations || "",
-      status: editingCustody.status || "registrada"
-    });
+    if (!custodyReason.trim() || editingCustody.case_id !== Number(selectedCaseId)) return;
+    const caseId = editingCustody.case_id;
+    const generation = custodyScope.current.generation;
+    const token = getAuthToken();
+    try {
+      await apiPost<CustodyAction>(`/evidence/custody-actions/${editingCustody.id}/rectifications`, {
+        reason: custodyReason,
+        changes: { detailed_description: editingCustody.detailed_description, status: editingCustody.status || "registrada" }
+      });
+      const events = await apiGet<CustodyAction[]>(`/evidence/case/${caseId}/custody-actions`);
+      if (custodyScope.current.generation !== generation || getAuthToken() !== token) return;
+      setCustody(events);
+    } catch (err) {
+      if (custodyScope.current.generation !== generation || getAuthToken() !== token) return;
+      handleUiError(err, "No se pudo registrar la rectificación. Recargá la cadena si otra revisión fue incorporada.");
+      return;
+    }
     setEditingCustody(null);
-    await refreshCaseCollections(selectedCaseId);
-  }
-
-  async function deleteCustodyAction(id: number) {
-    if (!confirm("¿Eliminar acción de custodia? Usar solo para correcciones controladas.")) return;
-    await apiDelete(`/evidence/custody-actions/${id}`);
-    await refreshCaseCollections(selectedCaseId);
+    setCustodyReason("");
   }
 
   async function createDamageItem(event?: FormEvent) {
@@ -4317,6 +4319,7 @@ export function App() {
       <div className="detail-panel">
         <div className="panel-head">
           <h3>Cadena de custodia</h3>
+          <p>Registro histórico: las correcciones agregan una nueva actuación y conservan las anteriores.</p>
         </div>
         {custody.map((item) => (
           <div className="editable-record" key={item.id}>
@@ -4324,10 +4327,13 @@ export function App() {
               <strong>{prettySpanish(item.action_type)}</strong>
               <span>{prettySpanish(item.detailed_description)}</span>
               <small>{prettySpanish(item.user_responsible || "Responsable pendiente")} | {prettySpanish(item.status)}</small>
+              <small>{item.ledger_entry ? `Evento #${item.id} · versión ${item.ledger_entry.version} · raíz #${item.ledger_entry.root_action_id} · ${item.ledger_entry.actor_name}` : `Evento histórico #${item.id} · sin atribución retrospectiva`}</small>
+              {item.ledger_entry?.previous_action_id && <small>Rectifica #{item.ledger_entry.previous_action_id}: {item.ledger_entry.reason}</small>}
             </div>
             <div className="record-actions">
-              <button className="icon-button" onClick={() => setEditingCustody(item)} title="Editar"><Save size={15} /></button>
-              <button className="icon-button danger" onClick={() => deleteCustodyAction(item.id)} title="Eliminar"><Trash2 size={15} /></button>
+              {custody.some((event) => event.ledger_entry?.previous_action_id === item.id)
+                ? <small>Con rectificación posterior registrada</small>
+                : <button className="secondary" onClick={() => { setCustodyReason(""); setEditingCustody(item); }} title="Agregar rectificación"><Save size={15} /> Rectificar</button>}
             </div>
           </div>
         ))}
@@ -4553,15 +4559,13 @@ export function App() {
 
         {editingCustody && (
           <form className="edit-drawer" onSubmit={saveCustodyAction}>
-            <h3>Editar custodia</h3>
-            <div className="inline-grid">
-              <input value={editingCustody.action_type} onChange={(e) => setEditingCustody({ ...editingCustody, action_type: e.target.value })} />
-              <input value={editingCustody.user_responsible || ""} onChange={(e) => setEditingCustody({ ...editingCustody, user_responsible: e.target.value })} />
-            </div>
+            <h3>Rectificar evento #{editingCustody.id}</h3>
+            <p>El original se conserva. El autor se registra desde tu sesión autenticada.</p>
+            <label>Motivo obligatorio<textarea required maxLength={2000} value={custodyReason} onChange={(e) => setCustodyReason(e.target.value)} /></label>
             <textarea value={editingCustody.detailed_description} onChange={(e) => setEditingCustody({ ...editingCustody, detailed_description: e.target.value })} />
             <input value={editingCustody.status || ""} onChange={(e) => setEditingCustody({ ...editingCustody, status: e.target.value })} />
             <div className="actions-line">
-              <button><Save size={16} /> Guardar</button>
+              <button disabled={!custodyReason.trim()}><Save size={16} /> Registrar rectificación</button>
               <button type="button" className="secondary" onClick={() => setEditingCustody(null)}>Cancelar</button>
             </div>
           </form>

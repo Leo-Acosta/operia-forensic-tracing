@@ -1,5 +1,8 @@
 # E0 y E1 — diagnóstico, preservación y configuración segura
 
+Este documento conserva el estado de E0/E1. La etapa posterior de custodia está
+en [E2: registro append-only y rectificaciones](CUSTODY_APPEND_ONLY.md).
+
 Fecha: 2026-10-17. Punto de partida verificado: `92cea60`, rama
 `feature/operia-native-mobile-engine`, sin cambios pendientes al iniciar.
 El remoto configurado coincide con el repositorio informado; no se consultó ni

@@ -1,0 +1,65 @@
+{
+  "schema": "operia-e2-custody-audit/1",
+  "date": "2026-10-17",
+  "base_commit": "3001850",
+  "scope": "E2 append-only custody and versioned rectifications",
+  "preservation": {
+    "schema": "operia-e2-preservation/1",
+    "previous_tables_unchanged": 72,
+    "new_tables": [
+      "custody_ledger_entries"
+    ],
+    "new_ledger_rows": 0,
+    "sqlite_triggers": 6,
+    "sqlite_integrity": "ok",
+    "migration_applied_to_local_database": true,
+    "pre_backup_sha256": "b2aaad233d98b5f11e2b9546c1cefe5f575d214bf6943eeea86f30e155a16371",
+    "post_backup_sha256": "1b02346c363201189530e28855b76455bd5472ba449e066ff7625f9e7ccb23a9",
+    "post_restore_sha256": "1b02346c363201189530e28855b76455bd5472ba449e066ff7625f9e7ccb23a9",
+    "persistent_file_inventory_unchanged": true,
+    "persistent_files_backed_up_and_restored": 116,
+    "verified_after_full_suite": true
+  },
+  "validation": {
+    "baseline_focused_passed": 13,
+    "focused_passed": 32,
+    "regression_passed": 256,
+    "regression_skipped": 1,
+    "regression_failures": 0,
+    "regression_seconds": 403.665,
+    "warnings": 4,
+    "legacy_export_followup_passed": 1,
+    "frontend_build": "TypeScript/Vite 6.4.4 passed, 1583 modules",
+    "new_dependencies": false,
+    "new_browser_visual_qa": false,
+    "bandit": {
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 15,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0
+    }
+  },
+  "controls": {
+    "api_and_legacy_mutations": "409",
+    "orm_events_and_ledger_immutable": true,
+    "sqlite_direct_sql_guard": true,
+    "parents_with_custody_preserved": true,
+    "actor_from_authenticated_session": true,
+    "legacy_backfill": false,
+    "version_uniqueness": "root_action_id/version",
+    "concurrent_conflicts": "409 and rollback",
+    "case_and_organization_checks": true,
+    "published_records_not_regenerated_on_rectification": true,
+    "bitacora_exports_unique_paths": true,
+    "frontend_case_session_stale_response_guard": true,
+    "worker_limits_changed": false
+  },
+  "limitations": [
+    "Local SQLite enforcement; no PostgreSQL containment validation",
+    "Host/database administrators can remove protections; not WORM or digital signing",
+    "Backups local plaintext under restricted ACL",
+    "No new visual browser test, real acquisitions or provider inference",
+    "Individual case ACL E3 and premium frontend E4 pending",
+    "New rendering from live case data is not guaranteed to reproduce an earlier export"
+  ]
+}

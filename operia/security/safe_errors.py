@@ -3,6 +3,7 @@ import logging
 
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError
 from starlette.responses import JSONResponse
 
 
@@ -23,4 +24,6 @@ def install_safe_errors(app):
 
     @app.exception_handler(SQLAlchemyError)
     async def database_error(request, exception):
+        if isinstance(exception, IntegrityError) and str(exception.orig) in {"custody_append_only", "custody_parent_preserved"}:
+            return response(request, "custody_append_only", 409)
         return response(request, "database_operation_failed", 503)

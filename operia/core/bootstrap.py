@@ -136,3 +136,5 @@ def init_platform_schema() -> None:
             for column_name, ddl in columns.items():
                 if column_name not in existing_columns:
                     connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {ddl}"))
+        from operia.evidence.custody import install_sqlite_protection
+        install_sqlite_protection(connection)

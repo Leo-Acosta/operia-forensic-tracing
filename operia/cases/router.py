@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
@@ -264,6 +264,8 @@ def delete_case(
 ):
     case = get_or_404(db, Case, case_id)
     report_ids = [row.id for row in db.query(Report.id).filter_by(case_id=case_id).all()]
+    if db.query(ChainOfCustodyAction.id).filter_by(case_id=case_id).first():
+        raise HTTPException(409, "custody_parent_preserved")
     deleted_reports = len(report_ids)
     db.query(ExportManifest).filter(ExportManifest.case_id == case_id).delete(synchronize_session=False)
     if report_ids:

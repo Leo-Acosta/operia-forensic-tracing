@@ -13,7 +13,7 @@ from operia.core.config import settings
 from operia.core.database import get_db
 from operia.evidence.models import ChainOfCustodyAction, Evidence
 from operia.identity.dependencies import CurrentUser, get_optional_user, require_permission
-from operia.evidence.schemas import CustodyActionCreate, CustodyActionRead, EvidenceCreate, EvidenceRead
+from operia.evidence.schemas import CustodyActionCreate, CustodyActionRead, CustodyRectification, EvidenceCreate, EvidenceRead
 from operia.shared.crud import get_or_404, update_from_payload
 from operia.shared.hashing import file_md5, file_sha256
 
@@ -169,7 +169,10 @@ def delete_evidence(
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(require_permission("evidence:write")),
 ):
-    db.delete(get_or_404(db, Evidence, evidence_id))
+    item = get_or_404(db, Evidence, evidence_id)
+    if db.query(ChainOfCustodyAction.id).filter_by(evidence_id=evidence_id).first():
+        raise HTTPException(409, "custody_parent_preserved")
+    db.delete(item)
     db.commit()
     return {"ok": True}
 
@@ -255,11 +258,8 @@ def update_action(
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(require_permission("evidence:write")),
 ):
-    item = update_from_payload(get_or_404(db, ChainOfCustodyAction, action_id), payload)
-    write_audit(db, "update_custody_action", "evidence", current_user, case_id=item.case_id, entity_type="custody_action", entity_id=str(item.id), details=item.action_type)
-    db.commit()
-    db.refresh(item)
-    return item
+    get_or_404(db, ChainOfCustodyAction, action_id)
+    raise HTTPException(409, "custody_append_only: registrar una rectificación")
 
 
 @router.delete("/custody-actions/{action_id}")
@@ -268,12 +268,33 @@ def delete_action(
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(require_permission("evidence:write")),
 ):
-    item = get_or_404(db, ChainOfCustodyAction, action_id)
-    case_id = item.case_id
-    write_audit(db, "delete_custody_action", "evidence", current_user, case_id=case_id, entity_type="custody_action", entity_id=str(item.id), severity="warning", details=item.action_type)
-    db.delete(item)
+    get_or_404(db, ChainOfCustodyAction, action_id)
+    raise HTTPException(409, "custody_append_only: registrar una rectificación")
+
+
+@router.post("/custody-actions/{action_id}/rectifications", response_model=CustodyActionRead)
+def rectify_action(action_id: int, payload: CustodyRectification, db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("evidence:write"))):
+    from operia.evidence.custody import rectify
+    target = get_or_404(db, ChainOfCustodyAction, action_id)
+    item = rectify(db, target, payload)
+    write_audit(db, "rectify_custody_action", "evidence", current_user, case_id=item.case_id,
+        entity_type="custody_action", entity_id=str(item.id), details=f"previous_action_id={target.id}")
     db.commit()
-    return {"ok": True}
+    db.refresh(item)
+    return item
+
+
+@router.get("/custody-actions/{action_id}/history", response_model=list[CustodyActionRead])
+def custody_history(action_id: int, db: Session = Depends(get_db)):
+    from operia.evidence.models import CustodyLedgerEntry
+    target = get_or_404(db, ChainOfCustodyAction, action_id)
+    entry = db.query(CustodyLedgerEntry).filter_by(action_id=target.id).first()
+    root = entry.root_action_id if entry else target.id
+    revisions = db.query(CustodyLedgerEntry.action_id).filter_by(root_action_id=root)
+    return db.query(ChainOfCustodyAction).filter(
+        (ChainOfCustodyAction.id == root) | ChainOfCustodyAction.id.in_(revisions)
+    ).order_by(ChainOfCustodyAction.id).all()
 
 
 @router.get("/case/{case_id}/custody-actions", response_model=list[CustodyActionRead])

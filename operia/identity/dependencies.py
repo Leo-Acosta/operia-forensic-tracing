@@ -39,6 +39,7 @@ def get_optional_user(
     authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ) -> CurrentUser | None:
+    db.info.pop("authenticated_actor", None)
     if not authorization or not authorization.lower().startswith("bearer "):
         return None
     token = authorization.split(" ", 1)[1].strip()
@@ -73,7 +74,7 @@ def get_optional_user(
     organization = db.get(Organization, user.organization_id)
     if not organization or organization.status != "active":
         return None
-    return CurrentUser(
+    current_user = CurrentUser(
         id=user.id,
         organization_id=user.organization_id,
         name=user.name,
@@ -86,6 +87,8 @@ def get_optional_user(
         signature=user.signature,
         profile_notes=user.profile_notes,
     )
+    db.info["authenticated_actor"] = current_user
+    return current_user
 
 
 def require_user(current_user: CurrentUser | None = Depends(get_optional_user)) -> CurrentUser:

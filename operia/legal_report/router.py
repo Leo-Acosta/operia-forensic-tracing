@@ -286,17 +286,14 @@ def create_action(payload: CustodyActionCreate, db: Session = Depends(get_db)):
 
 @router.put("/custody-actions/{action_id}", response_model=CustodyActionRead)
 def update_action(action_id: int, payload: CustodyActionCreate, db: Session = Depends(get_db)):
-    item = update_from_payload(get_or_404(db, ChainOfCustodyAction, action_id), payload)
-    db.commit()
-    db.refresh(item)
-    return item
+    get_or_404(db, ChainOfCustodyAction, action_id)
+    raise HTTPException(409, "custody_append_only: registrar una rectificación en /api/evidence")
 
 
 @router.delete("/custody-actions/{action_id}")
 def delete_action(action_id: int, db: Session = Depends(get_db)):
-    db.delete(get_or_404(db, ChainOfCustodyAction, action_id))
-    db.commit()
-    return {"ok": True}
+    get_or_404(db, ChainOfCustodyAction, action_id)
+    raise HTTPException(409, "custody_append_only: registrar una rectificación en /api/evidence")
 
 
 @router.get("/cases/{case_id}/custody-actions", response_model=list[CustodyActionRead])
@@ -311,7 +308,8 @@ def list_actions(case_id: int, evidence_id: int | None = None, db: Session = Dep
 def export_actions(case_id: int, db: Session = Depends(get_db)):
     actions = list_actions(case_id, db=db)
     text = "\n".join(f"{a.action_at} | {a.action_type} | Evidencia {a.evidence_id or '-'} | {a.detailed_description}" for a in actions)
-    path = UPLOAD_DIR.parent / "exports" / f"bitacora-caso-{case_id}.md"
+    from operia.exports.paths import new_export_path
+    path = new_export_path(f"bitacora-caso-{case_id}.md")
     path.write_text(f"# Bitacora Forense Caso {case_id}\n\n{text}", encoding="utf-8")
     return FileResponse(path)
 

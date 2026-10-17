@@ -209,6 +209,8 @@ async def enforce_scope(request: Request, db: Session = Depends(get_db), user: C
     token = connector_scope.set(organization_scope(user, case_id, organization.settings_json,
         getattr(request.state, "request_id", ""), timeout_seconds=timeout_seconds))
     try:
+        db.info["request_actor"] = user
         yield
     finally:
+        db.info.pop("request_actor", None)
         connector_scope.reset(token)

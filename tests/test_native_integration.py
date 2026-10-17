@@ -18,6 +18,10 @@ def test_integration_preserves_revisions_and_scopes(client, admin_headers):
     response = client.post(url, headers=admin_headers)
     assert response.status_code == 200, response.text
     link = response.json()
+    from operia.evidence.models import CustodyLedgerEntry
+    with database_factory()() as db:
+        entry = db.query(CustodyLedgerEntry).filter_by(action_id=link["custody_id"]).one()
+        assert entry.actor_user_id == 1 and entry.version == 0
     assert client.post(url, headers=admin_headers).json() == link
     evidence = f"/api/evidence/{link['evidence_id']}"
     report = f"/api/reports/{link['report_id']}"

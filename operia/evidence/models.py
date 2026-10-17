@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from operia.core.database import Base
@@ -62,6 +62,29 @@ class ChainOfCustodyAction(Base, TimestampMixin):
 
     case: Mapped["Case"] = relationship(back_populates="actions")
     evidence: Mapped[Evidence | None] = relationship(back_populates="actions")
+    ledger_entry: Mapped["CustodyLedgerEntry | None"] = relationship(
+        foreign_keys="CustodyLedgerEntry.action_id", uselist=False, viewonly=True)
+
+
+class CustodyLedgerEntry(Base):
+    __tablename__ = "custody_ledger_entries"
+    __table_args__ = (UniqueConstraint("root_action_id", "version", name="uq_custody_root_version"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    organization_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id"))
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"))
+    action_id: Mapped[int] = mapped_column(ForeignKey("chain_of_custody_actions.id"), unique=True)
+    root_action_id: Mapped[int] = mapped_column(ForeignKey("chain_of_custody_actions.id"))
+    previous_action_id: Mapped[int | None] = mapped_column(ForeignKey("chain_of_custody_actions.id"))
+    version: Mapped[int] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(30))
+    actor_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    actor_name: Mapped[str] = mapped_column(String(160))
+    actor_role: Mapped[str] = mapped_column(String(80))
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    occurred_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    occurred_at_original: Mapped[str | None] = mapped_column(String(80))
+    reason: Mapped[str] = mapped_column(Text, default="")
+    changes_json: Mapped[str] = mapped_column(Text, default="{}")
 
 
 class Attachment(Base, TimestampMixin):
@@ -74,4 +97,7 @@ class Attachment(Base, TimestampMixin):
     file_path: Mapped[str] = mapped_column(String(500))
     sha256_hash: Mapped[str] = mapped_column(String(128), default="")
     mime_type: Mapped[str] = mapped_column(String(120), default="")
+
+
+from operia.evidence import custody as _custody  # noqa: E402,F401 - register invariants for every ORM session.
 

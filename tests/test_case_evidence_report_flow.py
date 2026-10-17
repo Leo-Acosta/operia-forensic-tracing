@@ -346,8 +346,11 @@ def test_advanced_case_management_participants_evidence_custody(client, admin_he
         json=custody_update,
         headers=admin_headers,
     )
-    assert updated_custody.status_code == 200
-    assert updated_custody.json()["detailed_description"] == "Revision editada"
+    assert updated_custody.status_code == 409
+    rectified = client.post(f"/api/evidence/custody-actions/{custody_id}/rectifications", headers=admin_headers,
+        json={"reason": "Corrección documentada", "changes": {"detailed_description": "Revision rectificada"}})
+    assert rectified.status_code == 200
+    assert rectified.json()["ledger_entry"]["version"] == 1
 
     logs = client.get(f"/api/audit/logs?case_id={case_id}", headers=admin_headers)
     assert logs.status_code == 200
@@ -357,7 +360,7 @@ def test_advanced_case_management_participants_evidence_custody(client, admin_he
         "update_case_participant",
         "create_evidence",
         "create_custody_action",
-        "update_custody_action",
+        "rectify_custody_action",
     }.issubset(actions)
 
 
