@@ -1,0 +1,16 @@
+{
+  "schema": "operia-work-hours/1",
+  "started_on": "2026-10-17",
+  "counting_scope": "Programming recorded from the user's tracking request onward; no retrospective hours assumed",
+  "estimate_min_hours": 400,
+  "estimate_max_hours": 900,
+  "notification_interval_hours": 60,
+  "recorded_hours": 0,
+  "last_notified_threshold_hours": 0,
+  "next_notification_hours": 60,
+  "remaining_min_hours": 400,
+  "remaining_max_hours": 900,
+  "entries": [],
+  "completion_verified": false,
+  "completion_message": "Acabo de finalizar el programa."
+}
