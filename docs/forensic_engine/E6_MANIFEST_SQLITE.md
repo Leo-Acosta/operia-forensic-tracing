@@ -1,5 +1,8 @@
 # E6: Manifest.db y catálogo SQLite acotados
 
+Registro de la entrega 0.3.0. La continuidad [0.4.0 agrega perfiles WAL/SHM
+separados](E6_WAL_SHM.md); no cambia la exclusión de sidecars de estos lectores.
+
 Continuidad del 2026-10-18. Motor **0.3.0**, contrato de salida `operia.forensic/1`.
 Ocho lectores registrados, de implementación propia; sin dependencias nuevas.
 Los cinco lectores anteriores siguen disponibles y sus resultados no se reescriben.

@@ -69,7 +69,7 @@ def test_schema_types_duplicates_limits_and_partial_inventory():
     assert not analyze(source(raw=deep))['artifacts']
 
 def test_core_remains_standalone_and_capabilities_are_versioned(tmp_path):
-    assert capabilities()['version']==ENGINE_VERSION and len(capabilities()['readers'])==8
+    assert capabilities()['version']==ENGINE_VERSION and len(capabilities()['readers'])==11
     for kind,expected in [('info',5),('manifest',1)]:
         target=tmp_path/(kind+'.json')
         subprocess.run([sys.executable,'-S','-m','operia.forensic_engine',str(FIXTURES/f'backup-{kind}.plist'),

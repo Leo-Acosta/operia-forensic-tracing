@@ -1,5 +1,10 @@
 # Procedencia y componentes
 
+Continuidad 0.4.0: [WAL/SHM](E6_WAL_SHM.md) implementado a partir de la descripción
+pública de formatos de SQLite. Datos benignos y WAL/SHM generados por SQLite local;
+oráculos manuales y lectura nativa de control. Sin código/corpus externo copiado,
+sin paquetes nuevos. No se realizó una validación con adquisiciones reales.
+
 Continuidad 2026-10-18, motor 0.3.0: lector SQLite propio basado en la API estándar
 de Python/SQLite y esquema Files observado; [referencias y límites](E6_MANIFEST_SQLITE.md).
 Imágenes sintéticas generadas por pruebas originales, sin copiar corpus ni código

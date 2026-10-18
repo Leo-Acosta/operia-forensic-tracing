@@ -81,3 +81,12 @@ base, 116 archivos y copias recuperadas verificadas. Se conserva el nombre inter
 `pre-e5.db` del helper de respaldo; corresponde al estado previo de esta entrega,
 no a una nueva migración E5. Los pendientes de versiones anteriores fallan cerrados;
 los informes y resultados completados conservan sus bytes y referencias.
+
+Continuidad 0.4.0: respaldo privado independiente
+`storage/temp/e6-wal-shm-20261018`, sin migración de la base habitual. El paquete
+WAL/SHM es una adquisición nueva del mismo contrato, no una edición de fuentes
+previas. Los componentes quedan contenidos exactamente en ese original con hashes
+individuales y derivada identificada; no se añaden sidecars a históricos existentes.
+Runtime nuevo archivado/restaurado en destinos privados separados, sin ejecutar
+el archivo ni eliminar runtimes anteriores. Aplican las instrucciones operativas
+de preparación y permisos de runtime descritas arriba.

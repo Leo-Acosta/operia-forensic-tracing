@@ -1,0 +1,158 @@
+{
+  "schema": "operia-e6-wal-shm-audit/1",
+  "date": "2026-10-18",
+  "base_commit": "978f61b",
+  "engine_version": "0.4.0",
+  "result_schema": "operia.forensic/1",
+  "scope": "Bounded offline reconstruction of latest committed SQLite WAL snapshot from a preserved package; SHM header corroboration only",
+  "reader_total": 11,
+  "distinct_format_total": 9,
+  "readers": [
+    {
+      "id": "operia.ios.manifest-wal-set",
+      "version": "1.0.0",
+      "format": "apple-backup-manifest-wal-set"
+    },
+    {
+      "id": "operia.ios.sqlite-wal-set",
+      "version": "1.0.0",
+      "format": "sqlite-wal-catalog-set"
+    },
+    {
+      "id": "operia.android.sqlite-wal-set",
+      "version": "1.0.0",
+      "format": "sqlite-wal-catalog-set"
+    }
+  ],
+  "preserved_input": {
+    "schema": "operia.sqlite-set/1",
+    "single_acquisition_in_case": true,
+    "component_sha256_and_exact_base64_bytes": true,
+    "shm_optional_null_only": true,
+    "max_package_bytes_including_base64": 5242880,
+    "paths_and_extra_keys_accepted": false,
+    "live_acquisition_atomicity_proved": false,
+    "db_wal_association_authenticated": false
+  },
+  "wal": {
+    "version": 3007000,
+    "max_frames": 1024,
+    "max_files_declarations": 5000,
+    "max_artifacts_including_provenance": 5001,
+    "global_output_max_bytes_unchanged": 16777216,
+    "both_checksum_orders": true,
+    "header_salts_pages_and_entire_checksum_chain_checked": true,
+    "valid_uncommitted_tail_excluded_with_locator": true,
+    "corrupt_or_truncated_tail_rejected_without_partial_output": true,
+    "last_commit_only": true,
+    "originals_opened_as_sqlite_files": false,
+    "derived_header_normalization_offsets": [
+      "18..19",
+      "28..31",
+      "92..95"
+    ],
+    "derived_sha256_and_transformations_recorded": true
+  },
+  "shm": {
+    "supported_size_bytes": 32768,
+    "native_header_orders": [
+      "little",
+      "big"
+    ],
+    "duplicated_header_checksum_and_wal_commit_cross_checked": true,
+    "backfill_bounds_checked": true,
+    "hash_tables_read_marks_and_locks_interpreted": false,
+    "mmap_or_reconstruction": false,
+    "missing_explicitly_reported": true
+  },
+  "runtime": {
+    "identity": "c2db06bdd16ee6a05b5cce87",
+    "python": "3.12.14",
+    "sqlite": "3.53.1",
+    "platform": "Windows",
+    "files_verified_in_private_archive_and_restored_copy": 692,
+    "archive_executed": false,
+    "previous_runtimes_retained": true,
+    "network_disabled_in_worker": true,
+    "os_limits_increased": false,
+    "sqlite_defense_and_fixed_query_limits_inherited": true
+  },
+  "validation": {
+    "core": {
+      "passed": 32,
+      "failed": 0,
+      "artifact": "storage/test_runs/e6-wal-core.xml"
+    },
+    "real_workers_final": {
+      "passed": 3,
+      "failed": 0,
+      "artifact": "storage/test_runs/e6-wal-worker-final.xml"
+    },
+    "initial_focused": {
+      "passed": 81,
+      "failed": 3,
+      "artifact": "storage/test_runs/e6-wal-focused.xml",
+      "finding": "Tests incorrectly expected HTTP 403; existing case permission concealment returned HTTP 404 and blocked the write. Test corrected to require 404 and unchanged review count; production authorization unchanged"
+    },
+    "general_backend": {
+      "status": "passed",
+      "artifact": "storage/test_runs/e6-wal-regression.xml",
+      "tests": 374,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "passed": 373,
+      "warnings": 4,
+      "skip_details": [
+        {
+          "test": "test_real_ollama_case_and_tenant_isolation",
+          "reason": "Real Ollama requires explicit operator opt-in"
+        }
+      ]
+    },
+    "frontend": {
+      "passed": 52,
+      "failed": 0,
+      "build": "TypeScript and Vite passed",
+      "changes": "SQLite/JSON source extensions and accessible description for preserved WAL/SHM packages",
+      "physical_assistive_validation": false
+    },
+    "method": "Original synthetic SQLite DB/WAL/SHM generated locally; manual two-row flags 2/1 oracle, two committed transactions, native SQLite replay for big-endian WAL, checksum vectors, both SHM header orders, growth/shrink, uncommitted/corrupt tails, active schema, CLI packaging and no overwrite; three real AppContainer workers, revisions, stable report/export bytes, grant/revocation and foreign tenant denial",
+    "random_salts": "Independent generated sets have native random salts; determinism asserted for identical preserved bytes/configuration",
+    "suite_counts_overlap": true,
+    "real_device_samples": false,
+    "big_endian_hardware_tested": false,
+    "spyware_accuracy_measured": false
+  },
+  "preservation": {
+    "private_backup": "storage/temp/e6-wal-shm-20261018",
+    "database_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7",
+    "tables_backed_up": 74,
+    "triggers": 9,
+    "files_restored_and_verified": 116,
+    "initial_integrity_check": "ok",
+    "usual_database_migrated": false,
+    "historical_results_recomputed": false,
+    "final_status": "passed",
+    "final_comparison": {
+      "tables_unchanged": 74,
+      "schema_unchanged": true,
+      "files_unchanged_and_restored": 116,
+      "triggers": 9,
+      "integrity": "ok",
+      "backup_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7",
+      "restored_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7"
+    }
+  },
+  "dependencies_added": [],
+  "hours": "Human-hours ledger unchanged; AI runtime and test duration not charged",
+  "pending": [
+    "Authorized consistent real-device corpus and OS-specific validation",
+    "WAL recycled invalid tails and other out-of-profile variants",
+    "SHM hash tables, read marks, locks and other VFS",
+    "Logical files and application-specific SQLite rows",
+    "Physical assistive validation",
+    "E7/E8 production acceptance"
+  ],
+  "saas_complete": false
+}

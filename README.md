@@ -163,7 +163,8 @@ storage/
 - [Motor móvil propio: arquitectura](docs/forensic_engine/ARCHITECTURE.md)
 - [Motor móvil propio: operación y límites](docs/forensic_engine/OPERATOR_GUIDE.md)
 - [E6: metadatos de backups iOS, motor 0.2.0](docs/forensic_engine/E6_BACKUP_METADATA.md)
-- [E6 actual: Manifest.db y catálogo SQLite acotados, motor 0.3.0](docs/forensic_engine/E6_MANIFEST_SQLITE.md)
+- [E6: Manifest.db y catálogo SQLite acotados, motor 0.3.0](docs/forensic_engine/E6_MANIFEST_SQLITE.md)
+- [E6 actual: WAL/SHM sobre conjuntos preservados, motor 0.4.0](docs/forensic_engine/E6_WAL_SHM.md)
 
 ## Disclaimer
 

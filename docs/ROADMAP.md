@@ -28,6 +28,11 @@ Continuidad: [motor 0.3.0](forensic_engine/E6_MANIFEST_SQLITE.md) incorpora File
 Manifest.db y catálogo SQLite ordinario sobre copias privadas, sin extender esa
 validación sintética a registros lógicos, sidecars o dispositivos reales.
 
+Continuidad actual: [motor 0.4.0, WAL/SHM acotados](forensic_engine/E6_WAL_SHM.md),
+instantánea derivada del último commit y cabeceras SHM contrastadas sobre conjuntos
+preservados. Continúan pendientes formatos fuera del perfil, registros lógicos,
+capturas consistentes autorizadas por versión y validación en dispositivos reales.
+
 ## Near Term
 
 - Refactor shared models into canonical modules.

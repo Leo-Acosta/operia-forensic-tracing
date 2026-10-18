@@ -1,8 +1,11 @@
 # Catálogo de lectores implementados
 
-Lectores versión 1.0.0, de implementación propia y sin dependencias entre ellos.
+Lectores versión 1.0.0, de implementación propia. Los perfiles WAL reutilizan los
+lectores SQLite sobre su imagen derivada; no dependen de resultados de otros jobs.
 Fuente global de hasta 5 MiB; los metadatos de backup se limitan a 1 MiB.
-Hasta 5000 registros; los lectores de líneas limitan cada línea a 8192 caracteres.
+Hasta 5000 registros interpretados; los perfiles de conjunto WAL añaden un artefacto
+de procedencia (máximo 5001 artefactos). Los lectores de líneas limitan cada línea
+a 8192 caracteres. Se mantiene la cuota global de salida de 16 MiB.
 
 | ID | Entrada | Campos interpretados | Localizador | Exclusiones |
 |---|---|---|---|---|
@@ -14,6 +17,9 @@ Hasta 5000 registros; los lectores de líneas limitan cada línea a 8192 caracte
 | operia.ios.backup-manifest-db | imagen SQLite UTF-8 rollback, tabla Files de cinco columnas | fileID, domain, relativePath, flags 1/2 | Files/fileID:<id> | BLOB file, fechas, archivos físicos, WAL/SHM y variantes de esquema |
 | operia.ios.sqlite-catalog | imagen SQLite del perfil ordinario | tipo, nombre y tabla de tablas/índices | sqlite_schema/<tipo>/<nombre escapado> | DDL, columnas, filas, vistas/triggers y esquemas activos |
 | operia.android.sqlite-catalog | mismo perfil SQLite acotado | tipo, nombre y tabla de tablas/índices | sqlite_schema/<tipo>/<nombre escapado> | DDL, columnas, filas y recuperación de registros |
+| operia.ios.manifest-wal-set | paquete operia.sqlite-set/1 | procedencia de componentes/derivada y Files del último commit WAL | sqlite-set/provenance y derived/Files/fileID:<id> | BLOB, archivos físicos, fechas y transacciones intermedias |
+| operia.ios.sqlite-wal-set | mismo paquete preservado | procedencia y catálogo SQLite del último commit | sqlite-set/provenance y derived/sqlite_schema/... | registros arbitrarios, DDL y recuperación de borrados |
+| operia.android.sqlite-wal-set | mismo paquete preservado | procedencia y catálogo SQLite del último commit | sqlite-set/provenance y derived/sqlite_schema/... | registros arbitrarios y contenido lógico |
 
 Payloads inválidos y líneas no reconocidas conservan localizador y motivo en
 exclusiones. Las claves plist duplicadas se rechazan; profundidad/nodos son
@@ -28,7 +34,7 @@ logcat no son eventos. Los registros duplicados se enlazan y no duplican alertas
 Oráculos manuales y datos: tests/fixtures/native_mobile/README.md. No se usaron
 adquisiciones reales ni salidas de otro motor como verdad de referencia.
 
-Motor actual 0.3.0: ocho lectores y siete formatos distintos. [Contrato y límites
-SQLite](E6_MANIFEST_SQLITE.md); se mantiene el [tramo anterior](E6_BACKUP_METADATA.md).
+Motor actual 0.4.0: once lectores y nueve formatos distintos. [Contrato WAL/SHM](E6_WAL_SHM.md),
+[límites SQLite](E6_MANIFEST_SQLITE.md) y [tramo plist anterior](E6_BACKUP_METADATA.md).
 Los perfiles SQLite requieren los controles de la compilación validada, rechazan
 esquemas incompatibles y nunca abren la evidencia como una base de datos en disco.

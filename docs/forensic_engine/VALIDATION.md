@@ -1,5 +1,40 @@
 # Validación verificable
 
+## E6: WAL/SHM sobre conjuntos preservados, 2026-10-18
+
+Motor **0.4.0**, [contrato y límites](E6_WAL_SHM.md). Dos formatos nuevos y tres
+lectores registrados entre iOS y Android; once lectores y nueve formatos totales. Paquete preservado
+con bytes y SHA-256 de DB/WAL/SHM, instantánea del último commit y cabeceras SHM
+contrastadas; imagen derivada identificada por hash y transformaciones expresas.
+
+Pruebas específicas: **32 de lector/CLI y 3 recorridos con workers reales aprobados**.
+SQLite nativo como oráculo con datos sintéticos, dos filas/commits y flags 2/1;
+WAL de checksums little/big y SHM de cabecera little/big, sin hardware big-endian.
+Crecimiento/truncamiento, cola sin commit excluida, corrupción y esquemas activos
+rechazados, cuotas, empaquetado y salida sin sobrescritura. Workers AppContainer:
+revisión posterior, informe/exportación estables, concesión/revocación, solo lectura
+y organización ajena. El intento inicial conjunto aprobó 81 y falló en 3 expectativas
+HTTP: el sistema denegaba correctamente con 404 y el test esperaba 403. Se corrigió
+el test y se comprobó que la denegación no agrega revisiones, sin cambiar autorización.
+
+Regresión completa final: **373 aprobadas, 1 omitida, 0 fallos/errores y 4 advertencias
+de deprecación conocidas**. Ollama real requiere opt-in explícito. Frontend:
+**52 aprobadas** y compilación TypeScript/Vite correcta, con extensiones SQLite/JSON
+y ayuda accesible para seleccionar el paquete. Los recuentos se superponen con la
+regresión; no se suman como pruebas diferentes.
+
+Preservación final: **74 tablas con todos sus valores, esquema, 9 triggers y 116
+archivos persistentes sin cambios**. Respaldo y copia restaurada con SHA-256 idéntico
+e `integrity_check` correcto. Sin migración ni reescritura de históricos.
+Runtime `c2db06bdd16ee6a05b5cce87`: 692 archivos verificados en runtime operativo,
+archivo privado y restauración; se conservaron los anteriores. El archivo privado
+no se ejecutó. Python 3.12.14/SQLite 3.53.1/Windows; sin dependencias nuevas.
+
+[Auditoría](../audits/e6-wal-shm-20261018.json). No acredita adquisición simultánea
+ni asociación auténtica DB/WAL, capturas concurrentes, otras variantes/VFS,
+SHM multibloque/índices/locks, archivos lógicos, muestras reales o validación física
+de accesibilidad. Los registros siguientes conservan la historia de sus entregas.
+
 ## E6: Manifest.db y SQLite acotados, 2026-10-18
 
 Motor 0.3.0: [contrato y cobertura](E6_MANIFEST_SQLITE.md). Dos perfiles nuevos,

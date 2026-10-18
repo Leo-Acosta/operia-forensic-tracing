@@ -9,7 +9,9 @@
 | iOS | no verificado | Manifest.plist XML UTF-8/binario / backup-manifest 1.0.0 | booleano estricto, XML/binario, tipos inválidos, canarios secretos excluidos; worker real aislado | declaración de cifrado; sin verificarlo criptográficamente, sin leer Manifest.db ni descifrar |
 | iOS | no verificado | Manifest.db / backup-manifest-db 1.0.0 | imágenes originales sintéticas; campos/locadores manuales, canarios BLOB, cuotas y worker aislado real | solo declaraciones Files; sin archivos físicos, fechas ni BLOB |
 | iOS/Android | no verificado | SQLite / sqlite-catalog 1.0.0 | imágenes originales sintéticas, esquemas hostiles y ambos workers de plataforma | solo catálogo de nombres/tipos de tablas e índices ordinarios; no registros |
-| iOS/Android | cualquier otra combinación | backup completo, WAL/SHM, mensajes/historial SQLite, bugreport completo, CMS, cifrado o archivos comprimidos | ninguna | no soportado; no se declara analizado |
+| iOS | no verificado | conjunto Manifest.db/WAL/SHM / manifest-wal-set 1.0.0 | SQLite real con datos sintéticos, dos commits, corrupción, crecimiento y truncamiento; worker aislado real | Files del último commit más procedencia; sin BLOB ni archivos físicos |
+| iOS/Android | no verificado | conjunto SQLite/WAL/SHM / sqlite-wal-set 1.0.0 | oráculo SQLite nativo, checksum WAL little/big, SHM de cabecera little/big, cola no comprometida y ambos workers | solo catálogo y procedencia; SHM auxiliar, sin tablas hash/locks; no hardware big-endian |
+| iOS/Android | cualquier otra combinación | backup completo, WAL/SHM fuera del perfil, mensajes/historial SQLite, bugreport completo, CMS, cifrado o archivos comprimidos | ninguna | no soportado; no se declara analizado |
 
 Núcleo probado en Python 3.12.14/Windows y SQLite 3.53.1 para los perfiles nuevos;
 [límites detallados](E6_MANIFEST_SQLITE.md). Worker Windows local probado mediante
@@ -28,3 +30,7 @@ versionado y resultados esperados documentados antes de habilitar el formato.
 La ampliación E6 solo acredita estructura y recorrido con fixtures autorizados de
 prueba. El acceso a muestras reales y la validación por versión de OS permanecen
 pendientes; no se extiende esa evidencia sintética a dispositivos reales.
+
+Motor 0.4.0: [conjuntos preservados WAL/SHM](E6_WAL_SHM.md), máximo 1024 frames,
+SHM opcional de un bloque y paquete completo de hasta 5 MiB. El soporte acotado
+no convierte los lectores de imagen principal anteriores en lectores de sidecars.

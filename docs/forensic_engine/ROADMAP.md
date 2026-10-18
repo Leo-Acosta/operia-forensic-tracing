@@ -37,3 +37,9 @@ Files de Manifest.db y catálogo de tablas/índices están implementados y proba
 con datos sintéticos; la fila P6 sigue pendiente para WAL/SHM, archivos lógicos,
 otras variantes y adquisiciones reales. La referencia anterior a Manifest.db
 pendiente corresponde al estado histórico 0.2.0.
+
+Continuidad 0.4.0: [WAL/SHM acotados](E6_WAL_SHM.md) implementados sobre conjuntos
+preservados con hashes individuales, último commit comprobado y SHM auxiliar.
+No completa P6: faltan corpus real, otras variantes/VFS, capturas concurrentes,
+registros lógicos y validación por OS. Las exclusiones de entregas anteriores se
+conservan como historia y siguen aplicando a sus lectores de imagen principal.

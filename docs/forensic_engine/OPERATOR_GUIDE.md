@@ -1,9 +1,10 @@
 # Operación local del motor propio
 
-Motor 0.3.0: añade `apple-backup-manifest-sqlite` (iOS) y
-`sqlite-schema-catalog` (iOS/Android), conservando los formatos anteriores.
-Antes de actualizar el runtime, consultar el [contrato y tratamiento de trabajos
-de otra versión](E6_MANIFEST_SQLITE.md).
+Motor 0.4.0: incorpora conjuntos `apple-backup-manifest-wal-set` (iOS) y
+`sqlite-wal-catalog-set` (iOS/Android), conservando los formatos anteriores.
+Preparar el paquete desde copias preservadas según el [contrato WAL/SHM](E6_WAL_SHM.md).
+No subir WAL/SHM sueltos como imágenes principales. Antes de actualizar el runtime,
+consultar allí el tratamiento de trabajos de otra versión.
 
 1. Instalar dependencias existentes de OPERIA en .venv e iniciar API/frontend según
    README. No instalar otro motor. Para pruebas, requirements-dev.txt.
@@ -42,8 +43,9 @@ No sobrescribe salida. Fixture sintético, no instalar en un dispositivo. Los no
 de archivo recibidos por la API no admiten rutas ni caracteres especiales.
 
 Límites: no adquiere dispositivos, no descifra, no interpreta backups completos,
-WAL/SHM, registros arbitrarios SQLite, CMS ni archivos comprimidos. SQLite se limita
-a los [dos perfiles explícitos](E6_MANIFEST_SQLITE.md). Geo Trace e IA no son conectores del motor. PDF/Word disponibles mediante
+registros arbitrarios SQLite, CMS ni archivos comprimidos. WAL/SHM se limita al
+[perfil de conjuntos preservados](E6_WAL_SHM.md), sin journaling rollback, versiones
+intermedias ni recuperación de borrados. Geo Trace e IA no son conectores del motor. PDF/Word disponibles mediante
 la incorporación revisada al módulo de informes. No modifica dispositivos,
 abre enlaces o envía datos a servicios externos. Contención/recuperación son separadas.
 
