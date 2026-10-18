@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from operia.forensic_engine.analysis import analyze, capabilities
+from operia.forensic_engine import ENGINE_VERSION
 from operia.forensic_engine.canonical import canonical_bytes, sha256
 from operia.forensic_engine.contracts import Source, EngineInputError
 from test_native_mobile_workflow import setup, enqueue, database_factory, native_review
@@ -68,7 +69,7 @@ def test_schema_types_duplicates_limits_and_partial_inventory():
     assert not analyze(source(raw=deep))['artifacts']
 
 def test_core_remains_standalone_and_capabilities_are_versioned(tmp_path):
-    assert capabilities()['version']=='0.2.0' and len(capabilities()['readers'])==5
+    assert capabilities()['version']==ENGINE_VERSION and len(capabilities()['readers'])==8
     for kind,expected in [('info',5),('manifest',1)]:
         target=tmp_path/(kind+'.json')
         subprocess.run([sys.executable,'-S','-m','operia.forensic_engine',str(FIXTURES/f'backup-{kind}.plist'),
@@ -95,7 +96,7 @@ def test_previous_version_pending_job_is_preserved_and_new_job_is_explicit(clien
     assert new['id']!=job['id']
     assert worker.run_once(database_factory(),timeout=15)
     current=client.get(root+f"/jobs/{new['id']}",headers=admin_headers).json()
-    assert current['result']['engine']['version']=='0.2.0'
+    assert current['result']['engine']['version']==ENGINE_VERSION
     assert client.get(root+f"/jobs/{job['id']}",headers=admin_headers).json()['job']==previous
     assert client.get(root+f"/acquisitions/{acquisition['id']}/original",headers=admin_headers).content==original
 

@@ -1,5 +1,10 @@
 # Procedencia y componentes
 
+Continuidad 2026-10-18, motor 0.3.0: lector SQLite propio basado en la API estándar
+de Python/SQLite y esquema Files observado; [referencias y límites](E6_MANIFEST_SQLITE.md).
+Imágenes sintéticas generadas por pruebas originales, sin copiar corpus ni código
+externo. No añade paquetes. Compilación validada: Python 3.12.14, SQLite 3.53.1.
+
 El propietario cambió el alcance de integración externa a implementación propia.
 Existe exposición previa al ecosistema/código de MVT en el contexto del proyecto;
 en esta conversación constan consultas a documentación/licencia y referencias a

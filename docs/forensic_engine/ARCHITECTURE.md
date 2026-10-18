@@ -1,7 +1,12 @@
-# Motor Forense Móvil de OPERIA — 0.2.0
+# Motor Forense Móvil de OPERIA — 0.3.0
 
 Nombre funcional provisional. Implementación propia para análisis posterior a una
 adquisición autorizada. Sin adquisición directa, explotación, remediación ni IA.
+
+SQLite se deserializa desde bytes preservados en una conexión privada en memoria.
+No se abre la adquisición como base de datos ni se ejecutan consultas del cliente.
+Consultas fijas, autorizador, configuración defensiva, cuotas y controles del SO
+limitan los [perfiles Manifest.db/catálogo](E6_MANIFEST_SQLITE.md).
 
 ```mermaid
 flowchart LR

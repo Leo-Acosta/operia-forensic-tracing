@@ -73,3 +73,11 @@ verificaron hashes y manifiestos. Los runtimes anteriores se conservan. Una copi
 de runtime archivada con ACL privada no se ejecutó: para volver a operar se prepara
 un runtime no secreto de lectura/ejecución siguiendo `prepare_worker_sandbox.py`,
 con API y workers detenidos. No se concede acceso al depósito ni a la base.
+
+Continuidad 0.3.0: [Manifest.db y catálogo SQLite](E6_MANIFEST_SQLITE.md) siguen
+el mismo procedimiento aditivo, sin migración de tablas ni reescritura de exámenes.
+Respaldo privado independiente `storage/temp/e6-manifest-sqlite-20261018`, con
+base, 116 archivos y copias recuperadas verificadas. Se conserva el nombre interno
+`pre-e5.db` del helper de respaldo; corresponde al estado previo de esta entrega,
+no a una nueva migración E5. Los pendientes de versiones anteriores fallan cerrados;
+los informes y resultados completados conservan sus bytes y referencias.

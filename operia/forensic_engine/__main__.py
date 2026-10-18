@@ -12,7 +12,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("source", type=Path)
     parser.add_argument("--platform", required=True, choices=("ios", "android"))
-    parser.add_argument("--format", required=True, choices=tuple(reader.format for reader in reader_order()))
+    parser.add_argument("--format", required=True, choices=tuple(sorted({reader.format for reader in reader_order()})))
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--indicators", type=Path)
     parser.add_argument("--demo-rules", action="store_true")

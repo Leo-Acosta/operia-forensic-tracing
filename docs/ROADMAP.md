@@ -1,6 +1,6 @@
 # Roadmap
 
-Estado actualizado al 2026-10-17: consultar la [matriz E0/E1](E0_E1_SECURITY_BASELINE.md).
+Estado actualizado al 2026-10-18: consultar la [matriz de continuidad](DELIVERY_STATUS.md).
 Las listas siguientes conservan la planificación inicial y no acreditan pendientes
 actuales. E2 se implementa en [custodia append-only](CUSTODY_APPEND_ONLY.md).
 E3 incorpora [permisos por expediente](CASE_ACCESS_CONTROL.md). E4 ya incorpora la
@@ -22,7 +22,11 @@ El registro pendiente de dispositivos reales está en [accesibilidad asistida](A
 
 E6 incorpora el [motor 0.2.0 y dos lectores de metadatos de backups iOS](forensic_engine/E6_BACKUP_METADATA.md).
 La validación del proveedor real usa procesos aislados y fixtures sintéticos;
-la cobertura de SQLite/WAL/SHM, archivos lógicos y adquisiciones reales sigue pendiente.
+la cobertura amplia de SQLite/WAL/SHM, archivos lógicos y adquisiciones reales sigue pendiente.
+
+Continuidad: [motor 0.3.0](forensic_engine/E6_MANIFEST_SQLITE.md) incorpora Files de
+Manifest.db y catálogo SQLite ordinario sobre copias privadas, sin extender esa
+validación sintética a registros lógicos, sidecars o dispositivos reales.
 
 ## Near Term
 

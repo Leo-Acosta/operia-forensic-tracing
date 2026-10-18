@@ -31,3 +31,9 @@ lectores de metadatos de backup iOS y validación sintética. La fila P6 anterio
 describe el alcance más amplio: Manifest.db/SQLite/WAL, archivos lógicos y
 bugreport siguen pendientes. Se conservan el roadmap y las evidencias históricas;
 la extracción de metadatos no se presenta como validación de adquisiciones reales.
+
+Siguiente tramo E6: [motor 0.3.0 y lectores SQLite acotados](E6_MANIFEST_SQLITE.md).
+Files de Manifest.db y catálogo de tablas/índices están implementados y probados
+con datos sintéticos; la fila P6 sigue pendiente para WAL/SHM, archivos lógicos,
+otras variantes y adquisiciones reales. La referencia anterior a Manifest.db
+pendiente corresponde al estado histórico 0.2.0.

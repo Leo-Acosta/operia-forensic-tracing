@@ -1,0 +1,127 @@
+{
+  "schema": "operia-e6-manifest-sqlite-audit/1",
+  "date": "2026-10-18",
+  "base_commit": "0dde932",
+  "engine_version": "0.3.0",
+  "result_schema": "operia.forensic/1",
+  "scope": "Original bounded Manifest.db Files declarations and SQLite ordinary table/index catalog; private in-memory deserialized preserved bytes; fixed queries only",
+  "readers": [
+    {
+      "id": "operia.ios.backup-manifest-db",
+      "version": "1.0.0",
+      "format": "apple-backup-manifest-sqlite"
+    },
+    {
+      "id": "operia.ios.sqlite-catalog",
+      "version": "1.0.0",
+      "format": "sqlite-schema-catalog"
+    },
+    {
+      "id": "operia.android.sqlite-catalog",
+      "version": "1.0.0",
+      "format": "sqlite-schema-catalog"
+    }
+  ],
+  "reader_total": 8,
+  "format_total": 7,
+  "runtime": {
+    "python": "3.12.14",
+    "sqlite": "3.53.1",
+    "platform": "Windows",
+    "identity": "6032ff7dbb559eaa65685660",
+    "files_verified_in_archive_and_restored_copy": 691,
+    "restored_archive_executed": false,
+    "previous_runtimes_retained": true,
+    "network_disabled_in_worker": true,
+    "os_resource_limits_increased": false
+  },
+  "controls": {
+    "source_max_bytes": 5242880,
+    "schema_max_objects": 128,
+    "max_columns": 64,
+    "max_files_rows": 5000,
+    "max_sqlite_value_bytes": 262144,
+    "max_sql_bytes": 8192,
+    "vm_budget_steps": 100000,
+    "progress_interval_steps": 1000,
+    "native_schema_initialization_bounded_by_source_and_os_limits": true,
+    "defensive": true,
+    "trusted_schema": false,
+    "extensions_triggers_views_enabled": false,
+    "query_only": true,
+    "attached_databases_allowed": 0,
+    "client_sql_allowed": false,
+    "evidence_opened_as_database_path": false,
+    "blob_file_selected": false,
+    "active_schema_and_nonordinary_indexes_rejected": true,
+    "wal_header_rewritten": false
+  },
+  "validation": {
+    "focused": {
+      "passed": 49,
+      "failed": 0,
+      "warnings": 4,
+      "artifact": "storage/test_runs/e6-manifest-sqlite-focused.xml"
+    },
+    "general_backend": {
+      "status": "passed",
+      "artifact": "storage/test_runs/e6-manifest-sqlite-regression.xml",
+      "tests": 339,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "passed": 338,
+      "warnings": 4,
+      "skip_details": [
+        {
+          "test": "test_real_ollama_case_and_tenant_isolation",
+          "reason": "Real Ollama requires explicit operator opt-in"
+        }
+      ]
+    },
+    "frontend": {
+      "passed": 52,
+      "failed": 0,
+      "build": "TypeScript and Vite passed",
+      "new_visual_or_physical_accessibility_validation": false
+    },
+    "method": "Original synthetic SQLite images generated in tests; manual oracle; malicious-looking identifiers, active schema rejection, SQL allowlist, BLOB and row canaries, WAL/truncation/encoding/quota rejection, actual CLI -S; three real isolated workers, review, report integration, grant/revocation and unchanged original",
+    "suite_counts_overlap": true,
+    "initial_sandbox_temp_error": "Core tests initially encountered two pytest temporary-directory permission errors; elevated rerun passed all 27 selected tests",
+    "real_device_corpus": false,
+    "spyware_detection_accuracy_measured": false
+  },
+  "preservation": {
+    "private_backup": "storage/temp/e6-manifest-sqlite-20261018",
+    "database_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7",
+    "existing_tables": 74,
+    "existing_triggers": 9,
+    "persistent_files_backed_up_restored_and_verified": 116,
+    "initial_integrity_check": "ok",
+    "usual_database_migrated": false,
+    "historical_results_recomputed": false,
+    "runtime_archive": "runtime-final-0.3.0",
+    "runtime_restored_copy": "restored-runtime-final-0.3.0",
+    "final_preservation_status": "passed",
+    "final_comparison": {
+      "tables_unchanged": 74,
+      "schema_unchanged": true,
+      "files_unchanged_and_restored": 116,
+      "triggers": 9,
+      "integrity": "ok",
+      "backup_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7",
+      "restored_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7"
+    }
+  },
+  "dependencies_added": [],
+  "hours": "Human-hours ledger unchanged; no AI runtime or test duration charged",
+  "pending": [
+    "WAL/SHM/journal consistency and replay",
+    "Logical backup files and application-specific SQLite records",
+    "Encrypted databases and NSKeyedArchiver",
+    "Authorized real-device corpus and OS-specific validation",
+    "Physical assistive technology validation",
+    "E7/E8 production acceptance"
+  ],
+  "saas_complete": false
+}

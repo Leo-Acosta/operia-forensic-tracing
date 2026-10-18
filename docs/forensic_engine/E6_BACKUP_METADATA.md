@@ -1,5 +1,9 @@
 # E6: metadatos de backups iOS, motor 0.2.0
 
+Este documento conserva la entrega histórica 0.2.0. La continuidad actual es
+[Manifest.db y catálogo SQLite, motor 0.3.0](E6_MANIFEST_SQLITE.md); sus límites
+no se atribuyen retrospectivamente a esta validación.
+
 Entrega del 2026-10-18. El motor amplía su catálogo de tres a cinco lectores.
 Son implementaciones propias de lectura pasiva posteriores a la adquisición;
 no se instala ni se ejecuta otro motor. El núcleo continúa usando solo stdlib.

@@ -1,5 +1,39 @@
 # Validación verificable
 
+## E6: Manifest.db y SQLite acotados, 2026-10-18
+
+Motor 0.3.0: [contrato y cobertura](E6_MANIFEST_SQLITE.md). Dos perfiles nuevos,
+tres registros de lector por plataforma y ocho lectores totales. Imágenes SQLite
+sintéticas generadas en pruebas originales; oráculo manual de campos y localizadores.
+No hay corpus real ni validación por versión de iOS/Android.
+
+Suite focalizada: **49 aprobadas**, incluyendo los lectores anteriores, CLI real
+con Python `-S` y tres workers AppContainer/Job Object reales. Pruebas de consulta
+fija, bloqueo de SQL/funciones/adjuntos/BLOB, esquemas activos, WAL/truncamiento,
+encoding, exclusiones y cuotas; revisión, incorporación, informe preservado,
+concesión/revocación y descarga exacta del original.
+
+Regresión completa: **338 aprobadas, 1 omitida, 0 fallos/errores y 4 advertencias
+de deprecación conocidas**. La omitida es Ollama real, que exige opt-in explícito.
+Frontend: **52 aprobadas**, compilación TypeScript/Vite correcta. Los recuentos
+focalizados están incluidos en la regresión, no se suman como pruebas distintas.
+El primer intento de pruebas unitarias tuvo dos errores de temporales del sandbox;
+la repetición con permisos del entorno de prueba aprobó las 27 seleccionadas.
+
+Comparación final contra respaldo de esta entrega: **74 tablas y todos sus valores,
+esquema, 9 triggers y 116 archivos persistentes sin cambios**. `integrity_check`
+correcto; respaldo/restauración con SHA-256 idéntico. No hay migración de datos.
+Runtime `6032ff7dbb559eaa65685660`: 691 archivos verificados en runtime operativo,
+archivo privado y copia restaurada; runtimes previos conservados. El archivo privado
+restaurado no se ejecutó. Pruebas en Python 3.12.14/SQLite 3.53.1/Windows.
+
+[Auditoría de entrega](../audits/e6-manifest-sqlite-20261018.json), con ubicación de
+artefactos de prueba privados. Siguen pendientes corpus real, WAL/SHM, archivos
+lógicos, otras variantes y validación física de accesibilidad. Los registros que
+siguen conservan los resultados históricos de sus respectivas versiones.
+
+## Baseline e historia
+
 Baseline antes de modificar componentes existentes: 70 pruebas aprobadas y
 TypeScript/Vite compilados sobre 11a6761. La cifra previa de 57 no es evidencia de
 este motor. Los checks se ejecutan con requirements-dev y fixtures propios.
