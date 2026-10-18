@@ -131,12 +131,16 @@ storage/
 
 ## Documentation
 
+- [Matriz vigente de etapas y pendientes](docs/DELIVERY_STATUS.md)
+
 - [E2: custodia append-only y rectificaciones versionadas](docs/CUSTODY_APPEND_ONLY.md)
 
 - [Estado E0/E1: diagnóstico, respaldo y configuración segura](docs/E0_E1_SECURITY_BASELINE.md)
 - [E4: base visual premium, permisos y validación](docs/FRONTEND_VISUAL_BASE.md)
 - [E4: evidencias, formularios, informes y accesibilidad](docs/E4_EVIDENCE_REPORTS.md)
 - [E4: módulos heredados y revisión de accesibilidad](docs/E4_LEGACY_MODULES.md)
+- [Validación pendiente con tecnologías de asistencia reales](docs/ASSISTIVE_ACCESSIBILITY.md)
+- [E5: laboratorio estático — importación pasiva, entrega parcial](docs/STATIC_LAB.md)
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [API Routes](docs/API_ROUTES.md)

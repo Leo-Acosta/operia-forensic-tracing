@@ -122,6 +122,7 @@ SQLITE_PLATFORM_COLUMNS: dict[str, dict[str, str]] = {
 def init_platform_schema() -> None:
     """Create tables and add additive SQLite columns needed by the modular platform."""
     from operia.identity.case_access import CaseAccessEvent
+    from operia.static_lab.models import StaticImport
     Base.metadata.create_all(bind=engine)
     record_schema_version(description="Esquema modular OPERIA con controles operativos base.")
     if engine.dialect.name != "sqlite":
@@ -141,3 +142,5 @@ def init_platform_schema() -> None:
         install_sqlite_protection(connection)
         from operia.identity.case_access import install_protection
         install_protection(connection)
+        from operia.static_lab.models import install_protection as install_static_protection
+        install_static_protection(connection)

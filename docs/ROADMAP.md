@@ -13,6 +13,11 @@ se completó el 2026-10-18. Continúa pendiente la validación con lectores de p
 y dispositivos físicos; no hay certificación global WCAG. Las pantallas de estado
 Geo Trace, Geo Proximity y exportaciones conservan su alcance funcional previo.
 
+E5 incorpora la [importación pasiva de resultados estáticos](STATIC_LAB.md), con
+custodia, hashes y aislamiento por expediente. Es una entrega parcial: faltan
+proveedor real validado, trabajos, revisión versionada e interfaz del laboratorio.
+El registro pendiente de dispositivos reales está en [accesibilidad asistida](ASSISTIVE_ACCESSIBILITY.md).
+
 ## Near Term
 
 - Refactor shared models into canonical modules.

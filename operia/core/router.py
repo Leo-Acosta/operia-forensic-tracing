@@ -66,3 +66,6 @@ api_router.include_router(reports_router, dependencies=[Depends(enforce_scope)],
 api_router.include_router(rubrics_router, dependencies=[Depends(enforce_scope)], prefix="/rubrics", tags=["rubrics"])
 api_router.include_router(exports_router, dependencies=[Depends(enforce_scope)], prefix="/exports", tags=["exports"])
 api_router.include_router(settings_router, prefix="/settings", tags=["settings"])
+
+from operia.static_lab.router import router as static_lab_router
+api_router.include_router(static_lab_router, tags=["static-lab"])

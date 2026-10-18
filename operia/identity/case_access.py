@@ -165,7 +165,7 @@ def request_capability(request, module, writing):
         return "analysis"
     if module == "reports" or (module == "legal-report" and ("/reports" in path or "/report-sections/" in path or "/presentations" in path or "/presentation-slides/" in path)):
         return "reports"
-    if module in ("ai", "ai-security", "mind", "geo", "geo-trace", "geo-proximity", "cybercrime"):
+    if module in ("ai", "ai-security", "mind", "geo", "geo-trace", "geo-proximity", "cybercrime", "static-lab"):
         return "analysis"
     if module == "mobile-forensics":
         return "analysis" if "/jobs" in path else "evidence"

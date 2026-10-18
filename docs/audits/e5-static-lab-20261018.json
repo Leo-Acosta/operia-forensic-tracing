@@ -1,0 +1,59 @@
+{
+  "schema": "operia-static-lab-audit/1",
+  "date": "2026-10-18",
+  "base_commit": "d06b955",
+  "stage": "E5 partial",
+  "scope": [
+    "strict passive import",
+    "preserved evidence hash check",
+    "append-only original and normalized results",
+    "case authorization and custody"
+  ],
+  "provider_execution": false,
+  "real_provider_validated": false,
+  "sample_execution": false,
+  "external_network_calls": false,
+  "actual_database_migrated": false,
+  "migration": "20261018_0008",
+  "preservation": {
+    "old_tables_preserved_on_migration_copy": 74,
+    "old_schema_objects_preserved": true,
+    "triggers_after": 11,
+    "integrity": "ok",
+    "files_restored": 116,
+    "backup_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7",
+    "actual_database_not_migrated": true
+  },
+  "validation": {
+    "specific_tests": 6,
+    "frontend_tests": 47,
+    "frontend_build": "passed",
+    "bandit": "not available in installed test runtime; not executed",
+    "final_case_access_custody_and_e5": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "45",
+      "time": "160.803",
+      "timestamp": "2026-10-18T01:24:45.970746-03:00"
+    },
+    "full_backend_regression": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "1",
+      "tests": "279",
+      "time": "595.463",
+      "timestamp": "2026-10-18T01:19:49.789844-03:00"
+    }
+  },
+  "pending": [
+    "real provider and dedicated validated OS profile",
+    "persistent provider jobs and cancellation",
+    "versioned professional review and finding/report projection",
+    "premium laboratory interface",
+    "NVDA/VoiceOver/TalkBack on physical devices"
+  ],
+  "human_hours_added": 0
+}

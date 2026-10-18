@@ -152,6 +152,10 @@ def validate_writes(db, context, instances):
             if item.__tablename__ == "geo_trace_targets" and db.query(AnalysisProjection).filter_by(geo_analysis_id=item.analysis_id).first():
                 raise HTTPException(409, "Target proyectado preservado")
             name = item.__tablename__
+            if name == "evidence":
+                from operia.static_lab.models import StaticImport
+                if db.query(StaticImport).filter_by(evidence_id=item.id).first() and (item in db.deleted or db.is_modified(item, include_collections=False)):
+                    raise HTTPException(409, "Evidencia vinculada a resultado estático preservado")
             if name in {"report_sections", "report_versions"}:
                 if db.query(EvidenceIntegration).filter_by(report_id=item.report_id).first():
                     raise HTTPException(409, "Seccion o version integrada preservada")
@@ -169,7 +173,7 @@ async def enforce_scope(request: Request, db: Session = Depends(get_db), user: C
     writing = request.method not in ("GET", "HEAD", "OPTIONS")
     permissions = {"evidence": "evidence", "reports": "reports", "exports": "reports", "legal-report": "reports", "rubrics": "reports",
                    "legal": "legal", "legal-knowledge": "legal", "cases": "cases", "cybercrime": "evidence",
-                   "geo": "evidence", "geo-trace": "evidence", "geo-proximity": "evidence", "mobile-forensics": "evidence"}
+                   "geo": "evidence", "geo-trace": "evidence", "geo-proximity": "evidence", "mobile-forensics": "evidence", "static-lab": "evidence"}
     permission = permissions.get(module, "cases") + (":write" if writing else ":read")
     if module in ("ai", "mind", "ai-security") and writing:
         permission = "ai:use"
@@ -200,6 +204,9 @@ async def enforce_scope(request: Request, db: Session = Depends(get_db), user: C
         raise HTTPException(404, "Caso no disponible")
 
     if request.method == "DELETE" and case_id is not None:
+        from operia.static_lab.models import StaticImport
+        if request.url.path == settings.api_prefix + f"/cases/{case_id}" and db.query(StaticImport).filter_by(case_id=int(case_id)).first():
+            raise HTTPException(409, "Expediente con resultados estáticos preservados")
         from operia.forensic_jobs.models import Acquisition, IndicatorSet, ExaminationJob
         from operia.mobile_forensics.models import MobileExam, MobileDevice
         for model in (Acquisition, IndicatorSet, ExaminationJob, MobileExam, MobileDevice):
