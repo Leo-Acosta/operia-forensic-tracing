@@ -1,3 +1,4 @@
+import StaticLaboratory from "@/components/static-lab/static-laboratory";
 import { guardCaseResult } from "@/lib/case-result";
 import { Card } from "@/components/ui/card";
 import { ModuleSurface } from "@/components/layout/module-surface";
@@ -67,6 +68,7 @@ type ModuleKey =
   | "blockchainForensics"
   | "iotForensics"
   | "mobileForensics"
+  | "staticLab"
   | "externalTools"
   | "aiSecurity"
   | "geoTrace"
@@ -163,6 +165,8 @@ type ReportItem = {
   author: string;
   review_score: number;
   observations?: string;
+  template_used?: string;
+  markdown_content?: string;
 };
 
 type ReportPreview = {
@@ -775,6 +779,7 @@ const modules: Array<{ key: ModuleKey; label: string; icon: typeof BarChart3; se
   { key: "deepfakeMedia", label: "Deepfake / Medios", icon: FileCheck2, section: "Forense" },
   { key: "blockchainForensics", label: "Blockchain Investigation Lab", icon: Globe2, section: "Forense" },
   { key: "iotForensics", label: "IoT Forensics", icon: Shield, section: "Forense" },
+  { key: "staticLab", label: "Laboratorio estático", icon: Shield, section: "Forense" },
   { key: "mobileForensics", label: "Forense móvil", icon: Shield, section: "Forense" },
   { key: "externalTools", label: "Herramientas Externas", icon: Wrench, section: "Forense" },
   { key: "aiSecurity", label: "AI Security", icon: BrainCircuit, section: "Forense" },
@@ -1236,6 +1241,7 @@ function formatMoney(amount: number, currency = "ARS") {
 
 function professionalReportStatus(status = "") {
   const normalized = status.toLowerCase();
+  if (normalized === "borrador") return "Borrador";
   if (normalized.includes("cerrado") || normalized.includes("final")) return "Caso Cerrado";
   if (normalized.includes("investigativo") || normalized.includes("enriquecido") || normalized.includes("ia")) return "En Proceso Investigativo";
   if (normalized.includes("análisis") || normalized.includes("análisis")) return "En Proceso de Análisis";
@@ -1438,6 +1444,7 @@ export function App({ initialModule = "cases" }: { initialModule?: ModuleKey } =
   const [caseTask, setCaseTask] = useState("");
   const caseTaskLock = useRef(false);
   const [caseFeedback, setCaseFeedback] = useState("");
+  const [labDirty, setLabDirty] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
   const [evidence, setEvidence] = useState<EvidenceItem[]>([]);
   const [participants, setParticipants] = useState<CaseParticipant[]>([]);
@@ -1809,6 +1816,10 @@ export function App({ initialModule = "cases" }: { initialModule?: ModuleKey } =
     try {
       if (["workflow", "dashboard", "cases", "evidence", "reports", "casePresentation"].includes(key)) {
         if (!getAuthToken()) return;
+        if (key === "reports" && selectedCaseId) {
+          await refreshCaseCollections(selectedCaseId);
+          return;
+        }
         if (["workflow", "evidence", "reports", "casePresentation"].includes(key) && cases.length) return;
         await refreshCore();
         return;
@@ -1961,7 +1972,7 @@ export function App({ initialModule = "cases" }: { initialModule?: ModuleKey } =
   }
 
   function requestNavigation(action: () => void) {
-    if (editingParticipant || editingEvidence || editingCustody || evidenceFile || evidenceForm.description.trim() || (reportPreview && executiveSummaryDraft !== reportPreview.executive_summary)) setPendingNavigation(() => action);
+    if (labDirty || editingParticipant || editingEvidence || editingCustody || evidenceFile || evidenceForm.description.trim() || (reportPreview && executiveSummaryDraft !== reportPreview.executive_summary)) setPendingNavigation(() => action);
     else action();
   }
 
@@ -4846,6 +4857,8 @@ export function App({ initialModule = "cases" }: { initialModule?: ModuleKey } =
   }
 
   function renderReportsProfessional() {
+    const frozenReport = reports.find(item => item.id === (reportPreview?.report_id ?? latestReport?.id));
+    const staticSnapshot = frozenReport?.template_used === "CPython AST revisado";
     const includedSections = reportPreview?.sections.filter((section) => section.word_count > 0) || [];
     const emptySections = reportPreview?.sections.filter((section) => section.word_count <= 0) || [];
     const missingChecklist = reportPreview?.final_checklist.items.filter((item) => !item.ok) || [];
@@ -4874,7 +4887,7 @@ export function App({ initialModule = "cases" }: { initialModule?: ModuleKey } =
         <div className="module-guidance">
           <div>
             <span>Próximo paso recomendado</span>
-            <strong>{reportNextStep}</strong>
+            <strong>{staticSnapshot ? "Consultá el borrador preservado desde el registro de informes. Las rectificaciones se incorporan desde el laboratorio." : reportNextStep}</strong>
           </div>
           <div>
             <span>Caso activo</span>
@@ -4885,7 +4898,8 @@ export function App({ initialModule = "cases" }: { initialModule?: ModuleKey } =
             <strong>{latestReport ? professionalReportStatus(latestReport.status) : "Sin informe"}</strong>
           </div>
         </div>
-        {latestReport && (
+        {staticSnapshot && <p className="premium-permissions-note">Este informe preserva una incorporación del laboratorio. Para rectificarla, registrá otra revisión e incorporación; el borrador anterior se conserva.</p>}
+        {latestReport && !staticSnapshot && (
           <div className="report-toolbar">
             <Button variant="outline" disabled={!canCase("read", "reports:read") || Boolean(caseTask)} onClick={() => requestNavigation(() => void runCaseTask("Abrir vista previa", () => loadReportPreview()))} className="h-auto min-h-10 whitespace-normal"><FileCheck2 size={16} /> Vista previa profesional</Button>
             <Button variant="outline" disabled={!canCase("review", "reports:write") || Boolean(caseTask)} onClick={() => void runCaseTask("Revisar informe", reviewReport)} className="h-auto min-h-10 whitespace-normal"><CheckCircle2 size={16} /> Revisar</Button>
@@ -4906,6 +4920,7 @@ export function App({ initialModule = "cases" }: { initialModule?: ModuleKey } =
         {!latestReport && <EmptyState text="Todavia no hay informe para el caso seleccionado. Genera un informe para activar la vista de control final." />}
         {renderRubricCompliance()}
         {reportPreview && (
+          staticSnapshot ? <Card className="premium-panel"><h3>Vista previa preservada · {frozenReport?.title}</h3><p>Contenido del borrador original, sin reconstrucción desde datos actuales del expediente.</p><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>{frozenReport?.markdown_content}</pre></Card> :
           <div className="report-preview professional">
             <div className="preview-cover">
               <div>
@@ -7368,6 +7383,7 @@ export function App({ initialModule = "cases" }: { initialModule?: ModuleKey } =
     if (active === "mobileForensics") return selectedCaseId && authToken
       ? <ModuleSurface moduleId="mobileForensics"><MobileForensics key={`${selectedCaseId}:${authToken}`} caseId={Number(selectedCaseId)} caseCapabilities={caseAccess?.caseId === selectedCaseId && caseAccess.token === authToken ? caseAccess.capabilities : []} /></ModuleSurface>
       : <ModuleSurface moduleId="mobileForensics"><h2>Forense móvil</h2><p>Iniciá sesión y seleccioná un caso para registrar dispositivos y exámenes.</p></ModuleSurface>;
+    if (active === "staticLab") return <StaticLaboratory key={`${selectedCaseId}:${authToken}`} caseId={selectedCaseId} sessionKey={authToken} contextLabel={selectedCase ? `${selectedCase.case_code} · ${selectedCase.title}` : undefined} role={activePermissions()} caps={caseAccess?.caseId === selectedCaseId && caseAccess.token === authToken ? caseAccess.capabilities : []} onDirtyChange={setLabDirty} onReports={() => navigateTo("reports")} />;
     if (active === "externalTools") return renderExternalTools();
     if (active === "ai") return renderAi();
     if (active === "aiSecurity") return renderAiSecurity();
@@ -7395,7 +7411,7 @@ export function App({ initialModule = "cases" }: { initialModule?: ModuleKey } =
         {renderActive()}
         <Dialog open={Boolean(pendingNavigation)} onOpenChange={open => { if (!open) setPendingNavigation(null); }}>
           <DialogContent showCloseButton={false} className="max-w-md"><DialogHeader><DialogTitle>Hay un borrador abierto</DialogTitle><DialogDescription>Si cambiás de contexto, se descartarán los cambios sin guardar. Los registros de evidencia y custodia ya guardados se conservarán.</DialogDescription></DialogHeader>
-            <DialogFooter><Button variant="outline" onClick={() => setPendingNavigation(null)} className="h-auto min-h-10 whitespace-normal">Seguir editando</Button><Button onClick={() => { const action = pendingNavigation; setPendingNavigation(null); setEditingParticipant(null); setEditingEvidence(null); setEditingCustody(null); setCustodyReason(""); setEvidenceForm({ description: "", responsible: "", custodian: "" }); setEvidenceFile(null); setEvidenceUploadVersion(version => version + 1); setExecutiveSummaryDraft(reportPreview?.executive_summary || ""); action?.(); }} className="h-auto min-h-10 whitespace-normal">Descartar borrador y continuar</Button></DialogFooter>
+            <DialogFooter><Button variant="outline" onClick={() => setPendingNavigation(null)} className="h-auto min-h-10 whitespace-normal">Seguir editando</Button><Button onClick={() => { const action = pendingNavigation; setPendingNavigation(null); setLabDirty(false); setEditingParticipant(null); setEditingEvidence(null); setEditingCustody(null); setCustodyReason(""); setEvidenceForm({ description: "", responsible: "", custodian: "" }); setEvidenceFile(null); setEvidenceUploadVersion(version => version + 1); setExecutiveSummaryDraft(reportPreview?.executive_summary || ""); action?.(); }} className="h-auto min-h-10 whitespace-normal">Descartar borrador y continuar</Button></DialogFooter>
           </DialogContent>
         </Dialog>
     </ApplicationShell>

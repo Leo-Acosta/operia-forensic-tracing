@@ -89,3 +89,23 @@ def install_job_protection(connection):
         (OLD.state IN ('completed','failed','cancelled','interrupted') AND OLD.state IS NOT NEW.state) OR
         (OLD.result_bytes IS NOT NULL AND (OLD.result_bytes IS NOT NEW.result_bytes OR OLD.result_sha256 IS NOT NEW.result_sha256))
         BEGIN SELECT RAISE(ABORT, 'static_lab_append_only'); END"""))
+
+class StaticProjection(Base):
+    __tablename__ = 'static_lab_projections'
+    __table_args__ = (UniqueConstraint('job_id','review_id','selection_sha256',name='uq_static_projection'),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey('organizations.id'), index=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey('cases.id'), index=True)
+    job_id: Mapped[int] = mapped_column(ForeignKey('static_lab_jobs.id'))
+    review_id: Mapped[int] = mapped_column(ForeignKey('static_lab_reviews.id'))
+    finding_id: Mapped[int] = mapped_column(ForeignKey('findings.id'))
+    report_id: Mapped[int] = mapped_column(ForeignKey('reports.id'))
+    actor_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    selection_sha256: Mapped[str] = mapped_column(String(64))
+    snapshot_sha256: Mapped[str] = mapped_column(String(64))
+    snapshot_bytes: Mapped[bytes] = mapped_column(LargeBinary)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+def install_projection_protection(connection):
+    for operation in ('UPDATE','DELETE'):
+        connection.execute(text(f"CREATE TRIGGER IF NOT EXISTS static_projections_no_{operation.lower()} BEFORE {operation} ON static_lab_projections BEGIN SELECT RAISE(ABORT, 'static_lab_append_only'); END"))

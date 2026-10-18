@@ -8,7 +8,7 @@ import { loadComponent } from './component-runtime.mjs';
 
 const globals = { localStorage: { getItem: () => null, setItem() {}, removeItem() {} }, window: {}, fetch: () => { throw new Error('SSR must not make a network request'); } };
 const { App } = await loadComponent('App.tsx', globals);
-const views = ['dashboard', 'history', 'legalKnowledge', 'cybercrime', 'deepfakeMedia', 'blockchainForensics', 'iotForensics', 'externalTools', 'ai', 'aiSecurity', 'identity', 'settings', 'casePresentation', 'mind', 'mobileForensics', 'geoTrace', 'geoProximity', 'exports'];
+const views = ['staticLab', 'dashboard', 'history', 'legalKnowledge', 'cybercrime', 'deepfakeMedia', 'blockchainForensics', 'iotForensics', 'externalTools', 'ai', 'aiSecurity', 'identity', 'settings', 'casePresentation', 'mind', 'mobileForensics', 'geoTrace', 'geoProximity', 'exports'];
 for (const initialModule of views) {
   test('axe and accessible names: legacy module ' + initialModule, async () => {
     const html = renderToStaticMarkup(React.createElement(App, { initialModule }));

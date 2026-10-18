@@ -54,12 +54,15 @@ PUBLIC_FORBIDDEN_MARKERS = (
 
 def export_markdown(report: Report) -> Path:
     path = new_export_path(f"report-{report.id}.md")
-    path.write_text(report.markdown_content if report.template_used == "Motor propio OPERIA" else normalize_spanish(report.markdown_content), encoding="utf-8")
+    if report.template_used == "CPython AST revisado":
+        path.write_bytes(report.markdown_content.encode("utf-8"))
+    else:
+        path.write_text(report.markdown_content if report.template_used == "Motor propio OPERIA" else normalize_spanish(report.markdown_content), encoding="utf-8")
     return path
 
 
 def export_html(report: Report) -> Path:
-    if report.template_used == "Motor propio OPERIA":
+    if report.template_used in ("Motor propio OPERIA", "CPython AST revisado"):
         path = new_export_path(f"report-{report.id}.html")
         path.write_text("<!doctype html><meta charset='utf-8'><pre>" + escape(report.markdown_content) + "</pre>", encoding="utf-8")
         return path
@@ -99,7 +102,7 @@ def _clean_markdown_text(text: str) -> str:
 
 
 def export_docx(report: Report) -> Path:
-    if report.template_used == "Motor propio OPERIA":
+    if report.template_used in ("Motor propio OPERIA", "CPython AST revisado"):
         document = Document()
         document.add_heading(report.title, 0)
         for line in report.markdown_content.splitlines():
@@ -260,7 +263,7 @@ def export_pdf(report: Report) -> Path:
 
 
 def export_pdf(report: Report) -> Path:
-    if report.template_used == "Motor propio OPERIA":
+    if report.template_used in ("Motor propio OPERIA", "CPython AST revisado"):
         return _export_native_pdf(report)
     path = new_export_path(f"report-{report.id}.pdf")
     case = isolated_case_snapshot(report.case)

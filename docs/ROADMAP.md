@@ -14,8 +14,8 @@ y dispositivos físicos; no hay certificación global WCAG. Las pantallas de est
 Geo Trace, Geo Proximity y exportaciones conservan su alcance funcional previo.
 
 E5 incorpora la [importación pasiva de resultados estáticos](STATIC_LAB.md), con
-custodia, hashes y aislamiento por expediente. Es una entrega parcial: faltan
-la interfaz del laboratorio y la proyección a hallazgos e informes.
+custodia, hashes y aislamiento por expediente. La continuidad de esta entrega agrega
+la [interfaz premium y la incorporación revisada a hallazgos e informes](STATIC_LAB_INTERFACE.md).
 La continuidad incorpora [CPython AST real, trabajos persistentes y revisiones](STATIC_PROVIDER_JOBS.md),
 validados con fuente Python benigna; no acredita análisis APK o de ejecutables.
 El registro pendiente de dispositivos reales está en [accesibilidad asistida](ASSISTIVE_ACCESSIBILITY.md).

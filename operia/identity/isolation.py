@@ -152,6 +152,13 @@ def validate_writes(db, context, instances):
             if item.__tablename__ == "geo_trace_targets" and db.query(AnalysisProjection).filter_by(geo_analysis_id=item.analysis_id).first():
                 raise HTTPException(409, "Target proyectado preservado")
             name = item.__tablename__
+            from operia.static_lab.models import StaticProjection
+            projection_key = {"findings":"finding_id","reports":"report_id"}.get(name)
+            protected = db.query(StaticProjection).filter(getattr(StaticProjection,projection_key)==item.id).first() if projection_key else None
+            if name in {"report_sections","report_versions"}:
+                protected = db.query(StaticProjection).filter_by(report_id=item.report_id).first()
+            if protected and (item in db.deleted or db.is_modified(item,include_collections=False)):
+                raise HTTPException(409,"Incorporación estática preservada; crear una nueva versión")
             if name == "evidence":
                 from operia.static_lab.models import StaticImport, StaticJob
                 if (db.query(StaticImport).filter_by(evidence_id=item.id).first() or db.query(StaticJob).filter_by(evidence_id=item.id).first()) and (item in db.deleted or db.is_modified(item, include_collections=False)):

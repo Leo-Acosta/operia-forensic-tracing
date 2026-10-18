@@ -163,3 +163,7 @@ una nueva inspección visual ni pruebas físicas de lectores de pantalla.
 Comprobación final sobre la versión corregida: **38 pruebas aprobadas** de
 trabajos, importación y custodia, incluido el worker CLI en un proceso nuevo.
 La regresión general y esta tanda se superponen; no se suman como casos únicos.
+
+Continuidad posterior del 2026-10-18: la interfaz y la incorporación revisada que
+se registraban pendientes arriba se implementan en [Laboratorio premium](STATIC_LAB_INTERFACE.md).
+Este documento conserva la evidencia y los límites de la entrega anterior.

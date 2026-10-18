@@ -1,0 +1,84 @@
+{
+  "schema": "operia-static-laboratory-interface-audit/1",
+  "date": "2026-10-18",
+  "base_commit": "9c90615",
+  "scope": "Premium laboratory UI and explicit reviewed observations to preserved findings and draft reports; CPython AST only",
+  "backend_validation": {
+    "general_run": {
+      "tests": 290,
+      "passed": 288,
+      "failed": 1,
+      "skipped": 1,
+      "warnings": 4,
+      "artifact": "storage/test_runs/e5-ui-projection-regression.xml",
+      "failure": "Static Markdown export translated LF to CRLF on Windows",
+      "skip": "Explicit activation of real Ollama integration required"
+    },
+    "correction": "Write static preserved Markdown as UTF-8 bytes without OS newline translation; other export paths retain previous behavior",
+    "final_affected_suite": {
+      "tests": 2,
+      "passed": 2,
+      "failed": 0,
+      "warnings": 4,
+      "artifact": "storage/test_runs/e5-projections-final.xml",
+      "coverage": [
+        "Latest accepted review and matching result hash required",
+        "Duplicate and foreign observation IDs rejected",
+        "Idempotent sorted selection",
+        "Role and case capabilities; tenant boundary and revocation",
+        "Markdown export exactly matches preserved UTF-8 content; PDF export succeeds",
+        "Finding delete and report edit rejected",
+        "Rejected and stale reviews cannot project",
+        "Later accepted review creates a separate report and leaves original unchanged",
+        "Snapshot SHA-256 verification and SQL UPDATE/DELETE protection"
+      ]
+    },
+    "interpretation": "All observed failures resolved and revalidated in affected suite. General run preceded newline correction; no claim of a second full-suite run or sum of overlapping tests.",
+    "known_warnings": ["Starlette/httpx deprecation", "ReportLab ast.NameConstant deprecation", "FastAPI on_event deprecation (two warnings)"]
+  },
+  "frontend_validation": {
+    "passed": 52,
+    "failed": 0,
+    "command": "npm --prefix apps/web test",
+    "build": "tsc and Vite production build passed",
+    "accessibility": "axe WCAG 2/2.1 A/AA and best-practice tags on shared module and populated authorized, reader and no-grant states; JSDOM color-contrast disabled",
+    "physical_assistive_validation": "Pending; docs/ASSISTIVE_ACCESSIBILITY.md"
+  },
+  "browser_validation": {
+    "environment": "Separate synthetic SQLite database and storage, API 8024, frontend 5178; sessions signed out and test servers stopped",
+    "provider": "Real CPython 3.12.14 AST in existing required AppContainer/Job Object runtime",
+    "runtime_identity": "5e1016816517d1077bdb8f38",
+    "sample_sha256": "ff0d1875625055dbd925cb60675e8bb2ee2a7a9b59c1d7c94d40fb754c033272",
+    "verified": [
+      "Completed persistent job and four static observations displayed",
+      "Selection disabled before accepted review",
+      "Professional acceptance followed by explicit two-observation selection creates finding 1 and report 1 in synthetic fixture",
+      "Report register refreshes on navigation and preserved preview displays original Markdown",
+      "Unsaved review triggers navigation dialog; continue editing and clear work",
+      "Reader sees only granted case and cannot enqueue, review, select or project",
+      "Responsive layout at effective CSS widths 780, 640 and 480; one column at 640/480, no document horizontal overflow"
+    ],
+    "viewport_limit": "Requested viewport sizes were scaled/clamped by in-app browser; effective CSS widths are reported. No claim of 320 CSS pixel or physical-device validation.",
+    "screenshots": [
+      "storage/test_runs/e5-laboratory-browser-20261018/laboratory-desktop.png",
+      "storage/test_runs/e5-laboratory-browser-20261018/laboratory-preview.png"
+    ]
+  },
+  "preservation": {
+    "private_backup": "storage/temp/e5-laboratory-ui-20261018",
+    "database_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7",
+    "old_tables_unchanged": 74,
+    "old_schema_objects_preserved": true,
+    "persistent_files_restored_and_verified": 116,
+    "usual_database_migrated": false,
+    "usual_database_triggers_unchanged": 9,
+    "copy_migrations": ["20261018_0008", "20261018_0009", "20261018_0010"],
+    "copy_migrations_repeated_and_downgrade_preserves": true,
+    "copy_triggers_after": 19,
+    "integrity_check": "ok",
+    "final_original_database_and_file_inventory_match": true
+  },
+  "hours": "No human programming hours supplied or measured; existing ledger remains unchanged at 0",
+  "pending": ["Physical NVDA/VoiceOver/TalkBack and mobile validation", "Other static providers with individual provenance and isolation validation", "E6/E7/E8 acceptance and production operation"],
+  "saas_complete": false
+}

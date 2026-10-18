@@ -9,7 +9,7 @@ export const moduleSurfaces = {
   iotForensics: "Dispositivos IoT", externalTools: "Herramientas externas",
   ai: "Asistente de análisis", aiSecurity: "Seguridad de IA", identity: "Identidad y permisos",
   settings: "Configuración", casePresentation: "Exposición del expediente", mind: "Memoria forense",
-  mobileForensics: "Forense móvil", status: "Estado del módulo",
+  staticLab: "Laboratorio estático", mobileForensics: "Forense móvil", status: "Estado del módulo",
 } as const;
 
 export function ModuleSurface({ moduleId, className, children, ...props }: HTMLAttributes<HTMLElement> & { moduleId: keyof typeof moduleSurfaces }) {

@@ -69,4 +69,5 @@ api_router.include_router(settings_router, prefix="/settings", tags=["settings"]
 
 from operia.static_lab.router import router as static_lab_router
 from operia.static_lab import jobs_router as static_jobs_routes
+from operia.static_lab import projection_router as static_projection_routes
 api_router.include_router(static_lab_router, tags=["static-lab"])
