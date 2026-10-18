@@ -90,3 +90,10 @@ individuales y derivada identificada; no se añaden sidecars a históricos exist
 Runtime nuevo archivado/restaurado en destinos privados separados, sin ejecutar
 el archivo ni eliminar runtimes anteriores. Aplican las instrucciones operativas
 de preparación y permisos de runtime descritas arriba.
+
+Continuidad 0.5.0: respaldo independiente `storage/temp/e6-ios-logical-20261018`,
+con base, archivos persistentes y runtime nuevo en archivo/restauración privados.
+El formato lógico agrega una adquisición nueva con bytes de manifiesto y selección;
+no modifica fuentes ni informes existentes y no requiere migración de tablas.
+Se preservan runtimes y auditorías anteriores. El archivo restaurado del runtime
+se verifica por manifiesto/hashes sin ejecutarlo ni conceder acceso al depósito.

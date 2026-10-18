@@ -1,0 +1,160 @@
+{
+  "schema": "operia-e6-ios-logical-audit/1",
+  "date": "2026-10-18",
+  "base_commit": "900b504",
+  "engine_version": "0.5.0",
+  "result_schema": "operia.forensic/1",
+  "reader": {
+    "id": "operia.ios.backup-logical-files",
+    "version": "1.0.0",
+    "platform": "ios",
+    "format": "apple-backup-logical-set"
+  },
+  "reader_total": 12,
+  "distinct_format_total": 10,
+  "scope": "Explicit preserved iOS logical-file selection correlated by declared Files fileID; scalar plist values, UTF-8 lines and ordinary SQLite catalog; no backup traversal",
+  "input": {
+    "schema": "operia.ios-logical-set/1",
+    "selection": "explicit_subset",
+    "single_acquisition_in_case": true,
+    "manifest_formats": [
+      "apple-backup-manifest-sqlite",
+      "apple-backup-manifest-wal-set"
+    ],
+    "exact_bytes_and_component_sha256_preserved": true,
+    "unknown_duplicate_directory_or_invalid_hash_associations_rejected_without_partial_output": true,
+    "paths_or_client_selected_readers_inside_package": false,
+    "physical_association_authenticated": false,
+    "fileid_sha1_convention_verified": false,
+    "logical_mode_or_apple_blob_digest_verified": false,
+    "live_acquisition_atomicity_proved": false
+  },
+  "limits": {
+    "package_max_bytes_including_base64": 5242880,
+    "selected_files_max": 32,
+    "per_file_max_bytes": 262144,
+    "text_max_bytes": 65536,
+    "text_max_lines": 128,
+    "text_line_max_characters": 2048,
+    "plist_walk_max_nodes": 1024,
+    "per_file_content_records_and_exclusions_max": 128,
+    "plist_key_max_characters": 128,
+    "plist_string_max_characters": 2048,
+    "max_artifacts_including_selection_and_file_metadata": 4129,
+    "output_max_bytes_unchanged": 16777216,
+    "sqlite_defenses_and_manifest_limits_inherited": true
+  },
+  "coverage": {
+    "plist": "XML UTF-8 and bplist00 dictionary root; scalar str/bool/int/finite float/declared date, nested dict/list; logical escaped pointers",
+    "text": "UTF-8 with optional BOM, observed lines only; no log chronology or traffic inference",
+    "sqlite": "Ordinary table/index names and types only; no SQL rows or automatic sidecar combination",
+    "unknown_corrupt_or_out_of_profile_content": "File declaration, size and SHA-256 retained with explicit exclusion; no silently truncated prefix",
+    "omitted_files_and_directories": "Enumerated as coverage exclusions, never treated as deleted or absent",
+    "wal_manifest_provenance": "Nested snapshot components, derived hash, commit boundary and transformations retained",
+    "timeline_dates_inferred": false,
+    "nskeyedarchiver_executable_archive_or_blob_contents_interpreted": false,
+    "automatic_ai_integration": false,
+    "per_content_file_id_and_sha256": true,
+    "per_content_logical_locator": true
+  },
+  "runtime": {
+    "identity": "3059e493788c5c2a0b59de75",
+    "python": "3.12.14",
+    "sqlite": "3.53.1",
+    "platform": "Windows",
+    "files_verified_in_private_archive_and_restored_copy": 693,
+    "archive_executed": false,
+    "previous_runtimes_retained": true,
+    "network_disabled_in_worker": true,
+    "os_limits_increased": false,
+    "manifest_paths_opened_or_traversed": false,
+    "preliminary_identities_retained": [
+      "e5a85512af0f0ca7cc8a29f5",
+      "3ec82339e7ab3b1363aa02e7"
+    ]
+  },
+  "validation": {
+    "initial_test_harness_issue": "Oversized raw parameter IDs caused pytest setup errors on Windows; short fixed IDs corrected the harness. Core runs then passed; no product-source change was required for that setup issue",
+    "general_backend": {
+      "status": "passed",
+      "artifact": "storage/test_runs/e6-logical-regression-final.xml",
+      "tests": 411,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "passed": 410,
+      "warnings": 4,
+      "skip_details": [
+        {
+          "test": "test_real_ollama_case_and_tenant_isolation",
+          "reason": "Real Ollama requires explicit operator opt-in"
+        }
+      ]
+    },
+    "frontend": {
+      "passed": 52,
+      "failed": 0,
+      "build": "TypeScript and Vite passed",
+      "changes": "Accessible source help includes explicit preserved iOS logical packages",
+      "physical_assistive_validation": false
+    },
+    "manual_oracle": "Four selected files, one omitted regular file, one directory; eleven artifacts and four exclusions. Plist count=2/flag=true/nested.id=benign, two literal text lines, SQLite Example catalog only, unknown binary hash-only; BLOB/SQL-row canaries not exported",
+    "method": "Original XML/binary fixtures and native SQLite synthetic images, current WAL Manifest declaration, declared date without timeline, escaped pointers, entities/unknown XML/duplicate keys/archiver/quota rejection, invalid associations, actual CLI -S and no discovery/overwrite; two real AppContainer workers, stable historical report/export, read grant, denied write, revocation and foreign tenant denial",
+    "suite_counts_overlap": true,
+    "real_device_samples": false,
+    "spyware_detection_accuracy_measured": false,
+    "preliminary_focused": {
+      "passed": 35,
+      "failed": 0,
+      "warnings": 4,
+      "artifact": "storage/test_runs/e6-logical-focused.xml"
+    },
+    "focused": {
+      "status": "passed",
+      "artifact": "storage/test_runs/e6-logical-position-focused.xml",
+      "passed": 37,
+      "failed": 0,
+      "warnings": 4
+    },
+    "preliminary_general": "Interrupted at 70% before applying per-file content context; no final result claimed. Source and runtime rebuilt; final regression runs independently",
+    "context_correction": "Each content record carries file_id, file_sha256 and content_locator. Equal content in different files and equal values at distinct keys/lines preserve observed context, without inferring independent evidence. Two explicit regression tests added; preliminary general run stopped before this correction",
+    "intermediate_file_context_focused": {
+      "passed": 36,
+      "failed": 0,
+      "artifact": "storage/test_runs/e6-logical-focused-final.xml"
+    }
+  },
+  "preservation": {
+    "private_backup": "storage/temp/e6-ios-logical-20261018",
+    "database_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7",
+    "tables_backed_up": 74,
+    "triggers": 9,
+    "files_restored_and_verified": 116,
+    "initial_integrity_check": "ok",
+    "usual_database_migrated": false,
+    "historical_results_recomputed": false,
+    "final_status": "passed",
+    "runtime_archive": "runtime-final-position-0.5.0",
+    "runtime_restored_copy": "restored-runtime-final-position-0.5.0",
+    "final_comparison": {
+      "tables_unchanged": 74,
+      "schema_unchanged": true,
+      "files_unchanged_and_restored": 116,
+      "triggers": 9,
+      "integrity": "ok",
+      "backup_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7",
+      "restored_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7"
+    }
+  },
+  "dependencies_added": [],
+  "hours": "Human-hours ledger unchanged; no AI runtime or test duration charged",
+  "pending": [
+    "Authorized real-device corpus and consistent acquisition by OS",
+    "Physical file association and encrypted backups",
+    "NSKeyedArchiver and application-specific records",
+    "Larger files and out-of-profile formats",
+    "Physical assistive validation",
+    "E7/E8 production acceptance"
+  ],
+  "saas_complete": false
+}

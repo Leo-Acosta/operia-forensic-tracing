@@ -156,10 +156,11 @@ class EpochLogReader:
 from operia.forensic_engine.backup_plists import BackupInfoReader, BackupManifestReader
 from operia.forensic_engine.sqlite_readers import ManifestDatabaseReader, SQLiteCatalogReader
 from operia.forensic_engine.wal_readers import SQLiteSetReader
+from operia.forensic_engine.logical_files import LogicalBackupReader
 
 READERS = (ProfilePlistReader(), PackageInventoryReader(), EpochLogReader(), BackupInfoReader(), BackupManifestReader(),
            ManifestDatabaseReader(), SQLiteCatalogReader("ios"), SQLiteCatalogReader("android"),
-           SQLiteSetReader("ios", manifest=True), SQLiteSetReader("ios"), SQLiteSetReader("android"))
+           SQLiteSetReader("ios", manifest=True), SQLiteSetReader("ios"), SQLiteSetReader("android"), LogicalBackupReader())
 
 
 def reader_order(readers=READERS):

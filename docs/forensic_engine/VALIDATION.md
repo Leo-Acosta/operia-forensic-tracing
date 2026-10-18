@@ -1,5 +1,45 @@
 # Validación verificable
 
+## E6: selección lógica iOS preservada, 2026-10-18
+
+Motor **0.5.0**, [contrato, cobertura y límites](E6_IOS_LOGICAL_FILES.md): manifiesto
+Files principal o WAL y hasta 32 copias explícitas, sin recorrer rutas del backup.
+Escalares plist XML/binario, líneas UTF-8, catálogo SQLite y hashes; omisiones,
+directorios y contenido no compatible conservan exclusiones con localizador.
+
+**37 pruebas específicas finales aprobadas**, con dos workers AppContainer reales.
+Oráculo original: cuatro archivos, uno omitido y un directorio, once artefactos y
+cuatro exclusiones; canarios BLOB/filas no exportados. Manifiesto principal/WAL,
+errores de asociación e integridad, cuotas, entidades/duplicados/XML desconocido,
+NSKeyedArchiver excluido, CLI `-S`, copias intactas y salida sin sobrescritura.
+Cada observación incluye fileID, hash y posición lógica: archivos distintos con
+contenido idéntico y claves/líneas distintas con valores iguales no se confunden
+como un mismo registro. Permisos de lectura, escritura denegada, revocación y otra
+organización; revisión posterior con informe y exportación anteriores estables.
+
+Se corrigieron nombres excesivos de casos pytest que provocaban errores de setup
+en Windows. La primera regresión general se interrumpió tras superar 70% para
+reforzar contexto de archivo/posición; sus resultados no se declaran definitivos.
+Los runtimes y comprobaciones preliminares permanecen separados en la auditoría.
+
+Regresión completa definitiva: **410 aprobadas, 1 omitida, 0 fallos/errores y 4
+advertencias de deprecación conocidas**. Ollama real requiere opt-in explícito.
+Frontend: **52 aprobadas** y TypeScript/Vite correcto; ayuda accesible de selección
+actualizada. Los recuentos específicos están incluidos en la regresión.
+
+Comparación final: **74 tablas con todos sus valores, esquema, 9 triggers y 116
+archivos persistentes sin cambios**. Respaldo/restauración con SHA-256 idéntico e
+`integrity_check` correcto; no hubo migración ni recálculo de históricos.
+Runtime definitivo `3059e493788c5c2a0b59de75`: 693 archivos verificados en runtime
+operativo, archivo privado y copia restaurada. Se conservaron runtimes anteriores
+y preliminares; el archivo privado no se ejecutó. Python 3.12.14/SQLite 3.53.1/Windows.
+
+[Auditoría de entrega](../audits/e6-ios-logical-20261018.json). Sin corpus real por
+OS, autenticación de asociación física, descifrado, NSKeyedArchiver, registros
+específicos de aplicaciones ni validación física de accesibilidad. La selección
+no equivale a un backup completo o a detección certificada. Los apartados siguientes
+conservan la historia de las entregas anteriores.
+
 ## E6: WAL/SHM sobre conjuntos preservados, 2026-10-18
 
 Motor **0.4.0**, [contrato y límites](E6_WAL_SHM.md). Dos formatos nuevos y tres

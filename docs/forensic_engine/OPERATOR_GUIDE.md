@@ -1,8 +1,8 @@
 # Operación local del motor propio
 
-Motor 0.4.0: incorpora conjuntos `apple-backup-manifest-wal-set` (iOS) y
-`sqlite-wal-catalog-set` (iOS/Android), conservando los formatos anteriores.
-Preparar el paquete desde copias preservadas según el [contrato WAL/SHM](E6_WAL_SHM.md).
+Motor 0.5.0: incorpora `apple-backup-logical-set` (iOS), conservando los formatos
+anteriores. Preparar el paquete desde copias explícitas según el [contrato de
+selección lógica](E6_IOS_LOGICAL_FILES.md). Para conjuntos SQLite, ver [WAL/SHM](E6_WAL_SHM.md).
 No subir WAL/SHM sueltos como imágenes principales. Antes de actualizar el runtime,
 consultar allí el tratamiento de trabajos de otra versión.
 

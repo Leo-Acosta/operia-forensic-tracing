@@ -43,3 +43,9 @@ preservados con hashes individuales, último commit comprobado y SHM auxiliar.
 No completa P6: faltan corpus real, otras variantes/VFS, capturas concurrentes,
 registros lógicos y validación por OS. Las exclusiones de entregas anteriores se
 conservan como historia y siguen aplicando a sus lectores de imagen principal.
+
+Continuidad 0.5.0: [selección lógica iOS](E6_IOS_LOGICAL_FILES.md) sobre copias
+explícitas, sin recorrer rutas extraídas. Lectura escalar plist, texto y catálogo
+SQLite probados con datos sintéticos; hashes y omisiones identificados. P6 sigue
+pendiente para registros de aplicaciones, otros formatos, asociación física y
+adquisiciones reales consistentes por versión de OS.

@@ -1,4 +1,4 @@
-# Motor Forense Móvil de OPERIA — 0.4.0
+# Motor Forense Móvil de OPERIA — 0.5.0
 
 Nombre funcional provisional. Implementación propia para análisis posterior a una
 adquisición autorizada. Sin adquisición directa, explotación, remediación ni IA.
@@ -12,6 +12,11 @@ Los [conjuntos WAL/SHM](E6_WAL_SHM.md) preservan componentes y hashes en una sol
 adquisición por expediente. Reconstrucción en memoria hasta el último commit,
 procedencia de la imagen derivada y contrastación acotada de SHM antes de usar
 esos mismos lectores; sin rutas o consultas recibidas del cliente.
+
+La [selección lógica iOS](E6_IOS_LOGICAL_FILES.md) vincula copias aportadas por
+fileID declarado en Files, preservando manifiesto y contenidos en una adquisición.
+No recorre backups ni abre rutas extraídas: interpreta bytes en memoria, mantiene
+omisiones/exclusiones explícitas y reutiliza los lectores SQLite/plist defensivos.
 
 ```mermaid
 flowchart LR

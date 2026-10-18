@@ -11,6 +11,7 @@
 | iOS/Android | no verificado | SQLite / sqlite-catalog 1.0.0 | imágenes originales sintéticas, esquemas hostiles y ambos workers de plataforma | solo catálogo de nombres/tipos de tablas e índices ordinarios; no registros |
 | iOS | no verificado | conjunto Manifest.db/WAL/SHM / manifest-wal-set 1.0.0 | SQLite real con datos sintéticos, dos commits, corrupción, crecimiento y truncamiento; worker aislado real | Files del último commit más procedencia; sin BLOB ni archivos físicos |
 | iOS/Android | no verificado | conjunto SQLite/WAL/SHM / sqlite-wal-set 1.0.0 | oráculo SQLite nativo, checksum WAL little/big, SHM de cabecera little/big, cola no comprometida y ambos workers | solo catálogo y procedencia; SHM auxiliar, sin tablas hash/locks; no hardware big-endian |
+| iOS | no verificado | selección lógica / backup-logical-files 1.0.0 | cuatro archivos sintéticos, once artefactos/canarios, omisiones, directorio, XML/binario, texto, SQLite y dos workers con manifiesto principal/WAL | hasta 32 copias explícitas; escalares plist, líneas UTF-8 y catálogo; sin BLOB/UID, NSKeyedArchiver, filas SQLite, recorrido de directorios ni asociación física autenticada |
 | iOS/Android | cualquier otra combinación | backup completo, WAL/SHM fuera del perfil, mensajes/historial SQLite, bugreport completo, CMS, cifrado o archivos comprimidos | ninguna | no soportado; no se declara analizado |
 
 Núcleo probado en Python 3.12.14/Windows y SQLite 3.53.1 para los perfiles nuevos;
@@ -34,3 +35,7 @@ pendientes; no se extiende esa evidencia sintética a dispositivos reales.
 Motor 0.4.0: [conjuntos preservados WAL/SHM](E6_WAL_SHM.md), máximo 1024 frames,
 SHM opcional de un bloque y paquete completo de hasta 5 MiB. El soporte acotado
 no convierte los lectores de imagen principal anteriores en lectores de sidecars.
+
+Motor 0.5.0: [selección lógica preservada](E6_IOS_LOGICAL_FILES.md), paquete total
+de 5 MiB y hasta 256 KiB por archivo. La selección no acredita backup completo,
+ausencia de archivos omitidos ni validación por versión de OS.

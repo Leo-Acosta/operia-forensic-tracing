@@ -1,5 +1,8 @@
 # E6: conjuntos SQLite/WAL/SHM preservados
 
+Registro histórico de la entrega 0.4.0. La continuidad [0.5.0 agrega selección
+lógica iOS](E6_IOS_LOGICAL_FILES.md); estos lectores conservan su alcance anterior.
+
 Entrega 2026-10-18, motor **0.4.0**, salida `operia.forensic/1`.
 Implementación propia sobre documentación de SQLite; no incorpora paquetes.
 Once lectores registrados y nueve formatos distintos, conservando los anteriores.

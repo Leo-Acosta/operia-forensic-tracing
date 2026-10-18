@@ -1,5 +1,10 @@
 # Procedencia y componentes
 
+Continuidad 0.5.0: [archivos lógicos iOS](E6_IOS_LOGICAL_FILES.md), implementación
+propia, fixtures originales y documentación primaria de plistlib. Sin código ni
+corpus externo copiado, sin paquetes nuevos. Asociación por fileID declarado, sin
+validación de la convención SHA-1 ni de autenticidad física del backup.
+
 Continuidad 0.4.0: [WAL/SHM](E6_WAL_SHM.md) implementado a partir de la descripción
 pública de formatos de SQLite. Datos benignos y WAL/SHM generados por SQLite local;
 oráculos manuales y lectura nativa de control. Sin código/corpus externo copiado,
