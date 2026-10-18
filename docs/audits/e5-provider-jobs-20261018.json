@@ -1,0 +1,107 @@
+{
+  "schema": "operia-static-provider-jobs-audit/1",
+  "date": "2026-10-18",
+  "base_commit": "78ffa31",
+  "scope": "CPython AST for UTF-8 Python source only; no APK/PE/ELF provider",
+  "real_provider_validation": {
+    "provider": "cpython-ast",
+    "provider_version": "3.12.14",
+    "provider_revision": "operia-ast-adapter/1",
+    "runtime_identity": "5e1016816517d1077bdb8f38",
+    "sample_sha256": "ff0d1875625055dbd925cb60675e8bb2ee2a7a9b59c1d7c94d40fb754c033272",
+    "result_sha256": "b7a04a27011534764402ef46e79c51596a584b8667e5d27638c79eebeaf63920",
+    "observations": [
+      {
+        "id": "ast_1",
+        "member": "sample.py",
+        "offset": 0,
+        "text": "Import: math"
+      },
+      {
+        "id": "ast_2",
+        "member": "sample.py",
+        "offset": 12,
+        "text": "ImportFrom: collections"
+      },
+      {
+        "id": "ast_3",
+        "member": "sample.py",
+        "offset": 44,
+        "text": "FunctionDef: add"
+      },
+      {
+        "id": "ast_4",
+        "member": "sample.py",
+        "offset": 73,
+        "text": "ClassDef: Example"
+      }
+    ],
+    "state": "completed",
+    "method": "real CPython AST process with required AppContainer and Job Object; manual benign source comparison",
+    "sample_execution": false
+  },
+  "runtime_manifest_sha256": "200c3861decf5cc817797de2a66b6e6bc44d279e1a4934ae35dcc8b6d701445f",
+  "isolation": {
+    "runtime": "separate non-secret stdlib inventory",
+    "network": false,
+    "max_processes": 1,
+    "memory_mb": 128,
+    "cpu_seconds": 5,
+    "wall_timeout_seconds": 10,
+    "max_source_bytes": 131072,
+    "max_output_bytes": 262144,
+    "fallback": false
+  },
+  "preservation": {
+    "old_tables_preserved_on_migration_copy": 74,
+    "old_schema_objects_preserved": true,
+    "triggers_after": 17,
+    "integrity": "ok",
+    "files_restored": 116,
+    "backup_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7",
+    "actual_database_not_migrated": true,
+    "provider_runtime_archived_and_restored": true,
+    "provider_runtime_files": 678
+  },
+  "migration": "20261018_0009",
+  "validation": {
+    "controls": "Real provider and source comparison; simulated processes only for active negative controls",
+    "fresh_process": "passed after correcting synthetic environment variable prefix",
+    "physical_screen_reader_testing": "pending, unchanged",
+    "full_regression": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "1",
+      "tests": "286",
+      "time": "606.182",
+      "timestamp": "2026-10-18T14:40:45.357159-03:00"
+    },
+    "fresh_process_cli": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "1",
+      "time": "6.266",
+      "timestamp": "2026-10-18T14:49:26.612776-03:00"
+    },
+    "final_security_jobs_imports_custody": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "38",
+      "time": "113.822",
+      "timestamp": "2026-10-18T14:50:32.024845-03:00"
+    }
+  },
+  "limitations": [
+    "Python source only",
+    "No automatic findings or report projection",
+    "No laboratory interface in this delivery",
+    "Administrative cleanup of metadata from profiles after hard host/worker termination remains an operational requirement",
+    "No production readiness or WORM claim"
+  ],
+  "hours_added": 0
+}

@@ -153,8 +153,8 @@ def validate_writes(db, context, instances):
                 raise HTTPException(409, "Target proyectado preservado")
             name = item.__tablename__
             if name == "evidence":
-                from operia.static_lab.models import StaticImport
-                if db.query(StaticImport).filter_by(evidence_id=item.id).first() and (item in db.deleted or db.is_modified(item, include_collections=False)):
+                from operia.static_lab.models import StaticImport, StaticJob
+                if (db.query(StaticImport).filter_by(evidence_id=item.id).first() or db.query(StaticJob).filter_by(evidence_id=item.id).first()) and (item in db.deleted or db.is_modified(item, include_collections=False)):
                     raise HTTPException(409, "Evidencia vinculada a resultado estático preservado")
             if name in {"report_sections", "report_versions"}:
                 if db.query(EvidenceIntegration).filter_by(report_id=item.report_id).first():
@@ -204,8 +204,8 @@ async def enforce_scope(request: Request, db: Session = Depends(get_db), user: C
         raise HTTPException(404, "Caso no disponible")
 
     if request.method == "DELETE" and case_id is not None:
-        from operia.static_lab.models import StaticImport
-        if request.url.path == settings.api_prefix + f"/cases/{case_id}" and db.query(StaticImport).filter_by(case_id=int(case_id)).first():
+        from operia.static_lab.models import StaticImport, StaticJob
+        if request.url.path == settings.api_prefix + f"/cases/{case_id}" and (db.query(StaticImport).filter_by(case_id=int(case_id)).first() or db.query(StaticJob).filter_by(case_id=int(case_id)).first()):
             raise HTTPException(409, "Expediente con resultados estáticos preservados")
         from operia.forensic_jobs.models import Acquisition, IndicatorSet, ExaminationJob
         from operia.mobile_forensics.models import MobileExam, MobileDevice

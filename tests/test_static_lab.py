@@ -58,7 +58,7 @@ def test_passive_import_idempotency_original_and_custody(client,admin_headers):
         db.rollback()
     assert client.delete(f'/api/cases/{case}',headers=admin_headers).status_code==409
     assert client.delete(f'/api/evidence/{evidence}',headers=admin_headers).status_code==409
-    assert client.get(f'/api/static-lab/cases/{case}/providers',headers=admin_headers).json()['execution_enabled'] is False
+    assert client.get(f'/api/static-lab/cases/{case}/providers',headers=admin_headers).json()['sample_execution_enabled'] is False
 
 def test_strict_contract_hostile_inputs():
     raw=json.dumps(report()).encode()

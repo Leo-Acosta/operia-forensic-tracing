@@ -141,6 +141,7 @@ storage/
 - [E4: módulos heredados y revisión de accesibilidad](docs/E4_LEGACY_MODULES.md)
 - [Validación pendiente con tecnologías de asistencia reales](docs/ASSISTIVE_ACCESSIBILITY.md)
 - [E5: laboratorio estático — importación pasiva, entrega parcial](docs/STATIC_LAB.md)
+- [E5: CPython AST real, trabajos y revisión versionada](docs/STATIC_PROVIDER_JOBS.md)
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [API Routes](docs/API_ROUTES.md)

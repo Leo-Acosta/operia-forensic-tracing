@@ -1,5 +1,8 @@
 # E5 — Laboratorio estático: primera entrega parcial
 
+Registro histórico de la importación externa. La continuidad con proveedor real,
+trabajos y revisiones está en [CPython AST y trabajos](STATIC_PROVIDER_JOBS.md).
+
 Fecha: 2026-10-18. Base: `d06b955`. Implementación local, sin publicación.
 
 ## Alcance comprobable

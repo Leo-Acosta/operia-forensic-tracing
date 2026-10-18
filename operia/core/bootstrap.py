@@ -144,3 +144,5 @@ def init_platform_schema() -> None:
         install_protection(connection)
         from operia.static_lab.models import install_protection as install_static_protection
         install_static_protection(connection)
+        from operia.static_lab.models import install_job_protection
+        install_job_protection(connection)

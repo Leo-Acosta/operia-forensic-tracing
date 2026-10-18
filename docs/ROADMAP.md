@@ -15,7 +15,9 @@ Geo Trace, Geo Proximity y exportaciones conservan su alcance funcional previo.
 
 E5 incorpora la [importación pasiva de resultados estáticos](STATIC_LAB.md), con
 custodia, hashes y aislamiento por expediente. Es una entrega parcial: faltan
-proveedor real validado, trabajos, revisión versionada e interfaz del laboratorio.
+la interfaz del laboratorio y la proyección a hallazgos e informes.
+La continuidad incorpora [CPython AST real, trabajos persistentes y revisiones](STATIC_PROVIDER_JOBS.md),
+validados con fuente Python benigna; no acredita análisis APK o de ejecutables.
 El registro pendiente de dispositivos reales está en [accesibilidad asistida](ASSISTIVE_ACCESSIBILITY.md).
 
 ## Near Term

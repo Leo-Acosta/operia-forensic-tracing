@@ -25,6 +25,7 @@ storage/maps/*
 storage/temp/*
 storage/test_runs/
 storage/sandbox-runtime/
+storage/static-lab-runtime/
 storage/*.lock
 !storage/evidence/.gitkeep
 !storage/uploads/.gitkeep
