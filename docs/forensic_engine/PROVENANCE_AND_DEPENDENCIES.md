@@ -33,6 +33,11 @@ insertó una cesión/copyright definitivo. El titular debe decidir distribución
 DEPENDENCIES.json inventaría las versiones y metadatos de licencia del entorno de
 Python y package-lock del frontend. No es una auditoría legal ni un SBOM firmado;
 metadatos ausentes se marcan desconocidos y deben revisarse antes de distribución.
+
+E6 (2026-10-18): nuevas referencias de claves y tipos de backup en
+[metadatos iOS](E6_BACKUP_METADATA.md), con revisión de fuente fijada. Los lectores
+y fixtures son propios; no se copiaron cuerpos de código ni se agregaron dependencias.
+La consulta de esa referencia no se presenta como clean-room formal.
 Recrear el inventario al cambiar dependencias. No incorpora datos de casos ni secretos.
 
 No se usan marcas/logos ajenos ni se sugiere respaldo, certificación o equivalencia.

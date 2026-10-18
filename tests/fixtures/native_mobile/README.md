@@ -17,3 +17,12 @@ Oráculo manual:
   22:13:20.123000Z y 22:13:21.999999Z. La línea de cabecera no es un evento.
 - indicators.json: un dominio sintético con subdominios. Dos coincidencias en el
   log, ninguna infección demostrada. Sin consultas de red.
+
+## Ampliación E6
+
+`backup-info.plist` y `backup-manifest.plist` son fixtures originales sintéticos;
+no provienen de dispositivos ni de otros motores. Info declara dos productos,
+dos aplicaciones y la fecha UTC 2024-01-02 03:04:05; Manifest declara IsEncrypted=true.
+Los valores de número de serie, claves y Lockdown son canarios sintéticos que
+deben permanecer fuera de los resultados derivados. La variante binaria se genera
+en pruebas con plistlib. Contrato y referencias en `docs/forensic_engine/E6_BACKUP_METADATA.md`.

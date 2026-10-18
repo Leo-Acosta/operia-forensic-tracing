@@ -1,5 +1,9 @@
 # Operación local del motor propio
 
+Motor 0.2.0: los formatos `apple-backup-info-plist` y `apple-backup-manifest-plist`
+se seleccionan en el mismo flujo iOS. Antes de actualizar el runtime, consultar el
+[contrato E6 y tratamiento de trabajos de otra versión](E6_BACKUP_METADATA.md).
+
 1. Instalar dependencias existentes de OPERIA en .venv e iniciar API/frontend según
    README. No instalar otro motor. Para pruebas, requirements-dev.txt.
 2. Iniciar un worker separado desde raíz del repositorio:

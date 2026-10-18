@@ -16,7 +16,7 @@ def capabilities():
         "readers": [{"id": reader.identifier, "version": reader.version, "platform": reader.platform,
                      "format": reader.format} for reader in reader_order()],
         "limits": {"source_bytes": MAX_SOURCE_BYTES, "output_bytes": MAX_OUTPUT_BYTES},
-        "message": "Motor propio 0.1.0 · tres lectores acotados · validación sintética; sin certificación de spyware."}
+        "message": f"Motor propio {ENGINE_VERSION} · {len(reader_order())} lectores acotados · validación sintética; sin certificación de spyware."}
 
 
 def analyze(source: Source, indicator_bytes=None, demo=False):
@@ -45,7 +45,7 @@ def analyze(source: Source, indicator_bytes=None, demo=False):
     independent = [artifact for artifact in artifacts if artifact["duplicate_of"] is None]
     alerts = evaluate(independent, indicator_bytes, demo)
     events = [{"id": "event:" + artifact["id"], "artifact_id": artifact["id"],
-        "event_type": "registro_de_log_observado", **artifact["time"],
+        "event_type": "fecha_de_backup_declarada" if artifact["kind"] == "backup_declared_date" else "registro_de_log_observado", **artifact["time"],
         "interpretation": "Evento registrado; no se infiere intento, ejecución maliciosa ni inicio de ataque."}
         for artifact in independent if artifact["time"]]
     events.sort(key=lambda event: (event["normalized_utc"], event["id"]))

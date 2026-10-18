@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Product Type</key><string>SyntheticPhone1,1</string>
+<key>Product Version</key><string>18.0</string>
+<key>Last Backup Date</key><date>2024-01-02T03:04:05Z</date>
+<key>Installed Applications</key><array><string>com.example.benign</string><string>com.example.second</string></array>
+<key>Serial Number</key><string>SYNTHETIC-DO-NOT-REPLICATE</string>
+</dict></plist>

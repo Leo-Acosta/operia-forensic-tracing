@@ -11,7 +11,7 @@ anteriores permanecen como registros históricos y no se reescriben.
 | E4: experiencia premium | Implementado con validación sintética | [Migración de módulos](E4_LEGACY_MODULES.md); falta validación física de tecnologías de asistencia |
 | E4: NVDA, VoiceOver y TalkBack reales | Pendiente | [Matriz y criterios](ASSISTIVE_ACCESSIBILITY.md); las comprobaciones DOM/axe no son ejecución de esos lectores |
 | E5: laboratorio estático | CPython AST real, trabajos, revisión, interfaz premium e incorporación a hallazgos e informes implementados localmente | [Interfaz e incorporación revisada](STATIC_LAB_INTERFACE.md); alcance Python; otros proveedores pendientes |
-| E6: ampliación del motor propio | Pendiente de esta etapa | El motor actual conserva su [cobertura documentada](forensic_engine/VALIDATION.md); no se agregaron lectores ni adquisiciones reales en E5 |
+| E6: ampliación del motor propio | Motor 0.2.0: lectores de Info.plist y Manifest.plist implementados y validados con muestras sintéticas | [Contrato, cobertura y límites](forensic_engine/E6_BACKUP_METADATA.md); SQLite/WAL, archivos lógicos, otras variantes y muestras reales pendientes |
 | E7: operación productiva | Pendiente de aceptación completa | Existen [capas de seguridad](SECURITY_LAYERS.md); faltan los requisitos productivos del prompt maestro |
 | E8: cierre de versión/SaaS | Pendiente | Requiere alcance final, regresión, operación y pendientes resueltos; no se declara terminado |
 

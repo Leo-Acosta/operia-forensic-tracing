@@ -20,6 +20,10 @@ La continuidad incorpora [CPython AST real, trabajos persistentes y revisiones](
 validados con fuente Python benigna; no acredita análisis APK o de ejecutables.
 El registro pendiente de dispositivos reales está en [accesibilidad asistida](ASSISTIVE_ACCESSIBILITY.md).
 
+E6 incorpora el [motor 0.2.0 y dos lectores de metadatos de backups iOS](forensic_engine/E6_BACKUP_METADATA.md).
+La validación del proveedor real usa procesos aislados y fixtures sintéticos;
+la cobertura de SQLite/WAL/SHM, archivos lógicos y adquisiciones reales sigue pendiente.
+
 ## Near Term
 
 - Refactor shared models into canonical modules.

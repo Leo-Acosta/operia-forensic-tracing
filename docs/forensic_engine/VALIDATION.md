@@ -170,6 +170,30 @@ ni motor externo. IA directa a localhost permanece bloqueada hasta una pasarela
 separada. Windows es el único backend validado, no un pentest productivo.
 Detalle en [pentest local](../LOCAL_PENTEST.md).
 
+## E6: metadatos iOS, 2026-10-18
+
+Motor 0.2.0: [Info.plist y Manifest.plist](E6_BACKUP_METADATA.md), lectores propios
+1.0.0 con fixtures originales XML y variantes binarias. Oráculo manual de campos,
+localizadores y fecha declarada; fuentes preservadas por hash. Pruebas de vacío,
+corrupción, entidades XML sobre estructuras válidas, duplicados, tipos y cuotas.
+CLI real con Python -S y catálogo de formatos compartido. Worker real aislado,
+revisión e incorporación a informe/custodia, exportaciones estables tras otra
+revisión, permisos de solo lectura y revocación. Un pendiente sintético 0.1.0 se
+conserva y rechaza por versión; un examen 0.2.0 separado procesa la misma adquisición.
+
+Regresión completa definitiva: **308 aprobadas, 1 omitida, 4 advertencias conocidas**.
+Ollama real necesita activación explícita; no se modificó la IA. Suite focalizada
+final reforzada: **19 aprobadas**, superpuestas con la regresión. Frontend: **52
+aprobadas**, TypeScript/Vite correcto; no se hizo nueva inspección visual.
+
+Comparación final: 74 tablas, esquema, 9 triggers y 116 archivos persistentes sin
+diferencias; respaldo y restauración verificados con SQLite integrity_check y SHA-256.
+Runtime nuevo `7e74dc7978ba3135545e208c`: 690 archivos comprobados en archivo y copia
+restaurada, sin ejecutar el archivo privado ni reemplazar runtimes previos. No hubo
+migración de datos ni dependencias nuevas. No se validaron adquisiciones reales,
+SQLite/WAL/SHM, Manifest.db, archivos lógicos ni calidad de detección de spyware.
+Se conserva la evidencia histórica de las etapas anteriores.
+
 
 ## Pasarela de IA local (2026-10-17)
 

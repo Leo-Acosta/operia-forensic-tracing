@@ -25,3 +25,9 @@ Siguiente paso concreto: corregir accesos transversales y validar una adquisici�
 autorizada por plataforma en entorno aislado, registrando OS, método, hashes,
 campos observados, exclusiones y discrepancias contra examen manual. No usar un
 dominio sintético como métrica de detección de spyware.
+
+Continuidad E6 del 2026-10-18: [motor 0.2.0](E6_BACKUP_METADATA.md), con dos
+lectores de metadatos de backup iOS y validación sintética. La fila P6 anterior
+describe el alcance más amplio: Manifest.db/SQLite/WAL, archivos lógicos y
+bugreport siguen pendientes. Se conservan el roadmap y las evidencias históricas;
+la extracción de metadatos no se presenta como validación de adquisiciones reales.

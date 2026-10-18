@@ -5,13 +5,14 @@ from pathlib import Path
 from operia.forensic_engine.analysis import analyze
 from operia.forensic_engine.canonical import MAX_SOURCE_BYTES, canonical_bytes
 from operia.forensic_engine.contracts import Source
+from operia.forensic_engine.readers import reader_order
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("source", type=Path)
     parser.add_argument("--platform", required=True, choices=("ios", "android"))
-    parser.add_argument("--format", required=True, choices=("apple-profile-plist", "android-pm-packages", "android-logcat-epoch"))
+    parser.add_argument("--format", required=True, choices=tuple(reader.format for reader in reader_order()))
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--indicators", type=Path)
     parser.add_argument("--demo-rules", action="store_true")

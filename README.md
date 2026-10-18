@@ -162,6 +162,7 @@ storage/
 - [Forense móvil: piloto, diagnóstico y límites](docs/MOBILE_FORENSICS.md)
 - [Motor móvil propio: arquitectura](docs/forensic_engine/ARCHITECTURE.md)
 - [Motor móvil propio: operación y límites](docs/forensic_engine/OPERATOR_GUIDE.md)
+- [E6: metadatos de backups iOS, motor 0.2.0](docs/forensic_engine/E6_BACKUP_METADATA.md)
 
 ## Disclaimer
 

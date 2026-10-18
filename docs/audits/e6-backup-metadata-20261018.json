@@ -1,0 +1,56 @@
+{
+  "schema": "operia-e6-backup-metadata-audit/1",
+  "date": "2026-10-18",
+  "base_commit": "726d197",
+  "engine_version": "0.2.0",
+  "result_schema": "operia.forensic/1",
+  "scope": "Original passive Info.plist and Manifest.plist metadata readers, XML UTF-8 and binary bplist00; no complete backup acquisition or decryption",
+  "readers": [
+    {"id": "operia.ios.backup-info", "version": "1.0.0", "format": "apple-backup-info-plist"},
+    {"id": "operia.ios.backup-manifest", "version": "1.0.0", "format": "apple-backup-manifest-plist"}
+  ],
+  "fixtures": [
+    {"file": "tests/fixtures/native_mobile/backup-info.plist", "sha256": "cf7aa4943d7fe718822f59872ea220ee4951407bc4099a201eac4fcca84a4d98", "manual_oracle": "Two product metadata fields, one declared UTC date 2024-01-02T03:04:05.000000Z, two application identifiers"},
+    {"file": "tests/fixtures/native_mobile/backup-manifest.plist", "sha256": "b0c42dbf318a6b8c7b8a916947d473c271907a013cb05facf952137d94b0909e", "manual_oracle": "One declared encrypted=true record; no timeline; secret canaries excluded"}
+  ],
+  "validation": {
+    "initial_core_and_readers": {"passed": 52, "failed": 0, "artifact": "storage/test_runs/e6-readers.xml"},
+    "final_new_readers_cli_and_integration": {"passed": 19, "failed": 0, "warnings": 4, "artifact": "storage/test_runs/e6-metadata-final.xml"},
+    "general_backend": {"status": "passed", "tests": 309, "passed": 308, "failed": 0, "errors": 0, "skipped": 1, "warnings": 4, "artifact": "storage/test_runs/e6-regression-final.xml", "skip_reason": "Real Ollama integration requires explicit activation"},
+    "frontend": {"passed": 52, "failed": 0, "build": "TypeScript and Vite passed", "new_browser_inspection": false},
+    "method": "Original synthetic fixtures and generated binary equivalents; manual expected fields, locators and date; actual stdlib CLI with Python -S; real AppContainer/Job Object worker, review, report integration, exact export preservation, read-only grants and revocation",
+    "cli_correction": "Usage review found hard-coded old format choices; CLI now consumes reader catalog, with both new formats tested through its actual module entrypoint. Preliminary general run was interrupted before rebuilding the final runtime.",
+    "previous_version": "Synthetic pending 0.1.0 job rejects with engine_version_or_configuration_mismatch, keeps its configuration and accepts an explicit separate 0.2.0 job from the preserved acquisition",
+    "suite_counts_overlap": true,
+    "real_device_samples": false,
+    "spyware_detection_accuracy_measured": false
+  },
+  "isolation": {
+    "runtime_identity": "7e74dc7978ba3135545e208c",
+    "new_identity_previous_runtimes_retained": true,
+    "network_disabled": true,
+    "global_cpu_memory_process_and_output_limits_increased": false,
+    "runtime_archive_and_restored_copy_verified_files": 690,
+    "runtime_restore_test_executes_archive": false,
+    "limits": {"metadata_source_bytes": 1048576, "xml_depth": 52, "xml_elements": 50000, "binary_declared_objects": 20000, "parsed_tree_depth": 24, "parsed_tree_nodes": 50000, "records": 5000},
+    "xml_entities": "Rejected before tree construction; external references are not resolved"
+  },
+  "preservation": {
+    "private_backup": "storage/temp/e6-ios-backup-metadata-20261018",
+    "database_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7",
+    "existing_tables_unchanged": 74,
+    "schema_objects_unchanged": true,
+    "existing_triggers_unchanged": 9,
+    "persistent_files_restored_and_verified": 116,
+    "integrity_check": "ok",
+    "usual_database_migrated": false,
+    "final_original_database_schema_and_file_inventory_match": true,
+    "historical_results_recomputed": false,
+    "runtime_archive": "runtime-final-0.2.0",
+    "runtime_restored_copy": "restored-runtime-final-0.2.0"
+  },
+  "dependencies_added": [],
+  "hours": "Existing human-hours ledger unchanged; no AI runtime or test duration charged",
+  "pending": ["Manifest.db and selected SQLite/WAL/SHM readers", "Logical backup file traversal", "Additional Android bugreport and inventory schemas", "Authorized real-device corpus and OS-specific validation", "Physical assistive technology validation", "E7/E8 production acceptance"],
+  "saas_complete": false
+}

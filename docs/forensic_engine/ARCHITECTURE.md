@@ -1,4 +1,4 @@
-# Motor Forense Móvil de OPERIA — 0.1.0
+# Motor Forense Móvil de OPERIA — 0.2.0
 
 Nombre funcional provisional. Implementación propia para análisis posterior a una
 adquisición autorizada. Sin adquisición directa, explotación, remediación ni IA.
@@ -29,7 +29,9 @@ El núcleo funciona con `python -S -m operia.forensic_engine`: no importa FastAP
 SQLAlchemy, React, IA ni un motor externo. Los adaptadores actuales están en
 readers.py; no se crean carpetas vacías para aparentar módulos.
 
-Diseño pendiente: lectores SQLite sobre copias/WAL/SHM, manifiesto de backup iOS,
+E6 agrega [metadatos de Info.plist y Manifest.plist](E6_BACKUP_METADATA.md),
+con lectores propios en `backup_plists.py`; conserva esquema de resultado y lectores previos.
+Diseño pendiente: lectores SQLite sobre copias/WAL/SHM, Manifest.db y archivos lógicos de backup iOS,
 contenedores de adquisiciones, correlaciones entre fuentes, correlacion avanzada entre fuentes, IA. El sandbox Windows del SO se incorpora en la etapa documentada en
 [Pentest local](../LOCAL_PENTEST.md).
 El diagrama representa solo el flujo implementado.

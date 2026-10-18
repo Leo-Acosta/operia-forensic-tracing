@@ -1,1 +1,3 @@
 tests/fixtures/static_lab/benign-source.py.txt -text
+tests/fixtures/native_mobile/backup-info.plist -text
+tests/fixtures/native_mobile/backup-manifest.plist -text

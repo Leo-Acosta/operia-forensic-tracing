@@ -1,6 +1,6 @@
 # Especificación ejecutable del MVP
 
-Versión de núcleo 0.1.0; salida `operia.forensic/1`. No es equivalente a otra
+Versión de núcleo 0.2.0; salida `operia.forensic/1`. No es equivalente a otra
 herramienta ni detector certificado de una familia de malware.
 
 Cada lector declara identificador, versión, plataforma, formato y dependencias.

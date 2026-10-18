@@ -1,10 +1,12 @@
-# Compatibilidad comprobable — 2026-10-16
+# Compatibilidad comprobable — actualizada 2026-10-18
 
 | Plataforma | OS | Formato / lector | Prueba | Estado y límites |
 |---|---|---|---|---|
 | iOS | desconocido; declarado por operador | plist XML/binario de perfil / configuration-profile 1.0.0 | fixture XML original y variante binaria serializada; oráculo manual | validación sintética de estructura; no adquisición iOS real ni perfil instalado |
 | Android | desconocido; declarado por operador | texto pm list packages y -f / package-inventory 1.0.0 | fixture original de 2 líneas, variantes inválidas y demo positiva/negativa | validación sintética; no cobertura de permisos ni ejecución |
 | Android | desconocido; declarado por operador | texto epoch con PID/TID / logcat-epoch 1.0.0 | 3 eventos conocidos, exclusiones, fechas ambiguas, dominios positivos/negativos | validación sintética; reloj no contrastado y sin prueba de tráfico |
+| iOS | sintético; 18.0 es solo texto del fixture | Info.plist XML UTF-8/binario / backup-info 1.0.0 | cinco registros y fecha UTC con oráculo manual; variantes inválidas; worker real aislado | metadatos declarados; sin backup/dispositivo real, prueba de instalación ni autenticación de la versión |
+| iOS | no verificado | Manifest.plist XML UTF-8/binario / backup-manifest 1.0.0 | booleano estricto, XML/binario, tipos inválidos, canarios secretos excluidos; worker real aislado | declaración de cifrado; sin verificarlo criptográficamente, sin leer Manifest.db ni descifrar |
 | iOS/Android | cualquier otra combinación | backup completo, Manifest.db, mensajes/historial SQLite, bugreport completo, CMS, cifrado o archivos comprimidos | ninguna | no soportado; no se declara analizado |
 
 Núcleo probado en Python 3.12.14/Windows. Worker Windows local probado mediante
@@ -19,3 +21,7 @@ archivo inválido no puede sostener ausencia de compromiso.
 
 Ampliación exige muestras autorizadas, versión de OS, esquema observado, lector
 versionado y resultados esperados documentados antes de habilitar el formato.
+
+La ampliación E6 solo acredita estructura y recorrido con fixtures autorizados de
+prueba. El acceso a muestras reales y la validación por versión de OS permanecen
+pendientes; no se extiende esa evidencia sintética a dispositivos reales.

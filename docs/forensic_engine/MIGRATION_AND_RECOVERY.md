@@ -59,3 +59,17 @@ y downgrade no destructivo: las 71 tablas anteriores conservaron todos sus valor
 se agrego solo native_mobile_projections y SQLite integrity_check dio ok. Evidencia
 de comprobacion en storage/test_runs/projections-migration-check.json, fuera de Git.
 El respaldo SQLite no incluye archivos externos.
+
+## E6: actualización de lectores sin migración de datos
+
+Motor 0.2.0 incorpora [metadatos de backup](E6_BACKUP_METADATA.md) mediante lectores
+aditivos. No altera tablas ni recalcula resultados completados. Los pendientes con
+otra versión fallan de forma explícita; el operador crea un examen independiente
+desde la adquisición preservada. No cambiar su configuración para relabelarlos.
+
+El respaldo privado de esta etapa incluye la base, 116 archivos persistentes,
+configuración/claves y el runtime nuevo. Se restauraron en destinos nuevos y se
+verificaron hashes y manifiestos. Los runtimes anteriores se conservan. Una copia
+de runtime archivada con ACL privada no se ejecutó: para volver a operar se prepara
+un runtime no secreto de lectura/ejecución siguiendo `prepare_worker_sandbox.py`,
+con API y workers detenidos. No se concede acceso al depósito ni a la base.

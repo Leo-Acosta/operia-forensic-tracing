@@ -153,7 +153,9 @@ class EpochLogReader:
         return result
 
 
-READERS = (ProfilePlistReader(), PackageInventoryReader(), EpochLogReader())
+from operia.forensic_engine.backup_plists import BackupInfoReader, BackupManifestReader
+
+READERS = (ProfilePlistReader(), PackageInventoryReader(), EpochLogReader(), BackupInfoReader(), BackupManifestReader())
 
 
 def reader_order(readers=READERS):

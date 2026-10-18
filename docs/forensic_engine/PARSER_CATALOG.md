@@ -1,13 +1,16 @@
 # Catálogo de lectores implementados
 
-Todos versión 1.0.0, originales de este cambio y sin dependencias entre ellos.
-Tamaño máximo de fuente 5 MiB; hasta 5000 registros; líneas hasta 8192 caracteres.
+Lectores versión 1.0.0, de implementación propia y sin dependencias entre ellos.
+Fuente global de hasta 5 MiB; los metadatos de backup se limitan a 1 MiB.
+Hasta 5000 registros; los lectores de líneas limitan cada línea a 8192 caracteres.
 
 | ID | Entrada | Campos interpretados | Localizador | Exclusiones |
 |---|---|---|---|---|
 | operia.ios.configuration-profile | plist XML/binario de perfil con PayloadType=Configuration y PayloadContent lista | PayloadType, PayloadIdentifier, PayloadUUID; PayloadDisplayName opcional | /PayloadContent/N | CMS, firma, descifrado, certificados, valores secretos y semántica interna de payloads |
 | operia.android.package-inventory | UTF-8, salida declarada de pm list packages o -f sin otras opciones | paquete y ruta APK si está presente | line:N, numeración desde 1 | flags adicionales, permisos, instalador, UID, versiones, ejecución o estado actual |
 | operia.android.logcat-epoch | UTF-8, epoch con PID/TID, prioridad y tag; fracción de 3 a 6 cifras | epoch original, PID, TID, prioridad, tag, mensaje y URL HTTP(S) mencionadas | line:N | threadtime sin epoch, año/zona ambiguos, UID/formatos adicionales, registros binarios/multilínea |
+| operia.ios.backup-info | Info.plist XML UTF-8/binario con Product Type y Product Version | producto, versión declarada, fecha plist opcional e inventario de aplicaciones opcional | /Product Type, /Product Version, /Last Backup Date, /Installed Applications/N | datos personales, archivos incrustados, adquisición completa e instalación actual |
+| operia.ios.backup-manifest | Manifest.plist XML UTF-8/binario con IsEncrypted booleano | declaración de cifrado | /IsEncrypted | claves, Lockdown, descifrado, Manifest.db y archivos lógicos |
 
 Payloads inválidos y líneas no reconocidas conservan localizador y motivo en
 exclusiones. Las claves plist duplicadas se rechazan; profundidad/nodos son
@@ -21,3 +24,5 @@ logcat no son eventos. Los registros duplicados se enlazan y no duplican alertas
 
 Oráculos manuales y datos: tests/fixtures/native_mobile/README.md. No se usaron
 adquisiciones reales ni salidas de otro motor como verdad de referencia.
+
+Los lectores E6 pertenecen al motor 0.2.0. [Contrato y límites de backup](E6_BACKUP_METADATA.md).
