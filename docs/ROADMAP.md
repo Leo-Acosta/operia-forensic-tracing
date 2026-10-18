@@ -8,8 +8,10 @@ E3 incorpora [permisos por expediente](CASE_ACCESS_CONTROL.md). E4 ya incorpora 
 de casos y expediente, validados con datos sintéticos y regresión completa.
 E4 también incorpora [evidencias, formularios e informes](E4_EVIDENCE_REPORTS.md),
 con accesibilidad de los recorridos intervenidos, descargas autenticadas y pruebas.
-La próxima prioridad visual es migrar los módulos heredados restantes y validar
-con lectores de pantalla y dispositivos físicos; no hay certificación global WCAG.
+La migración de [módulos heredados y revisión técnica de accesibilidad](E4_LEGACY_MODULES.md)
+se completó el 2026-10-18. Continúa pendiente la validación con lectores de pantalla
+y dispositivos físicos; no hay certificación global WCAG. Las pantallas de estado
+Geo Trace, Geo Proximity y exportaciones conservan su alcance funcional previo.
 
 ## Near Term
 

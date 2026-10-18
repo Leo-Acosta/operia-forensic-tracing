@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { useEffect, useRef, useState } from "react";
 import { apiPost, getAuthToken } from "./api";
 
@@ -42,7 +43,7 @@ export default function LocalAiGateway({ caseId, allowed, sessionKey }: { caseId
     </label>
     <label><input type="checkbox" checked={includeContext} disabled={pending || !caseId || !allowed} onChange={(event) => setIncludeContext(event.target.checked)} /> Incluir resumen, descripciones de evidencia y hallazgos del caso seleccionado</label>
     <p>Sin adjuntos originales, herramientas ni memoria de conversaciones anteriores. La pasarela debe estar habilitada por el operador y la organización.</p>
-    <button onClick={consult} disabled={pending || !allowed || !caseId || !prompt.trim()}>{pending ? "Consultando…" : "Consultar IA local"}</button>
+    <Button onClick={consult} disabled={pending || !allowed || !caseId || !prompt.trim()} variant="default" type="button" className="h-auto min-h-10 whitespace-normal">{pending ? "Consultando…" : "Consultar IA local"}</Button>
     {message && <p role="status">{message}</p>}
     {answer && answer.case_id === caseId && <div>
       <p>Interacción {answer.id} · Borrador generado, pendiente de revisión humana.</p>

@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { apiGet, apiPost, getAuthToken } from "./api";
 
@@ -36,7 +37,7 @@ export default function CaseAccessPanel({ caseId, users }: {
       if (alive.current && token === getAuthToken()) setMessage(error instanceof Error ? error.message : "No se pudo registrar el cambio.");
     } finally { if (alive.current && token === getAuthToken()) setBusy(false); }
   }
-  return <details className="work-surface compact-surface">
+  return <details className="premium-access-panel premium-form">
     <summary>Permisos del expediente</summary>
     <p>Denegación por defecto. Solo el administrador de la organización gestiona accesos. Cada decisión conserva autor, fecha y motivo. Los permisos del rol también se aplican.</p>
     <form onSubmit={event => change(event, false)}>
@@ -51,11 +52,11 @@ export default function CaseAccessPanel({ caseId, users }: {
       </fieldset>
       <label>Motivo obligatorio <textarea required maxLength={2000} value={reason} onChange={event => setReason(event.target.value)} /></label>
       <p>Conceder agrega las capacidades seleccionadas y lectura. Revocar lectura oculta todo el expediente y detiene sus análisis activos. Para retirar todo el acceso, seleccioná todas las capacidades y revocá.</p>
-      <button disabled={busy || !userId || !selected.length || !reason.trim()}>Conceder seleccionados</button>{" "}
-      <button type="button" className="secondary-button" disabled={busy || !userId || !selected.length || !reason.trim()} onClick={event => change(event, true)}>Revocar seleccionados</button>
+      <Button disabled={busy || !userId || !selected.length || !reason.trim()} variant="default" type="submit" className="h-auto min-h-10 whitespace-normal">Conceder seleccionados</Button>{" "}
+      <Button type="button" className="h-auto min-h-10 whitespace-normal secondary-button" disabled={busy || !userId || !selected.length || !reason.trim()} onClick={event => change(event, true)} variant="outline">Revocar seleccionados</Button>
     </form>
     {message && <p role="status">{message}</p>}
-    <h4>Historial de decisiones</h4>
+    <h3>Historial de decisiones</h3>
     <ul>{events.slice().reverse().map(item => <li key={item.id}>#{item.id} · Usuario {users.find(user => user.id === item.user_id)?.name || item.user_id} · {capabilities[item.permission as keyof typeof capabilities] || item.permission}: {item.access === "granted" ? "concedido" : "revocado"} · Autor #{item.actor_id} · {item.recorded_at} · {item.reason}</li>)}</ul>
   </details>;
 }

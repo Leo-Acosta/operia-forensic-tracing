@@ -1,3 +1,6 @@
+import { guardCaseResult } from "@/lib/case-result";
+import { Card } from "@/components/ui/card";
+import { ModuleSurface } from "@/components/layout/module-surface";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { EvidenceWorkspace } from "@/components/evidence/evidence-workspace";
 import { ReportRegister } from "@/components/reports/report-register";
@@ -1422,8 +1425,8 @@ function StepCard({
   );
 }
 
-export function App() {
-  const [active, setActive] = useState<ModuleKey>("cases");
+export function App({ initialModule = "cases" }: { initialModule?: ModuleKey } = {}) {
+  const [active, setActive] = useState<ModuleKey>(initialModule);
   const [caseDetailTab, setCaseDetailTab] = useState<CaseDetailTab>("summary");
   const [dashboard, setDashboard] = useState<DashboardPayload>({});
   const [cases, setCases] = useState<CaseItem[]>([]);
@@ -1895,7 +1898,12 @@ export function App() {
   }, [identitySession.user?.id]);
 
   useEffect(() => {
-    refreshCaseCollections(selectedCaseId).catch((err: Error) => setError(err.message));
+    setIndicatorResult(null); setAiResult(null); setAiEnrichmentResult(null); setLegalTypification(null); setLegalRecommendation(null);
+    setReviewResult(null); setReviewAudit(null); setExportFinalResult(null); setModulePayload(null);
+    setCyberLabSessions([]); setCyberProofRows([]); setMindSearchResults([]); setMindNotes([]); setMindGraph(null); setMindBrief(null);
+    setEditingBlockchainId(null); setBlockchainForm(emptyBlockchainForm); setEditingIotId(null); setIotForm(emptyIoTForm);
+    const current = captureCaseContext();
+    refreshCaseCollections(selectedCaseId).catch((err: Error) => { if (current()) setError(err.message); });
   }, [selectedCaseId, authToken]);
 
   async function refreshIdentity() {
@@ -2009,7 +2017,7 @@ export function App() {
         <FormField label="Responsable"><Input value={evidenceForm.responsible} onChange={e => setEvidenceForm({ ...evidenceForm, responsible: e.target.value })} /></FormField>
         <FormField label="Custodio"><Input value={evidenceForm.custodian} onChange={e => setEvidenceForm({ ...evidenceForm, custodian: e.target.value })} /></FormField>
         <FormField label="Archivo original" hint="La API calcula el hash y registra la custodia. El archivo no se envía a conectores externos."><Input key={`${authToken}:${selectedCaseId}:${evidenceUploadVersion}`} type="file" required onChange={e => setEvidenceFile(e.target.files?.[0] || null)} /></FormField>
-        <Button type="submit" disabled={!evidenceFile || !evidenceForm.description.trim()}><Upload size={16} />{caseTask || "Subir y calcular hash"}</Button>
+        <Button type="submit" disabled={!evidenceFile || !evidenceForm.description.trim()} className="h-auto min-h-10 whitespace-normal"><Upload size={16} />{caseTask || "Subir y calcular hash"}</Button>
       </fieldset>
       {!canCase("evidence", "evidence:write") && <p className="premium-permissions-note">Requiere un expediente activo y permiso para incorporar evidencia.</p>}
     </form>;
@@ -2038,6 +2046,7 @@ export function App() {
   }
 
   async function createMindNote(event: FormEvent) {
+    const requestCurrent = captureCaseContext();
     event.preventDefault();
     if (!mindNoteForm.title.trim() || !mindNoteForm.content.trim()) {
       setMindState("error");
@@ -2047,7 +2056,7 @@ export function App() {
     setMindState("working");
     setMindMessage("");
     try {
-      await apiPost<MindNote>("/mind/notes", {
+      await guardCaseResult(apiPost<MindNote>("/mind/notes", {
         case_id: selectedCaseId || undefined,
         note_type: mindNoteForm.note_type,
         title: mindNoteForm.title.trim(),
@@ -2056,18 +2065,20 @@ export function App() {
         source_module: "frontend",
         confidence: "medio",
         review_status: "borrador"
-      });
+      }), requestCurrent);
       setMindNoteForm({ note_type: "nota", title: "", content: "", tags: "operia, memoria" });
       setMindState("success");
       setMindMessage("Nota guardada en la memoria forense y en el vault Markdown.");
-      await refreshMind();
+      await guardCaseResult(refreshMind(), requestCurrent);
     } catch (err) {
+      if (!requestCurrent()) return;
       setMindState("error");
       handleMindError(err, "No se pudo guardar la nota. Verifica el caso activo y vuelve a intentar.");
     }
   }
 
   async function createMindSnapshot() {
+    const requestCurrent = captureCaseContext();
     if (!selectedCaseId) {
       setMindState("error");
       setMindMessage("Selecciona un caso para crear un snapshot de memoria.");
@@ -2076,17 +2087,19 @@ export function App() {
     setMindState("working");
     setMindMessage("");
     try {
-      const result = await apiPost<{ message: string; graph_nodes: number; graph_edges: number }>(`/mind/cases/${selectedCaseId}/snapshot`);
+      const result = await guardCaseResult(apiPost<{ message: string; graph_nodes: number; graph_edges: number }>(`/mind/cases/${selectedCaseId}/snapshot`), requestCurrent);
       setMindState("success");
       setMindMessage(`${result.message} Grafo actualizado: ${result.graph_nodes} nodos y ${result.graph_edges} relaciones.`);
-      await refreshMind();
+      await guardCaseResult(refreshMind(), requestCurrent);
     } catch (err) {
+      if (!requestCurrent()) return;
       setMindState("error");
       handleMindError(err, "No se pudo crear el snapshot del caso. Verifica permisos y caso activo.");
     }
   }
 
   async function createReportMindSnapshot() {
+    const requestCurrent = captureCaseContext();
     if (!latestReport) {
       setMindState("error");
       setMindMessage("Genera primero un informe para guardarlo en memoria.");
@@ -2095,17 +2108,19 @@ export function App() {
     setMindState("working");
     setMindMessage("");
     try {
-      const result = await apiPost<{ message: string; graph_nodes: number; graph_edges: number }>(`/mind/reports/${latestReport.id}/snapshot`);
+      const result = await guardCaseResult(apiPost<{ message: string; graph_nodes: number; graph_edges: number }>(`/mind/reports/${latestReport.id}/snapshot`), requestCurrent);
       setMindState("success");
       setMindMessage(`${result.message} Grafo actualizado: ${result.graph_nodes} nodos y ${result.graph_edges} relaciones.`);
-      await refreshMind();
+      await guardCaseResult(refreshMind(), requestCurrent);
     } catch (err) {
+      if (!requestCurrent()) return;
       setMindState("error");
       handleMindError(err, "No se pudo guardar el informe en memoria. Genera o selecciona un informe válido.");
     }
   }
 
   async function createPresentationMindSnapshot() {
+    const requestCurrent = captureCaseContext();
     const selectedPresentation = presentations.find((item) => item.id === Number(selectedPresentationId)) || presentations[0];
     if (!selectedPresentation) {
       setMindState("error");
@@ -2115,19 +2130,21 @@ export function App() {
     setMindState("working");
     setMindMessage("");
     try {
-      const result = await apiPost<{ message: string; graph_nodes: number; graph_edges: number }>(
+      const result = await guardCaseResult(apiPost<{ message: string; graph_nodes: number; graph_edges: number }>(
         `/mind/presentations/${selectedPresentation.id}/snapshot`
-      );
+      ), requestCurrent);
       setMindState("success");
       setMindMessage(`${result.message} Grafo actualizado: ${result.graph_nodes} nodos y ${result.graph_edges} relaciones.`);
-      await refreshMind();
+      await guardCaseResult(refreshMind(), requestCurrent);
     } catch (err) {
+      if (!requestCurrent()) return;
       setMindState("error");
       handleMindError(err, "No se pudo guardar la exposición en memoria. Genera primero una exposición válida.");
     }
   }
 
   async function createMindRelation(event: FormEvent) {
+    const requestCurrent = captureCaseContext();
     event.preventDefault();
     if (!selectedCaseId) {
       setMindState("error");
@@ -2147,7 +2164,7 @@ export function App() {
     setMindState("working");
     setMindMessage("");
     try {
-      await apiPost("/mind/graph/edges", {
+      await guardCaseResult(apiPost("/mind/graph/edges", {
         case_id: Number(selectedCaseId),
         source_node_key: mindRelationForm.source_node_key,
         target_node_key: mindRelationForm.target_node_key,
@@ -2155,18 +2172,20 @@ export function App() {
         label: mindRelationForm.label,
         confidence: mindRelationForm.confidence,
         metadata: { source: "frontend_mind" }
-      });
+      }), requestCurrent);
       setMindState("success");
       setMindMessage("Relación guardada en el grafo de memoria forense.");
       setMindRelationForm({ source_node_key: "", target_node_key: "", relation_type: "vinculado_con", label: "", confidence: "medio" });
-      await refreshMind();
+      await guardCaseResult(refreshMind(), requestCurrent);
     } catch (err) {
+      if (!requestCurrent()) return;
       setMindState("error");
       handleMindError(err, "No se pudo crear la relación. Verifica permisos y nodos seleccionados.");
     }
   }
 
   async function searchMind(event?: FormEvent) {
+    const requestCurrent = captureCaseContext();
     event?.preventDefault();
     const query = mindSearchQuery.trim();
     if (query.length < 2) {
@@ -2179,11 +2198,12 @@ export function App() {
     setMindMessage("");
     try {
       const caseParam = selectedCaseId ? `&case_id=${selectedCaseId}` : "";
-      const results = await apiGet<MindSearchResult[]>(`/mind/search?q=${encodeURIComponent(query)}${caseParam}`);
+      const results = await guardCaseResult(apiGet<MindSearchResult[]>(`/mind/search?q=${encodeURIComponent(query)}${caseParam}`), requestCurrent);
       setMindSearchResults(results);
       setMindState("success");
       setMindMessage(results.length ? `Memoria consultada: ${results.length} coincidencia(s) relevantes.` : "No se encontraron coincidencias en la memoria seleccionada.");
     } catch (err) {
+      if (!requestCurrent()) return;
       setMindState("error");
       handleMindError(err, "No se pudo consultar la memoria en este momento.");
     }
@@ -2237,8 +2257,9 @@ export function App() {
   }
 
   async function refreshCybercrime() {
+    const requestCurrent = captureCaseContext();
     const caseParam = selectedCaseId ? `?case_id=${selectedCaseId}` : "";
-    const [dashboardData, toolsData, labData, proofRowsData, deepfakeData, blockchainData, iotData] = await Promise.all([
+    const [dashboardData, toolsData, labData, proofRowsData, deepfakeData, blockchainData, iotData] = await guardCaseResult(Promise.all([
       apiGet<CybercrimeDashboard>("/cybercrime/dashboard"),
       apiGet<CyberTool[]>("/cybercrime/tools"),
       apiGet<CyberLabSession[]>(`/cybercrime/lab/sessions${caseParam}`),
@@ -2246,7 +2267,7 @@ export function App() {
       selectedCaseId ? apiGet<DeepfakeAnalysisItem[]>(`/cybercrime/deepfake/case/${selectedCaseId}`) : Promise.resolve([]),
       selectedCaseId ? apiGet<BlockchainTransactionItem[]>(`/cybercrime/blockchain/case/${selectedCaseId}`) : Promise.resolve([]),
       selectedCaseId ? apiGet<IoTDeviceItem[]>(`/cybercrime/iot/case/${selectedCaseId}`) : Promise.resolve([])
-    ]);
+    ]), requestCurrent);
     setCyberDashboard(dashboardData);
     setCyberTools(toolsData);
     setCyberLabSessions(labData);
@@ -2655,19 +2676,21 @@ export function App() {
   }
 
   async function analyzeIndicator() {
+    const requestCurrent = captureCaseContext();
     setIndicatorFindingState("idle");
     setIndicatorFindingMessage("");
-    setIndicatorResult(await apiPost("/cybercrime/analyze-indicator", { case_id: selectedCaseId || undefined, indicator }));
-    if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
-    await refreshCybercrime();
+    setIndicatorResult(await guardCaseResult(apiPost("/cybercrime/analyze-indicator", { case_id: selectedCaseId || undefined, indicator }), requestCurrent));
+    if (selectedCaseId) await guardCaseResult(refreshCaseCollections(selectedCaseId), requestCurrent);
+    await guardCaseResult(refreshCybercrime(), requestCurrent);
   }
 
   async function saveIndicatorAsFinding() {
+    const requestCurrent = captureCaseContext();
     if (!selectedCaseId || !indicatorResult) return;
     setIndicatorFindingState("saving");
     setIndicatorFindingMessage("Guardando hallazgo tecnico en el caso...");
     try {
-      const saved = await apiPost<{ id: number }>(`/cases/${selectedCaseId}/findings`, {
+      const saved = await guardCaseResult(apiPost<{ id: number }>(`/cases/${selectedCaseId}/findings`, {
         case_id: selectedCaseId,
         evidence_id: latestEvidence?.id,
         title: `Indicador ${prettySpanish(indicatorResult.indicator_type)} analizado`,
@@ -2679,12 +2702,13 @@ export function App() {
         supporting_evidence: latestEvidence ? `Evidencia #${latestEvidence.id}: ${latestEvidence.description}` : "Pendiente de vincular con evidencia preservada.",
         preliminary_legal_relevance: indicatorResult.legal_relevance,
         status: "validado"
-      });
-      await refreshCaseCollections(selectedCaseId);
+      }), requestCurrent);
+      await guardCaseResult(refreshCaseCollections(selectedCaseId), requestCurrent);
       setIndicatorFindingState("saved");
       setIndicatorFindingMessage(`Hallazgo #${saved.id} incorporado al caso y disponible para informe.`);
       setModulePayload({ status: "hallazgo_guardado", finding_id: saved.id, indicator: indicatorResult.indicator, case_id: selectedCaseId });
     } catch (error) {
+      if (!requestCurrent()) return;
       const message = error instanceof Error ? error.message : "No se pudo guardar el hallazgo.";
       setIndicatorFindingState("error");
       setIndicatorFindingMessage(message);
@@ -2709,40 +2733,43 @@ export function App() {
   }
 
   async function createCyberLabSession(event: FormEvent) {
+    const requestCurrent = captureCaseContext();
     event.preventDefault();
     if (!selectedCaseId) {
       setError("Selecciona un caso antes de crear una sesión cybercrime.");
       return;
     }
-    await apiPost<CyberLabSession>("/cybercrime/lab/sessions", {
+    await guardCaseResult(apiPost<CyberLabSession>("/cybercrime/lab/sessions", {
       ...cyberLabForm,
       case_id: Number(selectedCaseId),
       operator: cyberLabForm.operator || analystName || identitySession.user?.name || "Analista local",
       title: cyberLabForm.title || `Análisis cybercrime - ${indicator}`
-    });
+    }), requestCurrent);
     setCyberLabForm({ title: "", purpose: "análisis de indicador", risk_level: "medio", operator: "" });
-    await refreshCybercrime();
+    await guardCaseResult(refreshCybercrime(), requestCurrent);
   }
 
   async function createCyberProofRow(event: FormEvent) {
+    const requestCurrent = captureCaseContext();
     event.preventDefault();
     if (!selectedCaseId) {
       setError("Selecciona un caso antes de guardar una conclusión cybercrime.");
       return;
     }
-    await apiPost<CyberProofRow>("/cybercrime/proof-matrix", {
+    await guardCaseResult(apiPost<CyberProofRow>("/cybercrime/proof-matrix", {
       ...cyberProofForm,
       case_id: Number(selectedCaseId),
       defensible_conclusion:
         cyberProofForm.defensible_conclusion ||
         `El indicador ${indicator} fue clasificado como ${indicatorResult?.indicator_type || "dato técnico"} con riesgo ${indicatorResult?.risk_level || "medio"}.`,
       legal_framing: cyberProofForm.legal_framing || "Requiere vinculación con evidencia preservada y encuadre legal aprobado por analista."
-    });
+    }), requestCurrent);
     setCyberProofForm({ defensible_conclusion: "", legal_framing: "", confidence_level: "medio", weakness: "" });
-    await refreshCybercrime();
+    await guardCaseResult(refreshCybercrime(), requestCurrent);
   }
 
   async function saveDeepfakeAnalysis(event: FormEvent) {
+    const requestCurrent = captureCaseContext();
     event.preventDefault();
     if (!selectedCaseId) {
       setDeepfakeState("error");
@@ -2753,7 +2780,7 @@ export function App() {
     setDeepfakeMessage("Guardando análisis de medio...");
     try {
       const selectedEvidence = evidence.find((item) => item.id === Number(deepfakeForm.evidence_id));
-      await apiPost<DeepfakeAnalysisItem>("/cybercrime/deepfake", {
+      await guardCaseResult(apiPost<DeepfakeAnalysisItem>("/cybercrime/deepfake", {
         ...deepfakeForm,
         case_id: Number(selectedCaseId),
         evidence_id: deepfakeForm.evidence_id ? Number(deepfakeForm.evidence_id) : undefined,
@@ -2761,58 +2788,64 @@ export function App() {
         source_origin: deepfakeForm.source_origin || selectedEvidence?.source || selectedEvidence?.file_location || "",
         checklist: deepfakeChecklistState,
         analyst_name: analystName || identitySession.user?.name || "Analista local"
-      });
+      }), requestCurrent);
       setDeepfakeForm(emptyDeepfakeForm);
       setDeepfakeChecklistState(emptyDeepfakeChecklist);
       setDeepfakeState("saved");
       setDeepfakeMessage("Análisis guardado y vinculado al caso.");
-      await refreshCaseCollections(selectedCaseId);
-      await refreshCybercrime();
+      await guardCaseResult(refreshCaseCollections(selectedCaseId), requestCurrent);
+      await guardCaseResult(refreshCybercrime(), requestCurrent);
     } catch (error) {
+      if (!requestCurrent()) return;
       setDeepfakeState("error");
       setDeepfakeMessage(error instanceof Error ? error.message : "No se pudo guardar el análisis.");
     }
   }
 
   async function createDeepfakeFinding(analysisId: number) {
+    const requestCurrent = captureCaseContext();
     setDeepfakeState("saving");
     setDeepfakeMessage("Creando hallazgo técnico...");
     try {
-      const result = await apiPost<{ id: number; message: string }>(`/cybercrime/deepfake/${analysisId}/finding`);
+      const result = await guardCaseResult(apiPost<{ id: number; message: string }>(`/cybercrime/deepfake/${analysisId}/finding`), requestCurrent);
       setDeepfakeState("saved");
       setDeepfakeMessage(result.message || `Hallazgo #${result.id} creado.`);
-      if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
-      await refreshCybercrime();
+      if (selectedCaseId) await guardCaseResult(refreshCaseCollections(selectedCaseId), requestCurrent);
+      await guardCaseResult(refreshCybercrime(), requestCurrent);
     } catch (error) {
+      if (!requestCurrent()) return;
       setDeepfakeState("error");
       setDeepfakeMessage(error instanceof Error ? error.message : "No se pudo crear el hallazgo.");
     }
   }
 
   async function applyDeepfakeLegal(analysis: DeepfakeAnalysisItem) {
+    const requestCurrent = captureCaseContext();
     setDeepfakeState("saving");
     setDeepfakeMessage("Aplicando normas sugeridas...");
     try {
       const text = `${analysis.media_type} ${analysis.findings} ${analysis.legal_relevance}`.toLowerCase();
-      const result = await apiPost<{ applied: Array<{ norm_reference: string }> }>(`/cybercrime/deepfake/${analysis.id}/apply-legal`, {
+      const result = await guardCaseResult(apiPost<{ applied: Array<{ norm_reference: string }> }>(`/cybercrime/deepfake/${analysis.id}/apply-legal`, {
         analyst_name: analystName || identitySession.user?.name || "Analista local",
         fraud: text.includes("fraude") || text.includes("estafa") || text.includes("transferencia"),
         document_falsity: analysis.media_type === "documento" || text.includes("documento") || text.includes("certificado"),
         honor_affectation: text.includes("honor") || text.includes("reputación") || text.includes("reputacion"),
         personal_data: true,
         intellectual_property: true
-      });
+      }), requestCurrent);
       setDeepfakeState("saved");
       setDeepfakeMessage(`Normas aplicadas: ${result.applied.map((item) => item.norm_reference).join(", ") || "sin nuevas normas"}.`);
-      if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
-      await refreshCybercrime();
+      if (selectedCaseId) await guardCaseResult(refreshCaseCollections(selectedCaseId), requestCurrent);
+      await guardCaseResult(refreshCybercrime(), requestCurrent);
     } catch (error) {
+      if (!requestCurrent()) return;
       setDeepfakeState("error");
       setDeepfakeMessage(error instanceof Error ? error.message : "No se pudieron aplicar las normas.");
     }
   }
 
   async function saveBlockchainTransaction(event: FormEvent) {
+    const requestCurrent = captureCaseContext();
     event.preventDefault();
     if (!selectedCaseId) {
       setBlockchainState("error");
@@ -2838,17 +2871,18 @@ export function App() {
         analyst_name: analystName || identitySession.user?.name || "Analista local"
       };
       if (editingBlockchainId) {
-        await apiPatch<BlockchainTransactionItem>(`/cybercrime/blockchain/${editingBlockchainId}`, payload);
+        await guardCaseResult(apiPatch<BlockchainTransactionItem>(`/cybercrime/blockchain/${editingBlockchainId}`, payload), requestCurrent);
       } else {
-        await apiPost<BlockchainTransactionItem>("/cybercrime/blockchain", payload);
+        await guardCaseResult(apiPost<BlockchainTransactionItem>("/cybercrime/blockchain", payload), requestCurrent);
       }
       setBlockchainForm(emptyBlockchainForm);
       setEditingBlockchainId(null);
       setBlockchainState("saved");
       setBlockchainMessage(editingBlockchainId ? "Salto blockchain actualizado y asentado en custodia." : "Transacción registrada con límites de atribución.");
-      await refreshCaseCollections(selectedCaseId);
-      await refreshCybercrime();
+      await guardCaseResult(refreshCaseCollections(selectedCaseId), requestCurrent);
+      await guardCaseResult(refreshCybercrime(), requestCurrent);
     } catch (error) {
+      if (!requestCurrent()) return;
       setBlockchainState("error");
       setBlockchainMessage(error instanceof Error ? error.message : "No se pudo registrar la transacción.");
     }
@@ -2887,64 +2921,71 @@ export function App() {
   }
 
   async function toggleBlockchainReportInclusion(transaction: BlockchainTransactionItem) {
+    const requestCurrent = captureCaseContext();
     if (!selectedCaseId) return;
     setBlockchainState("saving");
     setBlockchainMessage(transaction.include_in_report ? "Excluyendo salto del informe..." : "Incorporando salto al informe...");
     try {
-      await apiPatch<BlockchainTransactionItem>(`/cybercrime/blockchain/${transaction.id}`, {
+      await guardCaseResult(apiPatch<BlockchainTransactionItem>(`/cybercrime/blockchain/${transaction.id}`, {
         ...transaction,
         include_in_report: !transaction.include_in_report,
         evidence_id: transaction.evidence_id || undefined
-      });
+      }), requestCurrent);
       setBlockchainState("saved");
       setBlockchainMessage(!transaction.include_in_report ? "Salto incorporado al informe final." : "Salto excluido del informe final. Permanece en el laboratorio.");
-      await refreshCaseCollections(selectedCaseId);
-      await refreshCybercrime();
+      await guardCaseResult(refreshCaseCollections(selectedCaseId), requestCurrent);
+      await guardCaseResult(refreshCybercrime(), requestCurrent);
     } catch (error) {
+      if (!requestCurrent()) return;
       setBlockchainState("error");
       setBlockchainMessage(error instanceof Error ? error.message : "No se pudo actualizar la inclusión en informe.");
     }
   }
 
   async function createBlockchainFinding(transactionId: number) {
+    const requestCurrent = captureCaseContext();
     setBlockchainState("saving");
     setBlockchainMessage("Creando hallazgo blockchain...");
     try {
-      const result = await apiPost<{ id: number; message: string }>(`/cybercrime/blockchain/${transactionId}/finding`);
+      const result = await guardCaseResult(apiPost<{ id: number; message: string }>(`/cybercrime/blockchain/${transactionId}/finding`), requestCurrent);
       setBlockchainState("saved");
       setBlockchainMessage(result.message || `Hallazgo #${result.id} creado.`);
-      if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
-      await refreshCybercrime();
+      if (selectedCaseId) await guardCaseResult(refreshCaseCollections(selectedCaseId), requestCurrent);
+      await guardCaseResult(refreshCybercrime(), requestCurrent);
     } catch (error) {
+      if (!requestCurrent()) return;
       setBlockchainState("error");
       setBlockchainMessage(error instanceof Error ? error.message : "No se pudo crear el hallazgo.");
     }
   }
 
   async function applyBlockchainLegal(transaction: BlockchainTransactionItem) {
+    const requestCurrent = captureCaseContext();
     setBlockchainState("saving");
     setBlockchainMessage("Aplicando normas registradas...");
     try {
       const text = `${transaction.route_hypothesis} ${transaction.wallet_classification} ${transaction.blockchain}`.toLowerCase();
-      const result = await apiPost<{ applied: Array<{ norm_reference: string }> }>(`/cybercrime/blockchain/${transaction.id}/apply-legal`, {
+      const result = await guardCaseResult(apiPost<{ applied: Array<{ norm_reference: string }> }>(`/cybercrime/blockchain/${transaction.id}/apply-legal`, {
         analyst_name: analystName || identitySession.user?.name || "Analista local",
         fraud: text.includes("estafa") || text.includes("fraude") || text.includes("phishing"),
         computer_manipulation: text.includes("manipulación") || text.includes("manipulacion") || text.includes("contrato inteligente"),
         extortion: text.includes("extorsión") || text.includes("extorsion") || text.includes("ransomware"),
         blackmail: text.includes("chantaje"),
         personal_data: text.includes("exchange") || text.includes("cuenta") || text.includes("kyc")
-      });
+      }), requestCurrent);
       setBlockchainState("saved");
       setBlockchainMessage(`Normas aplicadas: ${result.applied.map((item) => item.norm_reference).join(", ") || "sin nuevas normas"}.`);
-      if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
-      await refreshCybercrime();
+      if (selectedCaseId) await guardCaseResult(refreshCaseCollections(selectedCaseId), requestCurrent);
+      await guardCaseResult(refreshCybercrime(), requestCurrent);
     } catch (error) {
+      if (!requestCurrent()) return;
       setBlockchainState("error");
       setBlockchainMessage(error instanceof Error ? error.message : "No se pudieron aplicar las normas.");
     }
   }
 
   async function saveIoTDevice(event: FormEvent) {
+    const requestCurrent = captureCaseContext();
     event.preventDefault();
     if (!selectedCaseId) {
       setIotState("error");
@@ -2964,18 +3005,19 @@ export function App() {
         analyst_name: analystName || identitySession.user?.name || "Analista local"
       };
       if (editingIotId) {
-        await apiPatch<IoTDeviceItem>(`/cybercrime/iot/${editingIotId}`, payload);
+        await guardCaseResult(apiPatch<IoTDeviceItem>(`/cybercrime/iot/${editingIotId}`, payload), requestCurrent);
       } else {
-        await apiPost<IoTDeviceItem>("/cybercrime/iot", payload);
+        await guardCaseResult(apiPost<IoTDeviceItem>("/cybercrime/iot", payload), requestCurrent);
       }
       setIotForm(emptyIoTForm);
       setEditingIotId(null);
       setIotChecklistState(emptyIoTChecklist);
       setIotState("saved");
       setIotMessage(editingIotId ? "Ficha IoT actualizada y asentada en custodia." : "Dispositivo IoT registrado con metodología y límites.");
-      await refreshCaseCollections(selectedCaseId);
-      await refreshCybercrime();
+      await guardCaseResult(refreshCaseCollections(selectedCaseId), requestCurrent);
+      await guardCaseResult(refreshCybercrime(), requestCurrent);
     } catch (error) {
+      if (!requestCurrent()) return;
       setIotState("error");
       setIotMessage(error instanceof Error ? error.message : "No se pudo registrar el dispositivo.");
     }
@@ -3005,53 +3047,59 @@ export function App() {
   }
 
   async function createIoTFinding(deviceId: number) {
+    const requestCurrent = captureCaseContext();
     setIotState("saving");
     setIotMessage("Creando hallazgo IoT...");
     try {
-      const result = await apiPost<{ id: number; message: string }>(`/cybercrime/iot/${deviceId}/finding`);
+      const result = await guardCaseResult(apiPost<{ id: number; message: string }>(`/cybercrime/iot/${deviceId}/finding`), requestCurrent);
       setIotState("saved");
       setIotMessage(result.message || `Hallazgo #${result.id} creado.`);
-      if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
-      await refreshCybercrime();
+      if (selectedCaseId) await guardCaseResult(refreshCaseCollections(selectedCaseId), requestCurrent);
+      await guardCaseResult(refreshCybercrime(), requestCurrent);
     } catch (error) {
+      if (!requestCurrent()) return;
       setIotState("error");
       setIotMessage(error instanceof Error ? error.message : "No se pudo crear el hallazgo.");
     }
   }
 
   async function applyIoTLegal(device: IoTDeviceItem) {
+    const requestCurrent = captureCaseContext();
     setIotState("saving");
     setIotMessage("Aplicando normas registradas...");
     try {
       const text = `${device.known_vulnerabilities} ${device.logs_available} ${device.open_ports} ${device.device_type}`.toLowerCase();
-      const result = await apiPost<{ applied: Array<{ norm_reference: string }> }>(`/cybercrime/iot/${device.id}/apply-legal`, {
+      const result = await guardCaseResult(apiPost<{ applied: Array<{ norm_reference: string }> }>(`/cybercrime/iot/${device.id}/apply-legal`, {
         analyst_name: analystName || identitySession.user?.name || "Analista local",
         unauthorized_access: text.includes("acceso") || text.includes("credencial") || text.includes("puerto"),
         damage: text.includes("daño") || text.includes("dano") || text.includes("malware") || text.includes("alter"),
         public_systems: text.includes("servicio") || text.includes("infraestructura") || text.includes("publico"),
         communications_interruption: text.includes("interrup") || text.includes("red") || text.includes("comunicacion"),
         personal_data: text.includes("camara") || text.includes("audio") || text.includes("usuario")
-      });
+      }), requestCurrent);
       setIotState("saved");
       setIotMessage(`Normas aplicadas: ${result.applied.map((item) => item.norm_reference).join(", ") || "sin nuevas normas"}.`);
-      if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
-      await refreshCybercrime();
+      if (selectedCaseId) await guardCaseResult(refreshCaseCollections(selectedCaseId), requestCurrent);
+      await guardCaseResult(refreshCybercrime(), requestCurrent);
     } catch (error) {
+      if (!requestCurrent()) return;
       setIotState("error");
       setIotMessage(error instanceof Error ? error.message : "No se pudieron aplicar las normas.");
     }
   }
 
   async function searchLegal() {
-    const [found, recommended] = await Promise.all([
+    const requestCurrent = captureCaseContext();
+    const [found, recommended] = await guardCaseResult(Promise.all([
       apiGet<LegalArticle[]>(`/legal-knowledge/articles?q=${encodeURIComponent(legalQuery)}`),
       apiPost<LegalRecommendationResponse>("/legal-knowledge/articles/recommend", { incident_text: legalQuery })
-    ]);
+    ]), requestCurrent);
     setArticles(found);
     setLegalRecommendation(recommended);
   }
 
   async function decideLegalRecommendation(item: LegalRecommendation, decision_status: "aprobado" | "descartado") {
+    const requestCurrent = captureCaseContext();
     if (!selectedCaseId) {
       setError("Selecciona un caso antes de aprobar o descartar una norma.");
       setLegalApplyState("error");
@@ -3062,7 +3110,7 @@ export function App() {
     setLegalApplyState("applying");
     setLegalApplyMessage(`${decision_status === "aprobado" ? "Aplicando" : "Descartando"} ${item.reference} en el caso...`);
     try {
-      await apiPost<LegalMapping>("/legal-knowledge/mappings/decision", {
+      await guardCaseResult(apiPost<LegalMapping>("/legal-knowledge/mappings/decision", {
         case_id: selectedCaseId,
         article_id: item.article_id,
         decision_status,
@@ -3075,19 +3123,21 @@ export function App() {
         applicability_to_case: item.applicability_to_case,
         probatory_limits: item.probatory_limits,
         confidence_level: item.confidence
-      });
-      await refreshCaseCollections(selectedCaseId);
+      }), requestCurrent);
+      await guardCaseResult(refreshCaseCollections(selectedCaseId), requestCurrent);
       setLegalApplyState("applied");
       setLegalApplyMessage(`${item.reference} ${decision_status === "aprobado" ? "aplicada" : "descartada"} para el caso seleccionado.`);
     } catch (error) {
+      if (!requestCurrent()) return;
       setLegalApplyState("error");
       setLegalApplyMessage(error instanceof Error ? error.message : "No se pudo actualizar el encuadre legal.");
     }
   }
 
   async function changeLegalMappingDecision(mapping: LegalMapping, decision_status: "aprobado" | "descartado") {
+    const requestCurrent = captureCaseContext();
     if (!selectedCaseId || !mapping.article_id) return;
-    await apiPost<LegalMapping>("/legal-knowledge/mappings/decision", {
+    await guardCaseResult(apiPost<LegalMapping>("/legal-knowledge/mappings/decision", {
       case_id: selectedCaseId,
       article_id: mapping.article_id,
       decision_status,
@@ -3100,8 +3150,8 @@ export function App() {
       applicability_to_case: mapping.applicability_to_case,
       probatory_limits: mapping.probatory_limits,
       confidence_level: mapping.confidence_level
-    });
-    await refreshCaseCollections(selectedCaseId);
+    }), requestCurrent);
+    await guardCaseResult(refreshCaseCollections(selectedCaseId), requestCurrent);
   }
 
   function legalElementsForMapping(mappingId: number) {
@@ -3113,13 +3163,14 @@ export function App() {
   }
 
   async function linkEvidenceToLegalMapping(mapping: LegalMapping) {
+    const requestCurrent = captureCaseContext();
     if (!selectedCaseId) return;
     const evidenceId = Number(legalEvidenceSelection[mapping.id] || evidence[0]?.id || 0);
     if (!evidenceId) {
       setError("Carga o selecciona una evidencia antes de vincularla a una norma.");
       return;
     }
-    await apiPost<LegalMappingEvidence>("/legal-knowledge/mappings/evidence", {
+    await guardCaseResult(apiPost<LegalMappingEvidence>("/legal-knowledge/mappings/evidence", {
       case_id: selectedCaseId,
       legal_mapping_id: mapping.id,
       evidence_id: evidenceId,
@@ -3131,38 +3182,41 @@ export function App() {
       missing_evidence: "",
       contradiction_risk: "bajo",
       recommended_measure: "Corroborar con fuentes externas si se pretende atribución personal."
-    });
-    await refreshCaseCollections(selectedCaseId);
+    }), requestCurrent);
+    await guardCaseResult(refreshCaseCollections(selectedCaseId), requestCurrent);
   }
 
   async function saveLegalLink(link: LegalMappingEvidence) {
+    const requestCurrent = captureCaseContext();
     if (!selectedCaseId) return;
     const draft = legalLinkDrafts[link.id] || {};
-    await apiPut<LegalMappingEvidence>(`/legal-knowledge/mappings/evidence/${link.id}`, {
+    await guardCaseResult(apiPut<LegalMappingEvidence>(`/legal-knowledge/mappings/evidence/${link.id}`, {
       ...link,
       ...draft,
       case_id: selectedCaseId
-    });
+    }), requestCurrent);
     setLegalLinkDrafts((current) => {
       const next = { ...current };
       delete next[link.id];
       return next;
     });
-    await refreshCaseCollections(selectedCaseId);
+    await guardCaseResult(refreshCaseCollections(selectedCaseId), requestCurrent);
   }
 
   async function unlinkLegalEvidence(linkId: number) {
+    const requestCurrent = captureCaseContext();
     if (!confirm("Quitar esta evidencia del encuadre legal? La evidencia no se borra; solo se deshace el vinculo juridico.")) return;
-    await apiDelete(`/legal-knowledge/mappings/evidence/${linkId}`);
-    await refreshCaseCollections(selectedCaseId);
+    await guardCaseResult(apiDelete(`/legal-knowledge/mappings/evidence/${linkId}`), requestCurrent);
+    await guardCaseResult(refreshCaseCollections(selectedCaseId), requestCurrent);
   }
 
   async function runAiAssist() {
+    const requestCurrent = captureCaseContext();
     if (latestReport) {
-      const enriched = await apiPost<ReportItem>(`/reports/${latestReport.id}/ai-enrich`, {
+      const enriched = await guardCaseResult(apiPost<ReportItem>(`/reports/${latestReport.id}/ai-enrich`, {
         case_id: selectedCaseId || undefined,
         prompt: aiPrompt
-      });
+      }), requestCurrent);
       const result = {
         status: enriched.status,
         report_id: enriched.id,
@@ -3171,17 +3225,17 @@ export function App() {
       };
       setAiEnrichmentResult(result);
       setAiResult(result);
-      if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
-      await loadReportPreview(enriched.id);
+      if (selectedCaseId) await guardCaseResult(refreshCaseCollections(selectedCaseId), requestCurrent);
+      await guardCaseResult(loadReportPreview(enriched.id), requestCurrent);
       return;
     }
     if (selectedCaseId) {
-      const result = await apiPost<CaseAnalysisResult>(`/ai/case/${selectedCaseId}/recommendations`, { focus: aiPrompt });
+      const result = await guardCaseResult(apiPost<CaseAnalysisResult>(`/ai/case/${selectedCaseId}/recommendations`, { focus: aiPrompt }), requestCurrent);
       setAiEnrichmentResult(null);
       setAiResult(result);
       return;
     }
-    const result = await apiPost<CaseAnalysisResult>("/ai/assist", { model_name: "mistral", prompt: aiPrompt });
+    const result = await guardCaseResult(apiPost<CaseAnalysisResult>("/ai/assist", { model_name: "mistral", prompt: aiPrompt }), requestCurrent);
     setAiEnrichmentResult(null);
     setAiResult(result);
   }
@@ -3244,39 +3298,43 @@ export function App() {
   }
 
   async function promoteBlockchainTransaction(transaction: BlockchainTransactionItem) {
+    const requestCurrent = captureCaseContext();
     setBlockchainState("saving");
     setBlockchainMessage("Convirtiendo la transacción en hallazgo y aplicando normas...");
     try {
-      await apiPost<{ id: number; message: string }>(`/cybercrime/blockchain/${transaction.id}/finding`);
+      await guardCaseResult(apiPost<{ id: number; message: string }>(`/cybercrime/blockchain/${transaction.id}/finding`), requestCurrent);
       const text = `${transaction.route_hypothesis} ${transaction.wallet_classification} ${transaction.blockchain}`.toLowerCase();
-      const result = await apiPost<{ applied: Array<{ norm_reference: string }> }>(`/cybercrime/blockchain/${transaction.id}/apply-legal`, {
+      const result = await guardCaseResult(apiPost<{ applied: Array<{ norm_reference: string }> }>(`/cybercrime/blockchain/${transaction.id}/apply-legal`, {
         fraud: ["fraude", "estafa", "phishing"].some((term) => text.includes(term)),
         computer_manipulation: ["contrato inteligente", "smart contract", "sistema", "manipulacion"].some((term) => text.includes(term)),
         extortion: ["extorsion", "ransomware", "rescate"].some((term) => text.includes(term)),
         personal_data: ["exchange", "kyc", "cuenta", "datos"].some((term) => text.includes(term)),
         analyst_name: analystName || identitySession.user?.name || "Analista Local"
-      });
+      }), requestCurrent);
       setBlockchainState("saved");
       setBlockchainMessage(`Listo: hallazgo creado y normas aplicadas (${result.applied.map((item) => item.norm_reference).join(", ") || "sin nuevas normas"}). Ya puede aparecer en el informe del caso.`);
-      if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+      if (selectedCaseId) await guardCaseResult(refreshCaseCollections(selectedCaseId), requestCurrent);
     } catch (error) {
+      if (!requestCurrent()) return;
       setBlockchainState("error");
       setBlockchainMessage(error instanceof Error ? error.message : "No se pudo completar la promoción a hallazgo.");
     }
   }
 
   async function loadPresentationSlides(presentationId: number | "") {
+    const requestCurrent = captureCaseContext();
     setSelectedPresentationId(presentationId);
     setPresentationReview(null);
     if (!presentationId) {
       setPresentationSlides([]);
       return;
     }
-    const slides = await apiGet<PresentationSlide[]>(`/reports/presentations/${presentationId}/slides`);
+    const slides = await guardCaseResult(apiGet<PresentationSlide[]>(`/reports/presentations/${presentationId}/slides`), requestCurrent);
     setPresentationSlides(slides);
   }
 
   async function generateCasePresentation() {
+    const requestCurrent = captureCaseContext();
     if (!latestReport || !selectedCaseId) {
       setPresentationState("error");
       setPresentationMessage("Genera primero un informe del caso para construir la exposición.");
@@ -3285,38 +3343,42 @@ export function App() {
     setPresentationState("working");
     setPresentationMessage("Preparando guion, diapositivas y notas de exposición...");
     try {
-      const presentation = await apiPost<PresentationItem>(
+      const presentation = await guardCaseResult(apiPost<PresentationItem>(
         `/reports/${latestReport.id}/presentations/generate?presentation_type=${encodeURIComponent("Exposición ejecutiva del caso")}`
-      );
-      const updated = await apiGet<PresentationItem[]>(`/reports/presentations/case/${selectedCaseId}`);
+      ), requestCurrent);
+      const updated = await guardCaseResult(apiGet<PresentationItem[]>(`/reports/presentations/case/${selectedCaseId}`), requestCurrent);
       setPresentations(updated);
-      await loadPresentationSlides(presentation.id);
+      await guardCaseResult(loadPresentationSlides(presentation.id), requestCurrent);
       setPresentationState("success");
       setPresentationMessage("Exposición generada. Revisa las diapositivas y las notas antes de presentarla.");
     } catch (err) {
+      if (!requestCurrent()) return;
       setPresentationState("error");
       setPresentationMessage(err instanceof Error ? err.message : "No se pudo generar la exposición.");
     }
   }
 
   async function reviewCasePresentation() {
+    const requestCurrent = captureCaseContext();
     if (!selectedPresentationId) return;
     setPresentationState("working");
     setPresentationMessage("Revisando claridad, fuerza probatoria, narrativa y solidez legal...");
     try {
-      const review = await apiPost<PresentationReview>(`/reports/presentations/${selectedPresentationId}/review`);
+      const review = await guardCaseResult(apiPost<PresentationReview>(`/reports/presentations/${selectedPresentationId}/review`), requestCurrent);
       setPresentationReview(review);
       setPresentationState("success");
       setPresentationMessage("Revisión de exposición completada.");
-      if (selectedCaseId) await refreshCaseCollections(selectedCaseId);
+      if (selectedCaseId) await guardCaseResult(refreshCaseCollections(selectedCaseId), requestCurrent);
     } catch (err) {
+      if (!requestCurrent()) return;
       setPresentationState("error");
       setPresentationMessage(err instanceof Error ? err.message : "No se pudo revisar la exposición.");
     }
   }
 
   async function updatePresentationSlide(slide: PresentationSlide, changes: Partial<PresentationSlide>) {
-    const updated = await apiPut<PresentationSlide>(`/reports/presentation-slides/${slide.id}`, {
+    const requestCurrent = captureCaseContext();
+    const updated = await guardCaseResult(apiPut<PresentationSlide>(`/reports/presentation-slides/${slide.id}`, {
       slide_number: slide.slide_number,
       title: slide.title,
       text: slide.text,
@@ -3324,7 +3386,7 @@ export function App() {
       confidentiality_level: slide.confidentiality_level,
       content_type: slide.content_type,
       ...changes
-    });
+    }), requestCurrent);
     setPresentationSlides((current) => current.map((item) => (item.id === updated.id ? updated : item)));
   }
 
@@ -3439,11 +3501,13 @@ export function App() {
   }
 
   async function runCaseRecommendations() {
+    const requestCurrent = captureCaseContext();
     if (!selectedCaseId) return;
-    setAiResult(await apiPost(`/ai/case/${selectedCaseId}/recommendations`, { focus: aiPrompt }));
+    setAiResult(await guardCaseResult(apiPost(`/ai/case/${selectedCaseId}/recommendations`, { focus: aiPrompt }), requestCurrent));
   }
 
   async function runLegalTypification(createSuggestions = false, focusOverride?: string) {
+    const requestCurrent = captureCaseContext();
     if (!selectedCaseId) {
       setError("Selecciona un caso antes de tipificar el incidente.");
       return;
@@ -3451,14 +3515,14 @@ export function App() {
     setLegalApplyState(createSuggestions ? "applying" : "idle");
     setLegalApplyMessage(createSuggestions ? "Aplicando tipificación al caso..." : "");
     try {
-      const result = await apiPost<LegalTypificationResult>(`/ai/case/${selectedCaseId}/legal-typification`, {
+      const result = await guardCaseResult(apiPost<LegalTypificationResult>(`/ai/case/${selectedCaseId}/legal-typification`, {
         focus: focusOverride || aiPrompt,
         create_suggestions: createSuggestions,
         analyst_name: analystName
-      });
+      }), requestCurrent);
       setLegalTypification(result);
       if (createSuggestions) {
-        await refreshCaseCollections(selectedCaseId);
+        await guardCaseResult(refreshCaseCollections(selectedCaseId), requestCurrent);
         setLegalApplyState("applied");
         setLegalApplyMessage(
           result.suggested_mapping_ids.length
@@ -3467,6 +3531,7 @@ export function App() {
         );
       }
     } catch (error) {
+      if (!requestCurrent()) return;
       const message = error instanceof Error ? error.message : "No se pudo aplicar la tipificación al caso.";
       setLegalApplyState("error");
       setLegalApplyMessage(message);
@@ -3474,9 +3539,10 @@ export function App() {
   }
 
   async function searchAndTypifyLegal(createSuggestions = false) {
-    await searchLegal();
+    const requestCurrent = captureCaseContext();
+    await guardCaseResult(searchLegal(), requestCurrent);
     if (selectedCaseId) {
-      await runLegalTypification(createSuggestions, legalQuery);
+      await guardCaseResult(runLegalTypification(createSuggestions, legalQuery), requestCurrent);
     }
   }
 
@@ -3538,14 +3604,15 @@ export function App() {
   }
 
   async function runAiSecurity() {
+    const requestCurrent = captureCaseContext();
     setAiSecurityResult(
-      await apiPost<AiSecurityEvaluation>("/ai-security/evaluations", {
+      await guardCaseResult(apiPost<AiSecurityEvaluation>("/ai-security/evaluations", {
         model_name: "mistral",
         run_tests: false,
         overall_score: 72,
         network_blocked: true,
         tools_enabled: false
-      })
+      }), requestCurrent)
     );
   }
 
@@ -3589,20 +3656,20 @@ export function App() {
           {prettySpanish(indicatorResult.legal_relevance)} Este resultado orienta la investigacion, pero debe vincularse con evidencia, custodia y fuentes verificables antes de sostener atribución.
         </div>
         {indicatorFindingMessage && (
-          <div className={`action-feedback ${indicatorFindingState}`}>
+          <div className={`action-feedback ${indicatorFindingState}`} role="status" aria-live="polite" aria-atomic="true">
             {indicatorFindingMessage}
           </div>
         )}
         <div className="button-row">
-          <button className="secondary-button" onClick={saveIndicatorAsFinding} disabled={!selectedCaseId || indicatorFindingState === "saving"}>
+          <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => void runCaseTask("Operación del módulo", () => (saveIndicatorAsFinding)())} disabled={(!selectedCaseId || indicatorFindingState === "saving") || !(canCase("analysis", "evidence:write")) || Boolean(caseTask)} variant="outline" type="button">
             <FileCheck2 size={16} /> {indicatorFindingState === "saving" ? "Guardando..." : indicatorFindingState === "saved" ? "Guardar otro hallazgo" : "Guardar como hallazgo"}
-          </button>
-          <button className="secondary-button" onClick={() => setActive("evidence")} disabled={!selectedCaseId}>
+          </Button>
+          <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => setActive("evidence")} disabled={!selectedCaseId} variant="outline" type="button">
             <Fingerprint size={16} /> Ver evidencia
-          </button>
-          <button className="secondary-button" onClick={() => setActive("reports")} disabled={!latestReport}>
+          </Button>
+          <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => setActive("reports")} disabled={!latestReport} variant="outline" type="button">
             <FileText size={16} /> Ver informe
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -3634,12 +3701,12 @@ export function App() {
           <span>La fundamentacion legal debe permanecer vinculada a biblioteca registrada.</span>
         </div>
         <div className="button-row">
-          <button className="secondary-button" onClick={() => loadReportPreview(aiEnrichmentResult.report_id || latestReport?.id)}>
+          <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => loadReportPreview(aiEnrichmentResult.report_id || latestReport?.id)} variant="outline" type="button">
             <FileCheck2 size={16} /> Ver vista previa
-          </button>
-          <button className="secondary-button" onClick={() => setActive("reports")}>
+          </Button>
+          <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => setActive("reports")} variant="outline" type="button">
             <FileText size={16} /> Abrir informes
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -3703,17 +3770,17 @@ export function App() {
           </div>
         )}
         {legalApplyMessage && (
-          <div className={`action-feedback ${legalApplyState}`}>
+          <div className={`action-feedback ${legalApplyState}`} role="status" aria-live="polite" aria-atomic="true">
             {legalApplyMessage}
           </div>
         )}
         <div className="button-row">
-          <button className="secondary-button" onClick={() => searchAndTypifyLegal(true)} disabled={!selectedCaseId || legalApplyState === "applying"}>
+          <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => void runCaseTask("Operación del módulo", () => (() => searchAndTypifyLegal(true))())} disabled={!selectedCaseId || legalApplyState === "applying"} variant="outline" type="button">
             <Gavel size={16} /> {legalApplyState === "applying" ? "Aplicando..." : legalApplyState === "applied" ? "Encuadre aplicado" : "Aplicar encuadre al caso"}
-          </button>
-          <button className="secondary-button" onClick={() => setActive("legalKnowledge")}>
+          </Button>
+          <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => setActive("legalKnowledge")} variant="outline" type="button">
             <BookOpen size={16} /> Ver biblioteca legal
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -3766,9 +3833,9 @@ export function App() {
           </div>
         )}
         <div className="button-row">
-          <button className="secondary-button" onClick={() => setActive("reports")}><FileText size={16} /> Corregir informe</button>
-          <button className="secondary-button" onClick={() => setActive("legalKnowledge")}><Gavel size={16} /> Revisar matriz legal</button>
-          <button className="secondary-button" onClick={() => void runCaseTask("Evaluar exportación", requestFinalExport)} disabled={!latestReport || !canCase("approve", "reports:write") || !canCase("export", "reports:read") || Boolean(caseTask)}><Download size={16} /> Evaluar exportación</button>
+          <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => setActive("reports")} variant="outline" type="button"><FileText size={16} /> Corregir informe</Button>
+          <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => setActive("legalKnowledge")} variant="outline" type="button"><Gavel size={16} /> Revisar matriz legal</Button>
+          <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => void runCaseTask("Evaluar exportación", requestFinalExport)} disabled={!latestReport || !canCase("approve", "reports:write") || !canCase("export", "reports:read") || Boolean(caseTask)} variant="outline" type="button"><Download size={16} /> Evaluar exportación</Button>
         </div>
       </div>
     );
@@ -3839,17 +3906,17 @@ export function App() {
 
         <div className="damage-presets">
           {damagePresets.map((preset) => (
-            <button type="button" className="secondary-button" key={preset.label} onClick={() => applyDamagePreset(preset)}>
+            <Button type="button" className="h-auto min-h-10 whitespace-normal secondary-button" key={preset.label} onClick={() => applyDamagePreset(preset)} variant="outline">
               <Calculator size={15} /> {preset.label}
-            </button>
+            </Button>
           ))}
         </div>
 
         <form className="compact-form damage-form premium-form" onSubmit={createDamageItem}><fieldset disabled={!canCase("write", "cases:write") || damageState === "saving"}><legend className="sr-only">Cuantificación del daño</legend>
           <div className="inline-grid">
-            <FormField label="Concepto del daño"><input placeholder="Concepto del daño" value={damageForm.concept} onChange={(e) => setDamageForm({ ...damageForm, concept: e.target.value })} /></FormField>
+            <FormField label="Concepto del daño"><Input placeholder="Concepto del daño" value={damageForm.concept} onChange={(e) => setDamageForm({ ...damageForm, concept: e.target.value })} /></FormField>
             <div className="inline-grid tight">
-              <FormField label="Monto"><input type="number" min="0" step="0.01" placeholder="Monto" value={damageForm.amount} onChange={(e) => setDamageForm({ ...damageForm, amount: e.target.value })} /></FormField>
+              <FormField label="Monto"><Input type="number" min="0" step="0.01" placeholder="Monto" value={damageForm.amount} onChange={(e) => setDamageForm({ ...damageForm, amount: e.target.value })} /></FormField>
               <FormField label="Moneda"><select value={damageForm.currency} onChange={(e) => setDamageForm({ ...damageForm, currency: e.target.value })}>
                 <option value="ARS">ARS</option>
                 <option value="USD">USD</option>
@@ -3858,7 +3925,7 @@ export function App() {
             </div>
           </div>
           <div className="inline-grid">
-            <FormField label="Fecha base o período"><input placeholder="Fecha base o período" value={damageForm.base_date} onChange={(e) => setDamageForm({ ...damageForm, base_date: e.target.value })} /></FormField>
+            <FormField label="Fecha base o período"><Input placeholder="Fecha base o período" value={damageForm.base_date} onChange={(e) => setDamageForm({ ...damageForm, base_date: e.target.value })} /></FormField>
             <FormField label="Nivel de certeza"><select value={damageForm.certainty_level} onChange={(e) => setDamageForm({ ...damageForm, certainty_level: e.target.value })}>
               <option value="alto">Certeza alta</option>
               <option value="medio">Certeza media</option>
@@ -3869,10 +3936,10 @@ export function App() {
           <FormField label="Fórmula o criterio de cálculo utilizado"><textarea placeholder="Fórmula o criterio de cálculo utilizado" value={damageForm.formula_used} onChange={(e) => setDamageForm({ ...damageForm, formula_used: e.target.value })} /></FormField>
           <FormField label="Evidencia que sostiene el rubro: hash, archivo, captura, transacción, factura o constancia"><textarea placeholder="Evidencia que sostiene el rubro: hash, archivo, captura, transacción, factura o constancia" value={damageForm.supporting_evidence} onChange={(e) => setDamageForm({ ...damageForm, supporting_evidence: e.target.value })} /></FormField>
           <FormField label="Observaciones, límites o datos faltantes"><textarea placeholder="Observaciones, límites o datos faltantes" value={damageForm.observations} onChange={(e) => setDamageForm({ ...damageForm, observations: e.target.value })} /></FormField>
-          <button disabled={!selectedCaseId || damageState === "saving"}><Calculator size={17} /> Registrar daño económico</button>
+          <Button disabled={!selectedCaseId || damageState === "saving"} variant="default" type="submit" className="h-auto min-h-10 whitespace-normal"><Calculator size={17} /> Registrar daño económico</Button>
         </fieldset></form>
 
-        {damageMessage && <div className={`action-feedback ${damageState}`}>{damageMessage}</div>}
+        {damageMessage && <div className={`action-feedback ${damageState}`} role="status" aria-live="polite" aria-atomic="true">{damageMessage}</div>}
 
         <div className="damage-list">
           {damageItems.map((item) => (
@@ -3902,12 +3969,12 @@ export function App() {
               <p>Camino operativo de punta a punta para resolver un incidente con OPERIA.</p>
             </div>
             <div className="section-actions">
-              <button className="new-case-button" onClick={startNewCaseDraft}>
+              <Button className="h-auto min-h-10 whitespace-normal new-case-button" onClick={startNewCaseDraft} variant="default" type="button">
                 <Briefcase size={17} /> Nuevo Caso
-              </button>
-              <button className="icon-button" onClick={refreshCore} title="Actualizar">
+              </Button>
+              <Button className="h-auto min-h-10 whitespace-normal icon-button" onClick={refreshCore} title="Actualizar" variant="outline" type="button" aria-label="Actualizar">
                 <RefreshCcw size={18} />
-              </button>
+              </Button>
             </div>
           </div>
           <div className="case-selector">
@@ -3916,9 +3983,9 @@ export function App() {
               <span>{selectedCase ? `${selectedCase.case_code} | ${selectedCase.incident_type} | ${selectedCase.status}` : "Crea o selecciona un caso para iniciar."}</span>
             </div>
             <div className="case-selector-actions">
-              <button className="secondary-button" onClick={() => setActive("history")}>
+              <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => setActive("history")} variant="outline" type="button">
                 <History size={17} /> Abrir Historial
-              </button>
+              </Button>
               <small>Los casos abiertos quedan guardados para retomarlos desde Historial.</small>
             </div>
           </div>
@@ -3927,8 +3994,8 @@ export function App() {
         <div className="step-grid">
           <StepCard number={1} title="Crear un caso" done={Boolean(selectedCase)}>
             <form className="compact-form premium-form" onSubmit={event => { event.preventDefault(); void runCaseTask("Crear caso", () => createCase(event)); }}><fieldset disabled={!(identitySession.authenticated && canUse("cases:write")) || Boolean(caseTask)}><legend className="sr-only">Crear caso</legend>
-              <FormField label="Código del caso"><input placeholder="Código del caso" value={caseForm.case_code} onChange={(e) => setCaseForm({ ...caseForm, case_code: e.target.value })} required /></FormField>
-              <FormField label="Título"><input placeholder="Título" value={caseForm.title} onChange={(e) => setCaseForm({ ...caseForm, title: e.target.value })} required /></FormField>
+              <FormField label="Código del caso"><Input placeholder="Código del caso" value={caseForm.case_code} onChange={(e) => setCaseForm({ ...caseForm, case_code: e.target.value })} required /></FormField>
+              <FormField label="Título"><Input placeholder="Título" value={caseForm.title} onChange={(e) => setCaseForm({ ...caseForm, title: e.target.value })} required /></FormField>
               <FormField label="Tipo de incidente"><select
                 value={caseForm.incident_type}
                 onChange={(e) => {
@@ -3940,7 +4007,7 @@ export function App() {
                 {attackTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
               </select></FormField>
               <FormField label="Descripción"><textarea placeholder="Descripción inicial" value={caseForm.description} onChange={(e) => setCaseForm({ ...caseForm, description: e.target.value })} /></FormField>
-              <button><Briefcase size={17} /> Crear caso</button>
+              <Button variant="default" type="submit" className="h-auto min-h-10 whitespace-normal"><Briefcase size={17} /> Crear caso</Button>
             </fieldset></form>
           </StepCard>
 
@@ -3968,17 +4035,17 @@ export function App() {
                   <option value="desconocido">Desconocido</option>
                 </select></FormField>
               </div>
-              <FormField label="Nombre o identificador"><input placeholder="Nombre, razon social, alias o identificador" value={participantForm.display_name} onChange={(e) => setParticipantForm({ ...participantForm, display_name: e.target.value })} required /></FormField>
+              <FormField label="Nombre o identificador"><Input placeholder="Nombre, razon social, alias o identificador" value={participantForm.display_name} onChange={(e) => setParticipantForm({ ...participantForm, display_name: e.target.value })} required /></FormField>
               <div className="inline-grid">
-                <FormField label="Tipo de documento"><input placeholder="Tipo documento" value={participantForm.document_type} onChange={(e) => setParticipantForm({ ...participantForm, document_type: e.target.value })} /></FormField>
-                <FormField label="Documento o identificador"><input placeholder="Documento / CUIT / ID" value={participantForm.document_number} onChange={(e) => setParticipantForm({ ...participantForm, document_number: e.target.value })} /></FormField>
+                <FormField label="Tipo de documento"><Input placeholder="Tipo documento" value={participantForm.document_type} onChange={(e) => setParticipantForm({ ...participantForm, document_type: e.target.value })} /></FormField>
+                <FormField label="Documento o identificador"><Input placeholder="Documento / CUIT / ID" value={participantForm.document_number} onChange={(e) => setParticipantForm({ ...participantForm, document_number: e.target.value })} /></FormField>
               </div>
               <div className="inline-grid">
-                <FormField label="Correo electrónico"><input placeholder="Email" value={participantForm.email} onChange={(e) => setParticipantForm({ ...participantForm, email: e.target.value })} /></FormField>
-                <FormField label="Teléfono"><input placeholder="Telefono" value={participantForm.phone} onChange={(e) => setParticipantForm({ ...participantForm, phone: e.target.value })} /></FormField>
+                <FormField label="Correo electrónico"><Input placeholder="Email" value={participantForm.email} onChange={(e) => setParticipantForm({ ...participantForm, email: e.target.value })} /></FormField>
+                <FormField label="Teléfono"><Input placeholder="Telefono" value={participantForm.phone} onChange={(e) => setParticipantForm({ ...participantForm, phone: e.target.value })} /></FormField>
               </div>
               <FormField label="Relación con el caso"><textarea placeholder="Relacion con el caso / rol investigativo" value={participantForm.relationship_to_case} onChange={(e) => setParticipantForm({ ...participantForm, relationship_to_case: e.target.value })} /></FormField>
-              <button disabled={!selectedCaseId}><Users size={17} /> Registrar participante</button>
+              <Button disabled={!selectedCaseId} variant="default" type="submit" className="h-auto min-h-10 whitespace-normal"><Users size={17} /> Registrar participante</Button>
             </fieldset></form>
             <div className="mini-list">
               {participants.slice(0, 5).map((item) => (
@@ -3994,31 +4061,31 @@ export function App() {
 
           <StepCard number={4} title="Registrar cadena de custodia" done={custody.length > 0}>
             <form className="compact-form premium-form" onSubmit={event => { event.preventDefault(); void runCaseTask("Registrar custodia", () => createCustodyAction(event)); }}><fieldset disabled={!(canCase("evidence", "evidence:write")) || Boolean(caseTask)}><legend className="sr-only">Registrar custodia</legend>
-              <FormField label="Acción de custodia"><input placeholder="Accion" value={custodyForm.action_type} onChange={(e) => setCustodyForm({ ...custodyForm, action_type: e.target.value })} /></FormField>
-              <FormField label="Responsable de la acción"><input placeholder="Responsable" value={custodyForm.user_responsible} onChange={(e) => setCustodyForm({ ...custodyForm, user_responsible: e.target.value })} /></FormField>
+              <FormField label="Acción de custodia"><Input placeholder="Accion" value={custodyForm.action_type} onChange={(e) => setCustodyForm({ ...custodyForm, action_type: e.target.value })} /></FormField>
+              <FormField label="Responsable de la acción"><Input placeholder="Responsable" value={custodyForm.user_responsible} onChange={(e) => setCustodyForm({ ...custodyForm, user_responsible: e.target.value })} /></FormField>
               <FormField label="Descripción del evento"><textarea placeholder="Detalle de la acción" value={custodyForm.detailed_description} onChange={(e) => setCustodyForm({ ...custodyForm, detailed_description: e.target.value })} required /></FormField>
-              <button disabled={!selectedCaseId}><Fingerprint size={17} /> Registrar custodia</button>
+              <Button disabled={!selectedCaseId} variant="default" type="submit" className="h-auto min-h-10 whitespace-normal"><Fingerprint size={17} /> Registrar custodia</Button>
             </fieldset></form>
           </StepCard>
 
           <StepCard number={5} title="Analizar IP, URL o dato cybercrime" done={Boolean(indicatorResult)}>
             <div className="compact-form">
-              <FormField label="IP, dominio o URL"><input value={indicator} onChange={(e) => setIndicator(e.target.value)} placeholder="IP, dominio o URL" /></FormField>
-              <button onClick={analyzeIndicator} disabled={!indicator}><Globe2 size={17} /> Analizar indicador</button>
+              <FormField label="IP, dominio o URL"><Input value={indicator} onChange={(e) => setIndicator(e.target.value)} placeholder="IP, dominio o URL" /></FormField>
+              <Button onClick={() => void runCaseTask("Operación del módulo", () => (analyzeIndicator)())} disabled={(!indicator) || !(canCase("analysis", "evidence:write")) || Boolean(caseTask)} variant="default" type="button" className="h-auto min-h-10 whitespace-normal"><Globe2 size={17} /> Analizar indicador</Button>
             </div>
             {renderIndicatorOutcome()}
           </StepCard>
 
           <StepCard number={6} title="Tipificar incidente con normativa argentina" done={Boolean(legalTypification?.principal_typification || legalMappings.length)}>
             <div className="compact-form">
-              <FormField label="Consulta legal"><input value={legalQuery} onChange={(e) => setLegalQuery(e.target.value)} /></FormField>
-              <button onClick={() => searchAndTypifyLegal(false)}><Gavel size={17} /> Tipificar y sugerir norma</button>
-              <button className="secondary-button" onClick={() => searchAndTypifyLegal(true)} disabled={!selectedCaseId || legalApplyState === "applying"}>
+              <FormField label="Consulta legal"><Input value={legalQuery} onChange={(e) => setLegalQuery(e.target.value)} /></FormField>
+              <Button onClick={() => void runCaseTask("Operación del módulo", () => (() => searchAndTypifyLegal(false))())} variant="default" type="button" className="h-auto min-h-10 whitespace-normal"><Gavel size={17} /> Tipificar y sugerir norma</Button>
+              <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => void runCaseTask("Operación del módulo", () => (() => searchAndTypifyLegal(true))())} disabled={!selectedCaseId || legalApplyState === "applying"} variant="outline" type="button">
                 <CheckCircle2 size={17} /> {legalApplyState === "applying" ? "Aplicando..." : legalApplyState === "applied" ? "Aplicado al caso" : "Aplicar al caso"}
-              </button>
+              </Button>
             </div>
             {legalApplyMessage && (
-              <div className={`action-feedback ${legalApplyState}`}>
+              <div className={`action-feedback ${legalApplyState}`} role="status" aria-live="polite" aria-atomic="true">
                 {legalApplyMessage}
               </div>
             )}
@@ -4057,7 +4124,7 @@ export function App() {
           <StepCard number={8} title="Ampliar análisis técnico-jurídico" done={Boolean(aiResult)}>
             <div className="compact-form">
               <FormField label="Consigna de análisis"><textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} /></FormField>
-              <button onClick={runAiAssist}><Bot size={17} /> {latestReport ? "Ampliar informe" : "Analizar caso"}</button>
+              <Button onClick={() => void runCaseTask("Operación del módulo", () => (runAiAssist)())} variant="default" type="button" disabled={!(canCase("analysis", "ai:use")) || Boolean(caseTask)} className="h-auto min-h-10 whitespace-normal"><Bot size={17} /> {latestReport ? "Ampliar informe" : "Analizar caso"}</Button>
             </div>
             {latestReport && <p className="notice">Con informe generado, esta acción agrega hipótesis, conclusiones y fundamentación legal al reporte.</p>}
             {latestReport ? renderAiEnrichmentOutcome() : renderCaseAnalysisOutcome()}
@@ -4065,9 +4132,9 @@ export function App() {
 
           <StepCard number={9} title="Generar informe" done={reports.length > 0}>
             <div className="compact-form">
-              <FormField label="Analista / operador interviniente"><input placeholder="Analista / operador interviniente" value={analystName} onChange={(e) => setAnalystName(e.target.value)} /></FormField>
+              <FormField label="Analista / operador interviniente"><Input placeholder="Analista / operador interviniente" value={analystName} onChange={(e) => setAnalystName(e.target.value)} /></FormField>
             </div>
-            <button onClick={() => void runCaseTask("Generar informe", generateReport)} disabled={!canCase("reports", "reports:write") || Boolean(caseTask)}><FileText size={17} /> Generar informe integral</button>
+            <Button onClick={() => void runCaseTask("Generar informe", generateReport)} disabled={!canCase("reports", "reports:write") || Boolean(caseTask)} variant="default" type="button" className="h-auto min-h-10 whitespace-normal"><FileText size={17} /> Generar informe integral</Button>
             {latestReport && <p className="notice">Último informe: {latestReport.title}</p>}
             <div className="summary-list">
               <span>Nivel de exportabilidad: {exportabilitySnapshot.level}</span>
@@ -4076,13 +4143,13 @@ export function App() {
           </StepCard>
 
           <StepCard number={10} title="Revisar informe" done={Boolean(reviewResult) && latestReport?.review_score !== undefined}>
-            <button onClick={() => void runCaseTask("Revisar informe", reviewReport)} disabled={!latestReport || !canCase("review", "reports:write") || Boolean(caseTask)}><FileCheck2 size={17} /> Revisar informe</button>
+            <Button onClick={() => void runCaseTask("Revisar informe", reviewReport)} disabled={!latestReport || !canCase("review", "reports:write") || Boolean(caseTask)} variant="default" type="button" className="h-auto min-h-10 whitespace-normal"><FileCheck2 size={17} /> Revisar informe</Button>
             {renderReviewOutcome()}
           </StepCard>
 
           <StepCard number={11} title="Exportar PDF" done={Boolean(latestReport)}>
             {latestReport ? (
-              <Button disabled={!canCase("export", "reports:read") || Boolean(caseTask)} onClick={() => void runCaseTask("Descargar informe", () => downloadReport(latestReport.id))}>
+              <Button disabled={!canCase("export", "reports:read") || Boolean(caseTask)} onClick={() => void runCaseTask("Descargar informe", () => downloadReport(latestReport.id))} className="h-auto min-h-10 whitespace-normal">
                 <Download size={17} /> Exportar PDF con manifiesto
               </Button>
             ) : (
@@ -4106,17 +4173,17 @@ export function App() {
           <StepCard number={13} title="Cerrar caso" done={closureStatus?.already_closed}>
             <div className="compact-form">
               <FormField label="Nota de cierre del expediente"><textarea value={closureNote} onChange={(e) => setClosureNote(e.target.value)} /></FormField>
-              <button onClick={closeCase} disabled={!selectedCaseId || closureStatus?.already_closed}>
+              <Button onClick={closeCase} disabled={!selectedCaseId || closureStatus?.already_closed} variant="default" type="button" className="h-auto min-h-10 whitespace-normal">
                 <CheckCircle2 size={17} /> Cerrar caso
-              </button>
+              </Button>
             </div>
             <div className="button-row">
-              <button className="secondary-button" onClick={() => void runCaseTask("Evaluar exportación", requestFinalExport)} disabled={!latestReport || !canCase("approve", "reports:write") || !canCase("export", "reports:read") || Boolean(caseTask)}>
+              <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => void runCaseTask("Evaluar exportación", requestFinalExport)} disabled={!latestReport || !canCase("approve", "reports:write") || !canCase("export", "reports:read") || Boolean(caseTask)} variant="outline" type="button">
                 <Download size={16} /> Exportar final sellado
-              </button>
-              <button className="secondary-button" onClick={() => setActive("reports")} disabled={!latestReport}>
+              </Button>
+              <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => setActive("reports")} disabled={!latestReport} variant="outline" type="button">
                 <FileText size={16} /> Ver informe
-              </button>
+              </Button>
             </div>
             {renderExportFinalOutcome()}
             {closureStatus?.message && <p className="notice success">{closureStatus.message}</p>}
@@ -4194,13 +4261,13 @@ export function App() {
       "Evaluar exportación final sellada.";
 
     return (
-      <section className="work-surface">
+      <ModuleSurface className="" moduleId="dashboard">
         <div className="section-head">
           <div>
             <h2>Dashboard Operativo</h2>
             <p>Centro de mando para saber que esta listo, que falta y cual es la proxima accion pericial.</p>
           </div>
-          <button className="icon-button" onClick={refreshCore} title="Actualizar"><RefreshCcw size={18} /></button>
+          <Button className="h-auto min-h-10 whitespace-normal icon-button" onClick={refreshCore} title="Actualizar" variant="outline" type="button" aria-label="Actualizar"><RefreshCcw size={18} /></Button>
         </div>
         <div className="command-panel">
           <div>
@@ -4209,8 +4276,8 @@ export function App() {
             <p>{selectedCase ? `${selectedCase.case_code} - ${selectedCase.title}` : "OPERIA necesita un caso activo para guiar el flujo."}</p>
           </div>
           <div className="button-row">
-            <button className="secondary-button" onClick={() => setActive("workflow")}><CheckCircle2 size={16} /> Abrir flujo</button>
-            <button className="secondary-button" onClick={() => setActive("caseDetail")} disabled={!selectedCaseId}><FileCheck2 size={16} /> Detalle del caso</button>
+            <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => setActive("workflow")} variant="outline" type="button"><CheckCircle2 size={16} /> Abrir flujo</Button>
+            <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => setActive("caseDetail")} disabled={!selectedCaseId} variant="outline" type="button"><FileCheck2 size={16} /> Detalle del caso</Button>
           </div>
         </div>
         <div className="readiness-grid">
@@ -4239,18 +4306,18 @@ export function App() {
             </div>
           </div>
           {ctfDashboardMessage && (
-            <div className={`action-feedback ${ctfDashboardState === "working" ? "updating" : ctfDashboardState === "success" ? "updated" : ctfDashboardState}`}>
+            <div className={`action-feedback ${ctfDashboardState === "working" ? "updating" : ctfDashboardState === "success" ? "updated" : ctfDashboardState}`} role="status" aria-live="polite" aria-atomic="true">
               {ctfDashboardMessage}
             </div>
           )}
           <div className="ctf-action-row">
-            <button className="secondary-button" onClick={() => setActive("deepfakeMedia")} disabled={!selectedCaseId}><FileCheck2 size={16} /> Ir a Deepfake Lab</button>
-            <button className="secondary-button" onClick={() => setActive("blockchainForensics")} disabled={!selectedCaseId}><Globe2 size={16} /> Ir a Blockchain Lab</button>
-            <button className="secondary-button" onClick={() => setActive("iotForensics")} disabled={!selectedCaseId}><Shield size={16} /> Ir a IoT Lab</button>
-            <button className="secondary-button" onClick={() => setActive("legalKnowledge")} disabled={!selectedCaseId}><BookOpen size={16} /> Ir a Biblioteca Legal</button>
-            <button className="secondary-button" onClick={updateRubricFromCtfDashboard} disabled={!selectedCaseId || ctfDashboardState === "working"}><Gavel size={16} /> Evaluar rúbrica</button>
-            <button onClick={generateReportFromCtfDashboard} disabled={!selectedCaseId || ctfDashboardState === "working"}><FileText size={16} /> Generar informe</button>
-            <button onClick={exportPdfFromCtfDashboard} disabled={!latestReport}><Download size={16} /> Exportar PDF</button>
+            <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => setActive("deepfakeMedia")} disabled={!selectedCaseId} variant="outline" type="button"><FileCheck2 size={16} /> Ir a Deepfake Lab</Button>
+            <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => setActive("blockchainForensics")} disabled={!selectedCaseId} variant="outline" type="button"><Globe2 size={16} /> Ir a Blockchain Lab</Button>
+            <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => setActive("iotForensics")} disabled={!selectedCaseId} variant="outline" type="button"><Shield size={16} /> Ir a IoT Lab</Button>
+            <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => setActive("legalKnowledge")} disabled={!selectedCaseId} variant="outline" type="button"><BookOpen size={16} /> Ir a Biblioteca Legal</Button>
+            <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={updateRubricFromCtfDashboard} disabled={!selectedCaseId || ctfDashboardState === "working"} variant="outline" type="button"><Gavel size={16} /> Evaluar rúbrica</Button>
+            <Button onClick={generateReportFromCtfDashboard} disabled={!selectedCaseId || ctfDashboardState === "working"} variant="default" type="button" className="h-auto min-h-10 whitespace-normal"><FileText size={16} /> Generar informe</Button>
+            <Button onClick={exportPdfFromCtfDashboard} disabled={!latestReport} variant="default" type="button" className="h-auto min-h-10 whitespace-normal"><Download size={16} /> Exportar PDF</Button>
           </div>
           <div className="ctf-grid">
             {ctfItems.map((item) => (
@@ -4300,7 +4367,7 @@ export function App() {
             {dashboard.alerts.map((item) => <span key={item}>{prettySpanish(item)}</span>)}
           </div>
         )}
-      </section>
+      </ModuleSurface>
     );
   }
 
@@ -4319,22 +4386,22 @@ export function App() {
     const closedItems = chronologicalCases.filter((item) => isClosedCase(item));
 
     return (
-      <section className="work-surface history-workspace">
+      <ModuleSurface className="history-workspace" moduleId="history">
         <div className="section-head">
           <div>
             <h2>Historial</h2>
             <p>Linea cronologica de casos, informes, flujo de trabajo y exportaciones asociadas.</p>
           </div>
           <div className="section-actions">
-            <button className="new-case-button" onClick={() => {
+            <Button className="h-auto min-h-10 whitespace-normal new-case-button" onClick={() => {
               startNewCaseDraft();
               setActive("workflow");
-            }}>
+            }} variant="default" type="button">
               <Briefcase size={17} /> Nuevo Caso
-            </button>
-            <button className="icon-button" onClick={refreshCore} title="Actualizar historial">
+            </Button>
+            <Button className="h-auto min-h-10 whitespace-normal icon-button" onClick={refreshCore} title="Actualizar historial" variant="outline" type="button" aria-label="Actualizar historial">
               <RefreshCcw size={18} />
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -4387,19 +4454,19 @@ export function App() {
                 </div>
                 <div className="history-actions">
                   {!isClosed && (
-                    <button onClick={() => openCaseFromHistory(item.id, "workflow")}>
+                    <Button onClick={() => openCaseFromHistory(item.id, "workflow")} variant="default" type="button" className="h-auto min-h-10 whitespace-normal">
                       <RefreshCcw size={16} /> Continuar trabajo
-                    </button>
+                    </Button>
                   )}
-                  <button className="secondary-button" onClick={() => openCaseFromHistory(item.id, "caseDetail")}>
+                  <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => openCaseFromHistory(item.id, "caseDetail")} variant="outline" type="button">
                     <FileCheck2 size={16} /> Ver detalle
-                  </button>
+                  </Button>
                   {latestCaseReport && (
-                    <Button variant="outline" onClick={() => requestNavigation(() => { setSelectedCaseId(item.id); setActive("reports"); })}><FileText size={16} />Abrir informes</Button>
+                    <Button variant="outline" onClick={() => requestNavigation(() => { setSelectedCaseId(item.id); setActive("reports"); })} className="h-auto min-h-10 whitespace-normal"><FileText size={16} />Abrir informes</Button>
                   )}
-                  <button className="danger" onClick={() => deleteCaseFromHistory(item.id, item.title)}>
+                  <Button className="h-auto min-h-10 whitespace-normal danger" onClick={() => deleteCaseFromHistory(item.id, item.title)} variant="destructive" type="button">
                     <Trash2 size={16} /> Eliminar
-                  </button>
+                  </Button>
                   {isClosed && <small>Caso cerrado: disponible para consulta y exportación.</small>}
                 </div>
               </article>
@@ -4407,7 +4474,7 @@ export function App() {
           })}
           {!chronologicalCases.length && <EmptyState text="No hay casos registrados en el historial." />}
         </div>
-      </section>
+      </ModuleSurface>
     );
   }
 
@@ -4438,7 +4505,7 @@ export function App() {
     ];
 
     const renderParticipantsPanel = () => (
-      <div className="detail-panel">
+      <Card className="detail-panel">
         <div className="panel-head">
           <h3>Personas y entidades</h3>
         </div>
@@ -4450,20 +4517,20 @@ export function App() {
               <small>{prettySpanish(item.relationship_to_case || item.role_description || "Relación pendiente")}</small>
             </div>
             <div className="record-actions">
-              <button className="icon-button" disabled={!canCase("participants", "cases:write")} onClick={() => { editorReturnFocus.current = document.activeElement as HTMLElement; setEditingParticipant(item); }} title="Editar participante"><Save size={15} /></button>
-              <button className="icon-button danger" disabled={!canCase("participants", "cases:write")} onClick={() => deleteParticipant(item.id)} title="Eliminar participante"><Trash2 size={15} /></button>
+              <Button className="h-auto min-h-10 whitespace-normal icon-button" disabled={!canCase("participants", "cases:write")} onClick={() => { editorReturnFocus.current = document.activeElement as HTMLElement; setEditingParticipant(item); }} title="Editar participante" variant="outline" type="button" aria-label="Editar participante"><Save size={15} /></Button>
+              <Button className="h-auto min-h-10 whitespace-normal icon-button danger" disabled={!canCase("participants", "cases:write")} onClick={() => deleteParticipant(item.id)} title="Eliminar participante" variant="destructive" type="button" aria-label="Eliminar participante"><Trash2 size={15} /></Button>
             </div>
           </div>
         ))}
         {!participants.length && <EmptyState text="Sin participantes cargados." />}
-      </div>
+      </Card>
     );
 
     const renderEvidencePanel = () => (
-      <div className="detail-panel">
+      <Card className="detail-panel">
         <div className="panel-head">
           <h3>Evidencia</h3>
-          <button className="secondary-button" onClick={() => setActive("evidence")}>Abrir evidencia</button>
+          <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => setActive("evidence")} variant="outline" type="button">Abrir evidencia</Button>
         </div>
         {evidence.map((item) => (
           <div className="editable-record" key={item.id}>
@@ -4473,17 +4540,17 @@ export function App() {
               <code>{item.sha256_hash || "hash pendiente"}</code>
             </div>
             <div className="record-actions">
-              <button className="icon-button" disabled={!canCase("evidence", "evidence:write")} onClick={() => { editorReturnFocus.current = document.activeElement as HTMLElement; setEditingEvidence(item); }} title="Editar evidencia"><Save size={15} /></button>
-              <button className="icon-button danger" disabled={!canCase("evidence", "evidence:write")} onClick={() => deleteEvidence(item.id)} title="Eliminar evidencia"><Trash2 size={15} /></button>
+              <Button className="h-auto min-h-10 whitespace-normal icon-button" disabled={!canCase("evidence", "evidence:write")} onClick={() => { editorReturnFocus.current = document.activeElement as HTMLElement; setEditingEvidence(item); }} title="Editar evidencia" variant="outline" type="button" aria-label="Editar evidencia"><Save size={15} /></Button>
+              <Button className="h-auto min-h-10 whitespace-normal icon-button danger" disabled={!canCase("evidence", "evidence:write")} onClick={() => deleteEvidence(item.id)} title="Eliminar evidencia" variant="destructive" type="button" aria-label="Eliminar evidencia"><Trash2 size={15} /></Button>
             </div>
           </div>
         ))}
         {!evidence.length && <EmptyState text="Sin evidencia cargada." />}
-      </div>
+      </Card>
     );
 
     const renderCustodyPanel = () => (
-      <div className="detail-panel">
+      <Card className="detail-panel">
         <div className="panel-head">
           <h3>Cadena de custodia</h3>
           <p>Registro histórico: las correcciones agregan una nueva actuación y conservan las anteriores.</p>
@@ -4500,19 +4567,19 @@ export function App() {
             <div className="record-actions">
               {custody.some((event) => event.ledger_entry?.previous_action_id === item.id)
                 ? <small>Con rectificación posterior registrada</small>
-                : <button className="secondary" disabled={!canCase("evidence", "evidence:write")} onClick={() => { editorReturnFocus.current = document.activeElement as HTMLElement; setCustodyReason(""); setEditingCustody(item); }} title="Agregar rectificación"><Save size={15} /> Rectificar</button>}
+                : <Button className="h-auto min-h-10 whitespace-normal secondary" disabled={!canCase("evidence", "evidence:write")} onClick={() => { editorReturnFocus.current = document.activeElement as HTMLElement; setCustodyReason(""); setEditingCustody(item); }} title="Agregar rectificación" variant="outline" type="button"><Save size={15} /> Rectificar</Button>}
             </div>
           </div>
         ))}
         {!custody.length && <EmptyState text="Sin acciones de custodia." />}
-      </div>
+      </Card>
     );
 
     const renderLegalPanel = () => (
-      <div className="detail-panel wide">
+      <Card className="detail-panel wide">
         <div className="panel-head">
           <h3>Mapeo legal y matriz probatoria</h3>
-          <button className="secondary-button" onClick={() => setActive("legalKnowledge")}>Abrir biblioteca</button>
+          <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => setActive("legalKnowledge")} variant="outline" type="button">Abrir biblioteca</Button>
         </div>
         {legalQualityControl && (
           <div className={`quality-strip ${legalQualityControl.risk_level === "bajo" ? "success" : legalQualityControl.risk_level === "alto" ? "danger" : ""}`}>
@@ -4530,11 +4597,11 @@ export function App() {
           </div>
         ))}
         {!legalRows.length && <EmptyState text="Sin matriz legal-probatoria cargada." />}
-      </div>
+      </Card>
     );
 
     const renderDamageDetailPanel = () => (
-      <div className="detail-panel wide">
+      <Card className="detail-panel wide">
         <div className="panel-head">
           <div>
             <h3>Cuantificación económica del daño</h3>
@@ -4542,14 +4609,14 @@ export function App() {
           </div>
         </div>
         {renderDamagePanel()}
-      </div>
+      </Card>
     );
 
     const renderReportsPanel = () => (
-      <div className="detail-panel wide">
+      <Card className="detail-panel wide">
         <div className="panel-head">
           <h3>Informes y exportaciones</h3>
-          <button className="secondary-button" onClick={() => setActive("reports")}>Abrir informes</button>
+          <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => setActive("reports")} variant="outline" type="button">Abrir informes</Button>
         </div>
         {reports.map((item) => (
           <div className="editable-record" key={item.id}>
@@ -4558,7 +4625,7 @@ export function App() {
               <span>{professionalReportStatus(item.status)} | Score {item.review_score}</span>
               <small>Exportabilidad estimada: {exportabilitySnapshot.level} ({exportabilitySnapshot.score}/100)</small>
             </div>
-            <Button variant="outline" size="sm" disabled={!canCase("export", "reports:read")} onClick={() => void runCaseTask("Descargar informe", () => downloadReport(item.id))}>Exportar PDF</Button>
+            <Button variant="outline" size="sm" disabled={!canCase("export", "reports:read")} onClick={() => void runCaseTask("Descargar informe", () => downloadReport(item.id))} className="h-auto min-h-10 whitespace-normal">Exportar PDF</Button>
           </div>
         ))}
         {!reports.length && <EmptyState text="Sin informes generados." />}
@@ -4569,11 +4636,11 @@ export function App() {
             ))}
           </div>
         )}
-      </div>
+      </Card>
     );
 
     const renderAuditPanel = () => (
-      <div className="detail-panel wide">
+      <Card className="detail-panel wide">
         <div className="panel-head">
           <h3>Auditoría del caso</h3>
         </div>
@@ -4587,7 +4654,7 @@ export function App() {
           ))}
           {!auditLogs.length && <EmptyState text="Sin auditoría visible para este caso." />}
         </div>
-      </div>
+      </Card>
     );
 
     return (
@@ -4609,7 +4676,7 @@ export function App() {
           : caseCollectionsError || !selectedCase ? <p className="premium-permissions-note">No hay datos del expediente disponibles para mostrar.</p> : <>
           {caseDetailTab === "summary" && (
             <div className="dossier-grid">
-              <div className="detail-panel wide">
+              <Card className="detail-panel wide">
                 <div className="panel-head">
                   <h3>Estado operativo del expediente</h3>
                 </div>
@@ -4624,8 +4691,8 @@ export function App() {
                     </div>
                   ))}
                 </div>
-              </div>
-              <div className="detail-panel">
+              </Card>
+              <Card className="detail-panel">
                 <div className="panel-head">
                   <h3>Resumen técnico</h3>
                 </div>
@@ -4636,8 +4703,8 @@ export function App() {
                   <div><span>Informes</span><strong>{reports.length}</strong></div>
                   <div><span>Daño estimado</span><strong>{damageItems.length ? formatMoney(damageTotal, damageItems[0]?.currency || "ARS") : "Sin cuantificar"}</strong></div>
                 </div>
-              </div>
-              <div className="detail-panel">
+              </Card>
+              <Card className="detail-panel">
                 <div className="panel-head">
                   <h3>Última actividad</h3>
                 </div>
@@ -4650,7 +4717,7 @@ export function App() {
                     </div>
                   </div>
                 ) : <EmptyState text={canUse("audit:read") ? "Sin actividad auditada." : "La auditoría requiere un permiso adicional de tu rol."} />}
-              </div>
+              </Card>
             </div>
           )}
           {caseDetailTab === "participants" && renderParticipantsPanel()}
@@ -4669,17 +4736,17 @@ export function App() {
           <Dialog open onOpenChange={open => { if (!open && !caseTask) setEditingParticipant(null); }}><DialogContent className="premium-editor-dialog" onCloseAutoFocus={event => { event.preventDefault(); const target = editorReturnFocus.current; if (target?.isConnected) target.focus(); else document.getElementById("main-content")?.focus(); }}><form className="premium-form" onSubmit={event => { event.preventDefault(); void runCaseTask("Editar participante", () => saveParticipant(event)); }}>
             <DialogHeader><DialogTitle>Editar participante</DialogTitle><DialogDescription>Solo se aplican cambios al confirmar. Los eventos originales de custodia se conservan.</DialogDescription></DialogHeader>{error && <p role="alert" className="premium-form-error">{error}</p>}<fieldset disabled={!canCase("participants", "cases:write") || Boolean(caseTask)}><legend className="sr-only">Editar participante</legend>
             <div className="inline-grid">
-              <FormField label="Nombre o identificador"><input value={editingParticipant.display_name} onChange={(e) => setEditingParticipant({ ...editingParticipant, display_name: e.target.value })} /></FormField>
-              <FormField label="Relación con el expediente"><input value={editingParticipant.participant_type} onChange={(e) => setEditingParticipant({ ...editingParticipant, participant_type: e.target.value })} /></FormField>
+              <FormField label="Nombre o identificador"><Input value={editingParticipant.display_name} onChange={(e) => setEditingParticipant({ ...editingParticipant, display_name: e.target.value })} /></FormField>
+              <FormField label="Relación con el expediente"><Input value={editingParticipant.participant_type} onChange={(e) => setEditingParticipant({ ...editingParticipant, participant_type: e.target.value })} /></FormField>
             </div>
             <div className="inline-grid">
-              <FormField label="Tipo de documento"><input value={editingParticipant.document_type || ""} onChange={(e) => setEditingParticipant({ ...editingParticipant, document_type: e.target.value })} /></FormField>
-              <FormField label="Documento o identificador"><input value={editingParticipant.document_number || ""} onChange={(e) => setEditingParticipant({ ...editingParticipant, document_number: e.target.value })} /></FormField>
+              <FormField label="Tipo de documento"><Input value={editingParticipant.document_type || ""} onChange={(e) => setEditingParticipant({ ...editingParticipant, document_type: e.target.value })} /></FormField>
+              <FormField label="Documento o identificador"><Input value={editingParticipant.document_number || ""} onChange={(e) => setEditingParticipant({ ...editingParticipant, document_number: e.target.value })} /></FormField>
             </div>
             <FormField label="Relación con el caso"><textarea value={editingParticipant.relationship_to_case || ""} onChange={(e) => setEditingParticipant({ ...editingParticipant, relationship_to_case: e.target.value })} /></FormField>
             <div className="actions-line">
-              <Button><Save size={16} /> Guardar</Button>
-              <Button type="button" className="secondary" onClick={() => setEditingParticipant(null)}>Cancelar</Button>
+              <Button className="h-auto min-h-10 whitespace-normal"><Save size={16} /> Guardar</Button>
+              <Button type="button" className="h-auto min-h-10 whitespace-normal secondary" onClick={() => setEditingParticipant(null)}>Cancelar</Button>
             </div>
           </fieldset></form></DialogContent></Dialog>
         )}
@@ -4688,14 +4755,14 @@ export function App() {
           <Dialog open onOpenChange={open => { if (!open && !caseTask) setEditingEvidence(null); }}><DialogContent className="premium-editor-dialog" onCloseAutoFocus={event => { event.preventDefault(); const target = editorReturnFocus.current; if (target?.isConnected) target.focus(); else document.getElementById("main-content")?.focus(); }}><form className="premium-form" onSubmit={event => { event.preventDefault(); void runCaseTask("Editar evidencia", () => saveEvidence(event)); }}>
             <DialogHeader><DialogTitle>Editar evidencia</DialogTitle><DialogDescription>Solo se aplican cambios al confirmar. Los eventos originales de custodia se conservan.</DialogDescription></DialogHeader>{error && <p role="alert" className="premium-form-error">{error}</p>}<fieldset disabled={!canCase("evidence", "evidence:write") || Boolean(caseTask)}><legend className="sr-only">Editar evidencia</legend>
             <div className="inline-grid">
-              <FormField label="Tipo de evidencia"><input value={editingEvidence.evidence_type} onChange={(e) => setEditingEvidence({ ...editingEvidence, evidence_type: e.target.value })} /></FormField>
-              <FormField label="Estado de integridad" hint="Se actualiza mediante la verificación del archivo."><input readOnly value={editingEvidence.integrity_status} /></FormField>
+              <FormField label="Tipo de evidencia"><Input value={editingEvidence.evidence_type} onChange={(e) => setEditingEvidence({ ...editingEvidence, evidence_type: e.target.value })} /></FormField>
+              <FormField label="Estado de integridad" hint="Se actualiza mediante la verificación del archivo."><Input readOnly value={editingEvidence.integrity_status} /></FormField>
             </div>
             <FormField label="Descripción"><textarea value={editingEvidence.description} onChange={(e) => setEditingEvidence({ ...editingEvidence, description: e.target.value })} /></FormField>
-            <FormField label="SHA-256 registrado" hint="Referencia de integridad; no se modifica desde este editor."><input readOnly value={editingEvidence.sha256_hash || ""} /></FormField>
+            <FormField label="SHA-256 registrado" hint="Referencia de integridad; no se modifica desde este editor."><Input readOnly value={editingEvidence.sha256_hash || ""} /></FormField>
             <div className="actions-line">
-              <Button><Save size={16} /> Guardar</Button>
-              <Button type="button" className="secondary" onClick={() => setEditingEvidence(null)}>Cancelar</Button>
+              <Button className="h-auto min-h-10 whitespace-normal"><Save size={16} /> Guardar</Button>
+              <Button type="button" className="h-auto min-h-10 whitespace-normal secondary" onClick={() => setEditingEvidence(null)}>Cancelar</Button>
             </div>
           </fieldset></form></DialogContent></Dialog>
         )}
@@ -4706,10 +4773,10 @@ export function App() {
             <p>El original se conserva. El autor se registra desde tu sesión autenticada.</p>
             <FormField label="Motivo de la rectificación" hint="El evento original permanece inmutable."><textarea required maxLength={2000} value={custodyReason} onChange={(e) => setCustodyReason(e.target.value)} /></FormField>
             <FormField label="Descripción del evento"><textarea value={editingCustody.detailed_description} onChange={(e) => setEditingCustody({ ...editingCustody, detailed_description: e.target.value })} /></FormField>
-            <FormField label="Estado del evento"><input value={editingCustody.status || ""} onChange={(e) => setEditingCustody({ ...editingCustody, status: e.target.value })} /></FormField>
+            <FormField label="Estado del evento"><Input value={editingCustody.status || ""} onChange={(e) => setEditingCustody({ ...editingCustody, status: e.target.value })} /></FormField>
             <div className="actions-line">
-              <Button disabled={!custodyReason.trim()}><Save size={16} /> Registrar rectificación</Button>
-              <Button type="button" className="secondary" onClick={() => setEditingCustody(null)}>Cancelar</Button>
+              <Button disabled={!custodyReason.trim()} className="h-auto min-h-10 whitespace-normal"><Save size={16} /> Registrar rectificación</Button>
+              <Button type="button" className="h-auto min-h-10 whitespace-normal secondary" onClick={() => setEditingCustody(null)}>Cancelar</Button>
             </div>
           </fieldset></form></DialogContent></Dialog>
         )}
@@ -4730,17 +4797,17 @@ export function App() {
   function renderRubricCompliance() {
     const statusClass = rubricEvaluation?.status === "completo" ? "ok" : rubricEvaluation?.status === "parcial" ? "pending" : "blocked";
     return (
-      <div className="report-card rubric-panel">
+      <Card className="report-card rubric-panel">
         <div className="panel-head">
           <div>
             <h3>Cumplimiento de Rúbrica</h3>
             <p>Written Legal Evidence Report 2026: secciones A-D y resumen investigativo final.</p>
           </div>
-          <button onClick={() => void runCaseTask("Evaluar rúbrica", updateRubricEvaluation)} disabled={!canCase("review", "reports:write") || Boolean(caseTask) || rubricState === "updating"}>
+          <Button onClick={() => void runCaseTask("Evaluar rúbrica", updateRubricEvaluation)} disabled={!canCase("review", "reports:write") || Boolean(caseTask) || rubricState === "updating"} variant="default" type="button" className="h-auto min-h-10 whitespace-normal">
             <RefreshCcw size={16} /> {rubricState === "updating" ? "Actualizando..." : "Actualizar evaluación"}
-          </button>
+          </Button>
         </div>
-        {rubricMessage && <div className={`action-feedback ${rubricState}`}>{prettySpanish(rubricMessage)}</div>}
+        {rubricMessage && <div className={`action-feedback ${rubricState}`} role="status" aria-live="polite" aria-atomic="true">{prettySpanish(rubricMessage)}</div>}
         {rubricEvaluation ? (
           <>
             <div className="rubric-score-row">
@@ -4774,7 +4841,7 @@ export function App() {
         ) : (
           <EmptyState text="Todavía no hay evaluación de rúbrica para este caso. Actualiza la evaluación para calcular puntaje y faltantes." />
         )}
-      </div>
+      </Card>
     );
   }
 
@@ -4802,7 +4869,7 @@ export function App() {
             <h2>Informes</h2>
             <p>Control profesional del informe: contenido incluido, faltantes, versionado, anexos y exportación final.</p>
           </div>
-          <Button onClick={() => void runCaseTask("Generar informe", generateReport)} disabled={!canCase("reports", "reports:write") || Boolean(caseTask)}><FileText size={17} /> Generar informe</Button>
+          <Button onClick={() => void runCaseTask("Generar informe", generateReport)} disabled={!canCase("reports", "reports:write") || Boolean(caseTask)} className="h-auto min-h-10 whitespace-normal"><FileText size={17} /> Generar informe</Button>
         </div>
         <div className="module-guidance">
           <div>
@@ -4820,18 +4887,18 @@ export function App() {
         </div>
         {latestReport && (
           <div className="report-toolbar">
-            <Button variant="outline" disabled={!canCase("read", "reports:read") || Boolean(caseTask)} onClick={() => requestNavigation(() => void runCaseTask("Abrir vista previa", () => loadReportPreview()))}><FileCheck2 size={16} /> Vista previa profesional</Button>
-            <Button variant="outline" disabled={!canCase("review", "reports:write") || Boolean(caseTask)} onClick={() => void runCaseTask("Revisar informe", reviewReport)}><CheckCircle2 size={16} /> Revisar</Button>
+            <Button variant="outline" disabled={!canCase("read", "reports:read") || Boolean(caseTask)} onClick={() => requestNavigation(() => void runCaseTask("Abrir vista previa", () => loadReportPreview()))} className="h-auto min-h-10 whitespace-normal"><FileCheck2 size={16} /> Vista previa profesional</Button>
+            <Button variant="outline" disabled={!canCase("review", "reports:write") || Boolean(caseTask)} onClick={() => void runCaseTask("Revisar informe", reviewReport)} className="h-auto min-h-10 whitespace-normal"><CheckCircle2 size={16} /> Revisar</Button>
             <Button
               disabled={!canCase("approve", "reports:write") || !canCase("export", "reports:read") || !reportPreview?.can_export_final || Boolean(caseTask)}
               onClick={() => void runCaseTask("Sellar y exportar", requestFinalExport)}
-              className={reportPreview?.can_export_final ? "" : "secondary"}
+              className={"h-auto min-h-10 whitespace-normal " + (reportPreview?.can_export_final ? "" : "secondary")}
               title={reportPreview?.can_export_final ? "Exportar informe final sellado" : "Primero completá los controles pendientes"}
             >
               <Download size={16} /> Sellar y exportar final
             </Button>
-            <Button variant="outline" disabled={!canCase("reports", "reports:write") || Boolean(caseTask)} onClick={() => void runCaseTask("Actualizar anexos", refreshReportAnnexes)}><FileText size={16} /> Actualizar anexos</Button>
-            <Button variant="outline" disabled={!canCase("export", "reports:read") || Boolean(caseTask)} onClick={() => void runCaseTask("Descargar informe", () => downloadReport(reportPreview?.report_id ?? latestReport.id))}>
+            <Button variant="outline" disabled={!canCase("reports", "reports:write") || Boolean(caseTask)} onClick={() => void runCaseTask("Actualizar anexos", refreshReportAnnexes)} className="h-auto min-h-10 whitespace-normal"><FileText size={16} /> Actualizar anexos</Button>
+            <Button variant="outline" disabled={!canCase("export", "reports:read") || Boolean(caseTask)} onClick={() => void runCaseTask("Descargar informe", () => downloadReport(reportPreview?.report_id ?? latestReport.id))} className="h-auto min-h-10 whitespace-normal">
               <Download size={16} /> Exportar borrador PDF
             </Button>
           </div>
@@ -4884,7 +4951,7 @@ export function App() {
               </div>
             )}
             <div className="preview-grid">
-              <div className="report-card">
+              <Card className="report-card">
                 <h4>Que incluira el PDF final</h4>
                 <div className="report-inclusion-list">
                   {includedSections.map((section) => (
@@ -4898,8 +4965,8 @@ export function App() {
                   ))}
                   {!includedSections.length && <EmptyState text="No hay secciones con contenido suficiente para renderizar." />}
                 </div>
-              </div>
-              <div className="report-card">
+              </Card>
+              <Card className="report-card">
                 <h4>Que falta para cerrarlo</h4>
                 <div className="summary-list">
                   {missingChecklist.map((item) => (
@@ -4909,30 +4976,30 @@ export function App() {
                   ))}
                   {!missingChecklist.length && <span>Sin faltantes críticos para cierre pericial.</span>}
                 </div>
-              </div>
+              </Card>
             </div>
             <div className="preview-grid">
-              <div className="report-card">
+              <Card className="report-card">
                 <h4>Resumen ejecutivo editable</h4>
                 <FormField label="Resumen ejecutivo" hint="Guardar genera el registro de versión correspondiente; el historial se conserva."><textarea className="executive-editor" disabled={!canCase("reports", "reports:write") || Boolean(caseTask)} value={executiveSummaryDraft} onChange={(event) => setExecutiveSummaryDraft(event.target.value)} /></FormField>
-                <Button disabled={!canCase("reports", "reports:write") || Boolean(caseTask) || !executiveSummaryDraft.trim()} onClick={() => void runCaseTask("Guardar resumen", saveExecutiveSummary)}>
+                <Button disabled={!canCase("reports", "reports:write") || Boolean(caseTask) || !executiveSummaryDraft.trim()} onClick={() => void runCaseTask("Guardar resumen", saveExecutiveSummary)} className="h-auto min-h-10 whitespace-normal">
                   <Save size={16} /> Guardar resumen ejecutivo
                 </Button>
-              </div>
-              <div className="report-card">
+              </Card>
+              <Card className="report-card">
                 <h4>Versionado del informe</h4>
                 <p>Usa estos estados para controlar madurez documental. La version final exige checklist completo.</p>
                 <div className="version-row">
                   {["borrador", "preliminar", "revisado", "final", "corregido", "reabierto"].map((status) => (
-                    <Button key={status} variant={(reportPreview?.status || latestReport?.status) === status ? "default" : "outline"} disabled={!canCase("reports", "reports:write") || Boolean(caseTask) || (status === "final" && (!canCase("approve", "reports:write") || !reportPreview?.can_export_final))} onClick={() => void runCaseTask("Cambiar versión", () => transitionReportStatus(status))}>
+                    <Button key={status} variant={(reportPreview?.status || latestReport?.status) === status ? "default" : "outline"} disabled={!canCase("reports", "reports:write") || Boolean(caseTask) || (status === "final" && (!canCase("approve", "reports:write") || !reportPreview?.can_export_final))} onClick={() => void runCaseTask("Cambiar versión", () => transitionReportStatus(status))} className="h-auto min-h-10 whitespace-normal">
                       {prettySpanish(status)}
                     </Button>
                   ))}
                 </div>
-              </div>
+              </Card>
             </div>
             <div className="preview-grid">
-              <div className="report-card">
+              <Card className="report-card">
                 <h4>Checklist pericial final</h4>
                 {reportPreview.final_checklist.items.map((item) => (
                   <div className={`check-row ${item.ok ? "ok" : "pending"}`} key={item.key}>
@@ -4941,8 +5008,8 @@ export function App() {
                     <small>{prettySpanish(item.message)}</small>
                   </div>
                 ))}
-              </div>
-              <div className="report-card">
+              </Card>
+              <Card className="report-card">
                 <h4>Contradicciones legal-probatorias</h4>
                 {reportPreview.contradictions.issues.map((issue, index) => (
                   <div className="preview-section warning" key={`${issue.norm_reference}-${index}`}>
@@ -4952,7 +5019,7 @@ export function App() {
                   </div>
                 ))}
                 {!reportPreview.contradictions.issues.length && <EmptyState text="Sin contradicciones bloqueantes detectadas." />}
-              </div>
+              </Card>
             </div>
             {!!emptySections.length && (
               <div className="requirements">
@@ -4960,7 +5027,7 @@ export function App() {
                 {emptySections.map((section) => <span key={section.title}>{prettySpanish(section.title)}</span>)}
               </div>
             )}
-            <div className="report-card">
+            <Card className="report-card">
               <h4>Anexos reales</h4>
               <div className="preview-grid">
                 {reportPreview.annexes.items.map((item, index) => (
@@ -4972,7 +5039,7 @@ export function App() {
                 ))}
                 {!reportPreview.annexes.items.length && <EmptyState text="Sin anexos vinculados todavia." />}
               </div>
-            </div>
+            </Card>
             {renderExportFinalOutcome()}
           </div>
         )}
@@ -4986,7 +5053,7 @@ export function App() {
 
   function renderLegalKnowledge() {
     return (
-      <section className="work-surface">
+      <ModuleSurface className="" moduleId="legalKnowledge">
         <div className="section-head">
           <div>
             <h2>Biblioteca Legal Argentina</h2>
@@ -5004,12 +5071,12 @@ export function App() {
               <option value="">Buscar por texto libre</option>
               {attackTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
             </select>
-            <input value={legalQuery} onChange={(e) => setLegalQuery(e.target.value)} placeholder="Buscar norma o describir incidente" />
-            <button className="icon-button" onClick={searchLegal} title="Buscar"><Search size={18} /></button>
+            <FormField label="Buscar norma o describir incidente"><Input value={legalQuery} onChange={(e) => setLegalQuery(e.target.value)} placeholder="Buscar norma o describir incidente" /></FormField>
+            <Button className="h-auto min-h-10 whitespace-normal icon-button" onClick={() => void runCaseTask("Operación del módulo", () => (searchLegal)())} title="Buscar" variant="outline" type="button" aria-label="Buscar"><Search size={18} /></Button>
           </div>
         </div>
         {legalApplyMessage && (
-          <div className={`action-feedback ${legalApplyState}`}>
+          <div className={`action-feedback ${legalApplyState}`} role="status" aria-live="polite" aria-atomic="true">
             {legalApplyMessage}
           </div>
         )}
@@ -5051,7 +5118,7 @@ export function App() {
                 <p>{prettySpanish(item.text)}</p>
                 {item.warning && <div className="notice sensitive-warning">{prettySpanish(item.warning)}</div>}
                 <div className="legal-card-grid">
-                  <small><strong>Aplicaci?n:</strong> {prettySpanish(item.applicability_to_case)}</small>
+                  <small><strong>Aplicación:</strong> {prettySpanish(item.applicability_to_case)}</small>
                   <small><strong>Límites:</strong> {prettySpanish(item.probatory_limits)}</small>
                   <small><strong>Elementos objetivos:</strong> {prettySpanish(item.why)}</small>
                   <small><strong>Elemento subjetivo:</strong> {prettySpanish(item.subjective_elements)}</small>
@@ -5062,12 +5129,12 @@ export function App() {
                 {item.precedents.length > 0 && <small>Jurisprudencia registrada: {item.precedents.length}</small>}
                 {item.doctrine.length > 0 && <small>Doctrina registrada: {item.doctrine.length}</small>}
                 <div className="button-row">
-                  <button onClick={() => decideLegalRecommendation(item, "aprobado")} disabled={!selectedCaseId}>
+                  <Button onClick={() => void runCaseTask("Operación del módulo", () => (() => decideLegalRecommendation(item, "aprobado"))())} disabled={(!selectedCaseId) || !(canCase("write", "legal:write")) || Boolean(caseTask)} variant="default" type="button" className="h-auto min-h-10 whitespace-normal">
                     <CheckCircle2 size={16} /> Aplicar al caso
-                  </button>
-                  <button className="secondary-button" onClick={() => decideLegalRecommendation(item, "descartado")} disabled={!selectedCaseId}>
+                  </Button>
+                  <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => void runCaseTask("Operación del módulo", () => (() => decideLegalRecommendation(item, "descartado"))())} disabled={(!selectedCaseId) || !(canCase("write", "legal:write")) || Boolean(caseTask)} variant="outline" type="button">
                     <Trash2 size={16} /> Descartar
-                  </button>
+                  </Button>
                 </div>
               </article>
             ))}
@@ -5077,7 +5144,7 @@ export function App() {
           <div className="section-head compact-head">
             <div>
               <h3>Mapeo legal aprobado por analista</h3>
-              <p>Normas aceptadas o descartadas para el caso seleccionado. Pod?s corregir art?culos y vínculos sin borrar evidencia.</p>
+              <p>Normas aceptadas o descartadas para el caso seleccionado. Podés corregir artículos y vínculos sin borrar evidencia.</p>
             </div>
             {legalQualityControl && (
               <span className={`badge ${legalQualityControl.risk_level === "bajo" ? "success" : ""}`}>
@@ -5096,7 +5163,7 @@ export function App() {
                 <small>{prettySpanish(item.analysis)}</small>
                 {item.decision_status === "aprobado" && (
                   <div className="button-row">
-                    <select
+                    <FormField label="Evidencia para vincular"><select
                       value={legalEvidenceSelection[item.id] || ""}
                       onChange={(e) => setLegalEvidenceSelection({ ...legalEvidenceSelection, [item.id]: e.target.value })}
                     >
@@ -5104,8 +5171,8 @@ export function App() {
                       {evidence.map((ev) => (
                         <option key={ev.id} value={ev.id}>#{ev.id} {ev.description}</option>
                       ))}
-                    </select>
-                    <select
+                    </select></FormField>
+                    <FormField label="Elemento legal para vincular"><select
                       value={legalElementSelection[item.id] || ""}
                       onChange={(e) => setLegalElementSelection({ ...legalElementSelection, [item.id]: e.target.value })}
                     >
@@ -5113,20 +5180,20 @@ export function App() {
                       {elementOptions.map((element) => (
                         <option key={element} value={element}>{prettySpanish(element)}</option>
                       ))}
-                    </select>
-                    <button onClick={() => linkEvidenceToLegalMapping(item)} disabled={!evidence.length}>
+                    </select></FormField>
+                    <Button onClick={() => void runCaseTask("Operación del módulo", () => (() => linkEvidenceToLegalMapping(item))())} disabled={(!evidence.length) || !(canCase("write", "legal:write")) || Boolean(caseTask)} variant="default" type="button" className="h-auto min-h-10 whitespace-normal">
                       <FileCheck2 size={16} /> Vincular evidencia
-                    </button>
-                    <button className="secondary-button" onClick={() => changeLegalMappingDecision(item, "descartado")}>
-                      <Trash2 size={16} /> Quitar art?culo
-                    </button>
+                    </Button>
+                    <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => void runCaseTask("Operación del módulo", () => (() => changeLegalMappingDecision(item, "descartado"))())} variant="outline" type="button" disabled={!(canCase("write", "legal:write")) || Boolean(caseTask)}>
+                      <Trash2 size={16} /> Quitar artículo
+                    </Button>
                   </div>
                 )}
                 {item.decision_status === "descartado" && (
                   <div className="button-row">
-                    <button onClick={() => changeLegalMappingDecision(item, "aprobado")}>
-                      <CheckCircle2 size={16} /> Reactivar art?culo
-                    </button>
+                    <Button onClick={() => void runCaseTask("Operación del módulo", () => (() => changeLegalMappingDecision(item, "aprobado"))())} variant="default" type="button" disabled={!(canCase("write", "legal:write")) || Boolean(caseTask)} className="h-auto min-h-10 whitespace-normal">
+                      <CheckCircle2 size={16} /> Reactivar artículo
+                    </Button>
                   </div>
                 )}
                 {legalMappingEvidence.filter((link) => link.legal_mapping_id === item.id).map((link) => {
@@ -5136,30 +5203,30 @@ export function App() {
                   return (
                     <div className="inline-editor" key={link.id}>
                       Evidencia vinculada: #{link.evidence_id} {ev?.description || ""} · {link.legal_element} · fuerza {link.probatory_strength}
-                      <input value={current.legal_element || ""} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, legal_element: event.target.value } })} placeholder="Elemento legal" />
-                      <select value={current.element_status || "pendiente"} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, element_status: event.target.value } })}>
+                      <FormField label="Elemento legal"><Input value={current.legal_element || ""} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, legal_element: event.target.value } })} placeholder="Elemento legal" /></FormField>
+                      <FormField label="Estado del elemento legal"><select value={current.element_status || "pendiente"} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, element_status: event.target.value } })}>
                         <option value="probado">Probado</option>
-                        <option value="debil">D?bil</option>
+                        <option value="debil">Débil</option>
                         <option value="faltante">Faltante</option>
                         <option value="controvertido">Controvertido</option>
                         <option value="pendiente">Pendiente</option>
-                      </select>
-                      <select value={current.probatory_strength || "medio"} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, probatory_strength: event.target.value } })}>
+                      </select></FormField>
+                      <FormField label="Fuerza probatoria"><select value={current.probatory_strength || "medio"} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, probatory_strength: event.target.value } })}>
                         <option value="alto">Fuerza alta</option>
                         <option value="medio">Fuerza media</option>
                         <option value="bajo">Fuerza baja</option>
-                      </select>
-                      <select value={current.contradiction_risk || "bajo"} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, contradiction_risk: event.target.value } })}>
+                      </select></FormField>
+                      <FormField label="Riesgo de contradicción"><select value={current.contradiction_risk || "bajo"} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, contradiction_risk: event.target.value } })}>
                         <option value="bajo">Riesgo bajo</option>
                         <option value="medio">Riesgo medio</option>
                         <option value="alto">Riesgo alto</option>
                         <option value="crítico">Riesgo crítico</option>
-                      </select>
-                      <input value={current.missing_evidence || ""} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, missing_evidence: event.target.value } })} placeholder="Evidencia faltante" />
-                      <input value={current.recommended_measure || ""} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, recommended_measure: event.target.value } })} placeholder="Medida recomendada" />
+                      </select></FormField>
+                      <FormField label="Evidencia faltante"><Input value={current.missing_evidence || ""} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, missing_evidence: event.target.value } })} placeholder="Evidencia faltante" /></FormField>
+                      <FormField label="Medida recomendada"><Input value={current.recommended_measure || ""} onChange={(event) => setLegalLinkDrafts({ ...legalLinkDrafts, [link.id]: { ...draft, recommended_measure: event.target.value } })} placeholder="Medida recomendada" /></FormField>
                       <div className="button-row">
-                        <button onClick={() => saveLegalLink(link)}><Save size={16} /> Guardar vínculo</button>
-                        <button className="secondary-button" onClick={() => unlinkLegalEvidence(link.id)}><Trash2 size={16} /> Desvincular</button>
+                        <Button onClick={() => void runCaseTask("Operación del módulo", () => (() => saveLegalLink(link))())} variant="default" type="button" disabled={!(canCase("write", "legal:write")) || Boolean(caseTask)} className="h-auto min-h-10 whitespace-normal"><Save size={16} /> Guardar vínculo</Button>
+                        <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => void runCaseTask("Operación del módulo", () => (() => unlinkLegalEvidence(link.id))())} variant="outline" type="button" disabled={!(canCase("write", "legal:write")) || Boolean(caseTask)}><Trash2 size={16} /> Desvincular</Button>
                       </div>
                     </div>
                   );
@@ -5217,19 +5284,19 @@ export function App() {
             </article>
           ))}
         </div>
-      </section>
+      </ModuleSurface>
     );
   }
 
   function renderCybercrime() {
     return (
-      <section className="work-surface cyber-workbench">
+      <ModuleSurface className="cyber-workbench" moduleId="cybercrime">
         <div className="section-head">
           <div>
             <h2>Cybercrime Workbench</h2>
             <p>Flujo guiado para analizar indicadores, registrar sesiones controladas y guardar conclusiones tecnicas por caso.</p>
           </div>
-          <button className="secondary-button" onClick={refreshCybercrime}><RefreshCcw size={16} /> Actualizar</button>
+          <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={refreshCybercrime} variant="outline" type="button"><RefreshCcw size={16} /> Actualizar</Button>
         </div>
 
         {cyberDashboard && <MetricGrid metrics={cyberDashboard as unknown as Record<string, number>} />}
@@ -5238,10 +5305,10 @@ export function App() {
           <div className="form cyber-analysis-panel">
             <h3>Paso 1 - Analizar indicador</h3>
             <p className="muted">Carga una IP, URL, dominio, correo o hash. OPERIA lo clasifica, estima riesgo y sugiere medidas de preservación.</p>
-            <input value={indicator} onChange={(event) => setIndicator(event.target.value)} placeholder="IP, URL, dominio, email o hash" />
-            <button onClick={analyzeIndicator} disabled={!indicator.trim()}>
+            <FormField label="IP, URL, dominio, email o hash"><Input value={indicator} onChange={(event) => setIndicator(event.target.value)} placeholder="IP, URL, dominio, email o hash" /></FormField>
+            <Button onClick={() => void runCaseTask("Operación del módulo", () => (analyzeIndicator)())} disabled={(!indicator.trim()) || !(canCase("analysis", "evidence:write")) || Boolean(caseTask)} variant="default" type="button" className="h-auto min-h-10 whitespace-normal">
               <Search size={17} /> Analizar indicador
-            </button>
+            </Button>
             {indicatorResult && (
               <div className={`risk-card ${indicatorResult.risk_level}`}>
                 <div>
@@ -5260,7 +5327,7 @@ export function App() {
             )}
           </div>
 
-          <div className="detail-panel">
+          <Card className="detail-panel">
             <div className="panel-head">
               <h3>Resultado técnico</h3>
             </div>
@@ -5278,47 +5345,47 @@ export function App() {
                 <p className="muted">Que significa: este resultado orienta la investigacion. No prueba autoría y debe vincularse con evidencia, custodia y fuentes verificables.</p>
               </div>
             ) : <EmptyState text="Sin análisis de indicador todavía." />}
-          </div>
+          </Card>
         </div>
 
         <div className="detail-grid">
-          <form className="detail-panel" onSubmit={createCyberLabSession}>
+          <form className="detail-panel" onSubmit={event => { event.preventDefault(); void runCaseTask("Guardar datos del módulo", () => createCyberLabSession(event)); }}><fieldset disabled={!(canCase("analysis", "evidence:write")) || Boolean(caseTask)}><legend className="sr-only">Datos de la operación</legend>
             <div className="panel-head">
               <h3>Paso 2 - Crear sesion de laboratorio</h3>
             </div>
-            <input placeholder="Título de sesión" value={cyberLabForm.title} onChange={(e) => setCyberLabForm({ ...cyberLabForm, title: e.target.value })} />
+            <FormField label="Título de sesión"><Input placeholder="Título de sesión" value={cyberLabForm.title} onChange={(e) => setCyberLabForm({ ...cyberLabForm, title: e.target.value })} /></FormField>
             <div className="inline-grid">
-              <input placeholder="Propósito" value={cyberLabForm.purpose} onChange={(e) => setCyberLabForm({ ...cyberLabForm, purpose: e.target.value })} />
-              <select value={cyberLabForm.risk_level} onChange={(e) => setCyberLabForm({ ...cyberLabForm, risk_level: e.target.value })}>
+              <FormField label="Propósito"><Input placeholder="Propósito" value={cyberLabForm.purpose} onChange={(e) => setCyberLabForm({ ...cyberLabForm, purpose: e.target.value })} /></FormField>
+              <FormField label="Nivel de riesgo"><select value={cyberLabForm.risk_level} onChange={(e) => setCyberLabForm({ ...cyberLabForm, risk_level: e.target.value })}>
                 <option value="bajo">Riesgo bajo</option>
                 <option value="medio">Riesgo medio</option>
                 <option value="alto">Riesgo alto</option>
-              </select>
+              </select></FormField>
             </div>
-            <input placeholder="Operador" value={cyberLabForm.operator} onChange={(e) => setCyberLabForm({ ...cyberLabForm, operator: e.target.value })} />
-            <button disabled={!selectedCaseId}><BrainCircuit size={17} /> Crear sesión controlada</button>
-          </form>
+            <FormField label="Operador"><Input placeholder="Operador" value={cyberLabForm.operator} onChange={(e) => setCyberLabForm({ ...cyberLabForm, operator: e.target.value })} /></FormField>
+            <Button disabled={!selectedCaseId} variant="default" type="submit" className="h-auto min-h-10 whitespace-normal"><BrainCircuit size={17} /> Crear sesión controlada</Button>
+          </fieldset></form>
 
-          <form className="detail-panel" onSubmit={createCyberProofRow}>
+          <form className="detail-panel" onSubmit={event => { event.preventDefault(); void runCaseTask("Guardar datos del módulo", () => createCyberProofRow(event)); }}><fieldset disabled={!(canCase("analysis", "evidence:write")) || Boolean(caseTask)}><legend className="sr-only">Datos de la operación</legend>
             <div className="panel-head">
               <h3>Paso 3 - Guardar conclusion defensible</h3>
             </div>
-            <textarea placeholder="Conclusi?n técnica prudente" value={cyberProofForm.defensible_conclusion} onChange={(e) => setCyberProofForm({ ...cyberProofForm, defensible_conclusion: e.target.value })} />
-            <textarea placeholder="Encuadre o relaci?n legal preliminar" value={cyberProofForm.legal_framing} onChange={(e) => setCyberProofForm({ ...cyberProofForm, legal_framing: e.target.value })} />
+            <FormField label="Conclusión técnica prudente"><textarea placeholder="Conclusión técnica prudente" value={cyberProofForm.defensible_conclusion} onChange={(e) => setCyberProofForm({ ...cyberProofForm, defensible_conclusion: e.target.value })} /></FormField>
+            <FormField label="Encuadre o relación legal preliminar"><textarea placeholder="Encuadre o relación legal preliminar" value={cyberProofForm.legal_framing} onChange={(e) => setCyberProofForm({ ...cyberProofForm, legal_framing: e.target.value })} /></FormField>
             <div className="inline-grid">
-              <select value={cyberProofForm.confidence_level} onChange={(e) => setCyberProofForm({ ...cyberProofForm, confidence_level: e.target.value })}>
+              <FormField label="Nivel de confianza"><select value={cyberProofForm.confidence_level} onChange={(e) => setCyberProofForm({ ...cyberProofForm, confidence_level: e.target.value })}>
                 <option value="bajo">Confianza baja</option>
                 <option value="medio">Confianza media</option>
                 <option value="alto">Confianza alta</option>
-              </select>
-              <input placeholder="Debilidad o límite probatorio" value={cyberProofForm.weakness} onChange={(e) => setCyberProofForm({ ...cyberProofForm, weakness: e.target.value })} />
+              </select></FormField>
+              <FormField label="Debilidad o límite probatorio"><Input placeholder="Debilidad o límite probatorio" value={cyberProofForm.weakness} onChange={(e) => setCyberProofForm({ ...cyberProofForm, weakness: e.target.value })} /></FormField>
             </div>
-            <button disabled={!selectedCaseId}><FileCheck2 size={17} /> Guardar en matriz cybercrime</button>
-          </form>
+            <Button disabled={!selectedCaseId} variant="default" type="submit" className="h-auto min-h-10 whitespace-normal"><FileCheck2 size={17} /> Guardar en matriz cybercrime</Button>
+          </fieldset></form>
         </div>
 
         <div className="detail-grid">
-          <div className="detail-panel">
+          <Card className="detail-panel">
             <div className="panel-head">
               <h3>Sesiones del caso</h3>
             </div>
@@ -5332,9 +5399,9 @@ export function App() {
               </div>
             ))}
             {!cyberLabSessions.length && <EmptyState text="Sin sesiones cybercrime asociadas." />}
-          </div>
+          </Card>
 
-          <div className="detail-panel">
+          <Card className="detail-panel">
             <div className="panel-head">
               <h3>Matriz técnica</h3>
             </div>
@@ -5348,9 +5415,9 @@ export function App() {
               </div>
             ))}
             {!cyberProofRows.length && <EmptyState text="Sin conclusiones técnicas guardadas." />}
-          </div>
+          </Card>
         </div>
-      </section>
+      </ModuleSurface>
     );
   }
 
@@ -5361,16 +5428,16 @@ export function App() {
     const linkedDeepfake = deepfakeAnalyses.filter((item) => item.evidence_id).length;
     const withFindings = deepfakeAnalyses.filter((item) => item.finding_id).length;
     return (
-      <section className="work-surface cyber-workbench">
+      <ModuleSurface className="cyber-workbench" moduleId="deepfakeMedia">
         <div className="section-head">
           <div>
             <h2>Deepfake / Medios</h2>
             <p>Laboratorio local para registrar autenticación preliminar de imagen, video, audio, documento o captura sin afirmar conclusiones absolutas.</p>
           </div>
-          <button className="secondary-button" onClick={refreshCybercrime}><RefreshCcw size={16} /> Actualizar</button>
+          <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={refreshCybercrime} variant="outline" type="button"><RefreshCcw size={16} /> Actualizar</Button>
         </div>
 
-        {deepfakeMessage && <div className={`action-feedback ${deepfakeState}`}>{deepfakeMessage}</div>}
+        {deepfakeMessage && <div className={`action-feedback ${deepfakeState}`} role="status" aria-live="polite" aria-atomic="true">{deepfakeMessage}</div>}
 
         <div className="module-guidance">
           <div>
@@ -5395,39 +5462,39 @@ export function App() {
         </div>
 
         <div className="split deepfake-layout">
-          <form className="form deepfake-form" onSubmit={saveDeepfakeAnalysis}>
+          <form className="form deepfake-form" onSubmit={event => { event.preventDefault(); void runCaseTask("Guardar datos del módulo", () => saveDeepfakeAnalysis(event)); }}><fieldset disabled={!(canCase("analysis", "evidence:write") && canCase("evidence", "evidence:write")) || Boolean(caseTask)}><legend className="sr-only">Datos de la operación</legend>
             <h3>Registrar análisis de medio</h3>
             <div className="inline-grid">
-              <select value={deepfakeForm.media_type} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, media_type: e.target.value })}>
+              <FormField label="Tipo de medio"><select value={deepfakeForm.media_type} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, media_type: e.target.value })}>
                 <option value="imagen">Imagen</option>
                 <option value="video">Video</option>
                 <option value="audio">Audio</option>
                 <option value="documento">Documento</option>
                 <option value="captura">Captura</option>
-              </select>
-              <select value={deepfakeForm.evidence_id} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, evidence_id: e.target.value })}>
+              </select></FormField>
+              <FormField label="Evidencia asociada"><select value={deepfakeForm.evidence_id} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, evidence_id: e.target.value })}>
                 <option value="">Sin evidencia vinculada</option>
                 {evidence.map((item) => (
                   <option key={item.id} value={item.id}>#{item.id} - {item.description.slice(0, 60)}</option>
                 ))}
-              </select>
+              </select></FormField>
             </div>
-            <input placeholder="Origen del archivo, URL, publicación o soporte" value={deepfakeForm.source_origin} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, source_origin: e.target.value })} />
-            <input placeholder="Herramienta usada" value={deepfakeForm.tool_used} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, tool_used: e.target.value })} />
-            <textarea placeholder="Resumen de metadatos EXIF/media" value={deepfakeForm.metadata_summary} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, metadata_summary: e.target.value })} />
-            <textarea placeholder="Hallazgos técnicos observados" value={deepfakeForm.findings} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, findings: e.target.value })} />
-            <textarea placeholder="Limitaciones del análisis" value={deepfakeForm.limitations} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, limitations: e.target.value })} />
-            <select value={deepfakeForm.classification} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, classification: e.target.value })}>
+            <FormField label="Origen del archivo, URL, publicación o soporte"><Input placeholder="Origen del archivo, URL, publicación o soporte" value={deepfakeForm.source_origin} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, source_origin: e.target.value })} /></FormField>
+            <FormField label="Herramienta usada"><Input placeholder="Herramienta usada" value={deepfakeForm.tool_used} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, tool_used: e.target.value })} /></FormField>
+            <FormField label="Resumen de metadatos EXIF/media"><textarea placeholder="Resumen de metadatos EXIF/media" value={deepfakeForm.metadata_summary} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, metadata_summary: e.target.value })} /></FormField>
+            <FormField label="Hallazgos técnicos observados"><textarea placeholder="Hallazgos técnicos observados" value={deepfakeForm.findings} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, findings: e.target.value })} /></FormField>
+            <FormField label="Limitaciones del análisis"><textarea placeholder="Limitaciones del análisis" value={deepfakeForm.limitations} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, limitations: e.target.value })} /></FormField>
+            <FormField label="Clasificación del análisis"><select value={deepfakeForm.classification} onChange={(e) => setDeepfakeForm({ ...deepfakeForm, classification: e.target.value })}>
               <option value="auténtico preliminar">Auténtico preliminar</option>
               <option value="manipulado probable">Manipulado probable</option>
               <option value="indicios de edición">Indicios de edición</option>
               <option value="no concluyente">No concluyente</option>
               <option value="requiere pericia especializada">Requiere pericia especializada</option>
-            </select>
-            <button disabled={!selectedCaseId || deepfakeState === "saving"}><Save size={17} /> Guardar análisis</button>
-          </form>
+            </select></FormField>
+            <Button disabled={!selectedCaseId || deepfakeState === "saving"} variant="default" type="submit" className="h-auto min-h-10 whitespace-normal"><Save size={17} /> Guardar análisis</Button>
+          </fieldset></form>
 
-          <div className="detail-panel">
+          <Card className="detail-panel">
             <div className="panel-head">
               <div>
                 <h3>Checklist de autenticidad</h3>
@@ -5448,7 +5515,7 @@ export function App() {
               ))}
             </div>
             <p className="notice">La clasificación es preliminar: no prueba por sí sola autenticidad, falsedad, autoría ni origen del archivo.</p>
-          </div>
+          </Card>
         </div>
 
         <div className="article-list deepfake-results">
@@ -5470,11 +5537,11 @@ export function App() {
                 <div className="pericial-reading-grid">
                   <div>
                     <strong>Qué acredita</strong>
-                    <span>Preserva una observaci?n técnica sobre imagen, video, audio, documento o captura vinculada al caso.</span>
+                    <span>Preserva una observación técnica sobre imagen, video, audio, documento o captura vinculada al caso.</span>
                   </div>
                   <div>
                     <strong>Qué no acredita por sí solo</strong>
-                    <span>Autor?a, autenticidad definitiva, falsedad penal o identidad del generador sin pericia y corroboración externa.</span>
+                    <span>Autoría, autenticidad definitiva, falsedad penal o identidad del generador sin pericia y corroboración externa.</span>
                   </div>
                   <div>
                     <strong>Qué hacer ahora</strong>
@@ -5498,15 +5565,15 @@ export function App() {
                 </div>
                 <p className="notice">{analysis.warning}</p>
                 <div className="actions-line">
-                  <button className="secondary-button" onClick={() => createDeepfakeFinding(analysis.id)}><FileCheck2 size={16} /> Crear hallazgo</button>
-                  <button onClick={() => applyDeepfakeLegal(analysis)}><Gavel size={16} /> Aplicar normas sugeridas</button>
+                  <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => void runCaseTask("Operación del módulo", () => (() => createDeepfakeFinding(analysis.id))())} variant="outline" type="button" disabled={!(canCase("analysis", "evidence:write")) || Boolean(caseTask)}><FileCheck2 size={16} /> Crear hallazgo</Button>
+                  <Button onClick={() => void runCaseTask("Operación del módulo", () => (() => applyDeepfakeLegal(analysis))())} variant="default" type="button" disabled={!(canCase("analysis", "evidence:write") && canUse("legal:write")) || Boolean(caseTask)} className="h-auto min-h-10 whitespace-normal"><Gavel size={16} /> Aplicar normas sugeridas</Button>
                 </div>
               </article>
             );
           })}
           {!deepfakeAnalyses.length && <EmptyState text="Sin análisis de medios registrados para el caso seleccionado." />}
         </div>
-      </section>
+      </ModuleSurface>
     );
   }
 
@@ -5537,16 +5604,16 @@ export function App() {
     const moduleStatus = moduleScore >= 80 ? "listo" : moduleScore >= 50 ? "parcial" : "incompleto";
 
     return (
-      <section className="work-surface cyber-workbench blockchain-lab">
+      <ModuleSurface className="cyber-workbench blockchain-lab" moduleId="blockchainForensics">
         <div className="section-head">
           <div>
             <h2>Blockchain Investigation Lab</h2>
             <p>Laboratorio guiado para documentar transacciones, wallets, exploradores consultados, ruta probable, evidencia y límites de atribución.</p>
           </div>
-          <button className="secondary-button" onClick={refreshCybercrime}><RefreshCcw size={16} /> Actualizar</button>
+          <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={refreshCybercrime} variant="outline" type="button"><RefreshCcw size={16} /> Actualizar</Button>
         </div>
 
-        {blockchainMessage && <div className={`action-feedback ${blockchainState}`}>{blockchainMessage}</div>}
+        {blockchainMessage && <div className={`action-feedback ${blockchainState}`} role="status" aria-live="polite" aria-atomic="true">{blockchainMessage}</div>}
 
         <div className="module-guidance">
           <div>
@@ -5592,7 +5659,7 @@ export function App() {
         </div>
 
         <div className="split blockchain-layout">
-          <form className="form blockchain-form" onSubmit={saveBlockchainTransaction}>
+          <form className="form blockchain-form" onSubmit={event => { event.preventDefault(); void runCaseTask("Guardar datos del módulo", () => saveBlockchainTransaction(event)); }}><fieldset disabled={!(canCase("analysis", "evidence:write") && canCase("evidence", "evidence:write")) || Boolean(caseTask)}><legend className="sr-only">Datos de la operación</legend>
             <div className="panel-head">
               <div>
                 <h3>{editingBlockchainId ? `Editar salto #${editingBlockchainId}` : "Registrar transacción blockchain"}</h3>
@@ -5606,35 +5673,35 @@ export function App() {
               </div>
             )}
             <div className="inline-grid">
-              <select value={blockchainForm.blockchain} onChange={(e) => setBlockchainForm({ ...blockchainForm, blockchain: e.target.value })}>
+              <FormField label="Red blockchain"><select value={blockchainForm.blockchain} onChange={(e) => setBlockchainForm({ ...blockchainForm, blockchain: e.target.value })}>
                 {blockchainExplorerCatalog.map((item) => <option value={item.label} key={item.key}>{item.label}</option>)}
                 <option value="Otra red">Otra red</option>
-              </select>
-              <input placeholder="Token o activo" value={blockchainForm.token} onChange={(e) => setBlockchainForm({ ...blockchainForm, token: e.target.value })} />
+              </select></FormField>
+              <FormField label="Token o activo"><Input placeholder="Token o activo" value={blockchainForm.token} onChange={(e) => setBlockchainForm({ ...blockchainForm, token: e.target.value })} /></FormField>
             </div>
-            <input placeholder="Hash de transacción" value={blockchainForm.tx_hash} onChange={(e) => setBlockchainForm({ ...blockchainForm, tx_hash: e.target.value })} />
+            <FormField label="Hash de transacción"><Input placeholder="Hash de transacción" value={blockchainForm.tx_hash} onChange={(e) => setBlockchainForm({ ...blockchainForm, tx_hash: e.target.value })} /></FormField>
             <div className="inline-grid">
-              <input placeholder="Wallet origen" value={blockchainForm.source_wallet} onChange={(e) => setBlockchainForm({ ...blockchainForm, source_wallet: e.target.value })} />
-              <input placeholder="Wallet destino" value={blockchainForm.destination_wallet} onChange={(e) => setBlockchainForm({ ...blockchainForm, destination_wallet: e.target.value })} />
-            </div>
-            <div className="inline-grid">
-              <input placeholder="Monto" type="number" step="any" value={blockchainForm.amount} onChange={(e) => setBlockchainForm({ ...blockchainForm, amount: e.target.value })} />
-              <input placeholder="Valor aproximado en ARS" type="number" step="any" value={blockchainForm.approximate_value} onChange={(e) => setBlockchainForm({ ...blockchainForm, approximate_value: e.target.value })} />
+              <FormField label="Wallet origen"><Input placeholder="Wallet origen" value={blockchainForm.source_wallet} onChange={(e) => setBlockchainForm({ ...blockchainForm, source_wallet: e.target.value })} /></FormField>
+              <FormField label="Wallet destino"><Input placeholder="Wallet destino" value={blockchainForm.destination_wallet} onChange={(e) => setBlockchainForm({ ...blockchainForm, destination_wallet: e.target.value })} /></FormField>
             </div>
             <div className="inline-grid">
-              <input placeholder="Fecha/hora observada" value={blockchainForm.tx_datetime} onChange={(e) => setBlockchainForm({ ...blockchainForm, tx_datetime: e.target.value })} />
-              <select value={blockchainForm.wallet_classification} onChange={(e) => setBlockchainForm({ ...blockchainForm, wallet_classification: e.target.value })}>
+              <FormField label="Monto"><Input placeholder="Monto" type="number" step="any" value={blockchainForm.amount} onChange={(e) => setBlockchainForm({ ...blockchainForm, amount: e.target.value })} /></FormField>
+              <FormField label="Valor aproximado en ARS"><Input placeholder="Valor aproximado en ARS" type="number" step="any" value={blockchainForm.approximate_value} onChange={(e) => setBlockchainForm({ ...blockchainForm, approximate_value: e.target.value })} /></FormField>
+            </div>
+            <div className="inline-grid">
+              <FormField label="Fecha/hora observada"><Input placeholder="Fecha/hora observada" value={blockchainForm.tx_datetime} onChange={(e) => setBlockchainForm({ ...blockchainForm, tx_datetime: e.target.value })} /></FormField>
+              <FormField label="Clasificación de la billetera"><select value={blockchainForm.wallet_classification} onChange={(e) => setBlockchainForm({ ...blockchainForm, wallet_classification: e.target.value })}>
                 {walletClassifications.map((item) => <option value={item} key={item}>{prettySpanish(item)}</option>)}
-              </select>
+              </select></FormField>
             </div>
             <div className="inline-grid">
-              <input
+              <FormField label="Orden en la ruta. Ej: 1, 2, 3"><Input
                 placeholder="Orden en la ruta. Ej: 1, 2, 3"
                 type="number"
                 min="0"
                 value={blockchainForm.route_order}
                 onChange={(e) => setBlockchainForm({ ...blockchainForm, route_order: e.target.value })}
-              />
+              /></FormField>
               <label className={`toggle-row ${blockchainForm.include_in_report ? "checked" : ""}`}>
                 <input
                   type="checkbox"
@@ -5644,46 +5711,46 @@ export function App() {
                 <span>Incorporar este salto al informe final</span>
               </label>
             </div>
-            <select value={blockchainForm.evidence_id} onChange={(e) => setBlockchainForm({ ...blockchainForm, evidence_id: e.target.value })}>
+            <FormField label="Evidencia asociada"><select value={blockchainForm.evidence_id} onChange={(e) => setBlockchainForm({ ...blockchainForm, evidence_id: e.target.value })}>
               <option value="">Sin evidencia vinculada</option>
               {evidence.map((item) => (
                 <option key={item.id} value={item.id}>#{item.id} - {item.description.slice(0, 60)}</option>
               ))}
-            </select>
+            </select></FormField>
             <div className="inline-grid">
-              <input placeholder="URL del explorador preservada" value={blockchainForm.explorer_url} onChange={(e) => setBlockchainForm({ ...blockchainForm, explorer_url: e.target.value })} />
-              <button
-                className="secondary-button"
+              <FormField label="URL del explorador preservada"><Input placeholder="URL del explorador preservada" value={blockchainForm.explorer_url} onChange={(e) => setBlockchainForm({ ...blockchainForm, explorer_url: e.target.value })} /></FormField>
+              <Button
+                className="h-auto min-h-10 whitespace-normal secondary-button"
                 type="button"
                 onClick={() => setBlockchainForm({ ...blockchainForm, explorer_url: draftTxUrl })}
-                disabled={!blockchainForm.tx_hash.trim()}
+                disabled={!blockchainForm.tx_hash.trim()} variant="outline"
               >
                 <Globe2 size={16} /> Usar URL sugerida
-              </button>
+              </Button>
             </div>
-            <input placeholder="Herramienta usada / explorador / método" value={blockchainForm.tool_used} onChange={(e) => setBlockchainForm({ ...blockchainForm, tool_used: e.target.value })} />
+            <FormField label="Herramienta usada / explorador / método"><Input placeholder="Herramienta usada / explorador / método" value={blockchainForm.tool_used} onChange={(e) => setBlockchainForm({ ...blockchainForm, tool_used: e.target.value })} /></FormField>
             <div className="preservation-card">
-              <strong>Acta m?nima de consulta</strong>
+              <strong>Acta mínima de consulta</strong>
               <span>Fuente: {blockchainForm.explorer_url || "URL del explorador pendiente"}</span>
               <span>Fecha/hora: {blockchainForm.tx_datetime || "pendiente"}</span>
               <span>Evidencia vinculada: {blockchainForm.evidence_id ? `#${blockchainForm.evidence_id}` : "pendiente"}</span>
               <span>Analista: {analystName || identitySession.user?.name || "Analista local"}</span>
             </div>
-            <textarea placeholder="Hipótesis de ruta: origen, destino, intermediarios, exchange, mixer o punto de pérdida de trazabilidad" value={blockchainForm.route_hypothesis} onChange={(e) => setBlockchainForm({ ...blockchainForm, route_hypothesis: e.target.value })} />
-            <textarea placeholder="Limitaciones y evidencia faltante: KYC, IPs, comunicaciones, registros de plataforma, capturas o pericia complementaria" value={blockchainForm.limitations} onChange={(e) => setBlockchainForm({ ...blockchainForm, limitations: e.target.value })} />
+            <FormField label="Hipótesis de ruta: origen, destino, intermediarios, exchange, mixer o punto de pérdida de trazabilidad"><textarea placeholder="Hipótesis de ruta: origen, destino, intermediarios, exchange, mixer o punto de pérdida de trazabilidad" value={blockchainForm.route_hypothesis} onChange={(e) => setBlockchainForm({ ...blockchainForm, route_hypothesis: e.target.value })} /></FormField>
+            <FormField label="Limitaciones y evidencia faltante: KYC, IPs, comunicaciones, registros de plataforma, capturas o pericia complementaria"><textarea placeholder="Limitaciones y evidencia faltante: KYC, IPs, comunicaciones, registros de plataforma, capturas o pericia complementaria" value={blockchainForm.limitations} onChange={(e) => setBlockchainForm({ ...blockchainForm, limitations: e.target.value })} /></FormField>
             <div className="button-row">
-              <button disabled={!selectedCaseId || !blockchainForm.tx_hash.trim() || blockchainState === "saving"}>
+              <Button disabled={!selectedCaseId || !blockchainForm.tx_hash.trim() || blockchainState === "saving"} variant="default" type="submit" className="h-auto min-h-10 whitespace-normal">
                 <Save size={17} /> {editingBlockchainId ? "Actualizar salto documentado" : "Guardar transacción documentada"}
-              </button>
+              </Button>
               {editingBlockchainId && (
-                <button className="secondary-button" type="button" onClick={cancelBlockchainEdit}>
+                <Button className="h-auto min-h-10 whitespace-normal secondary-button" type="button" onClick={cancelBlockchainEdit} variant="outline">
                   Cancelar edición
-                </button>
+                </Button>
               )}
             </div>
-          </form>
+          </fieldset></form>
 
-          <div className="detail-panel blockchain-guide">
+          <Card className="detail-panel blockchain-guide">
             <div className="panel-head">
               <div>
                 <h3>Exploradores y preservación</h3>
@@ -5737,10 +5804,10 @@ export function App() {
               <li>Preservar captura del explorador, URL, fecha, hora y analista.</li>
               <li>Vincular la captura o comprobante como evidencia del caso.</li>
               <li>Identificar exchange, bridge, mixer o contrato inteligente si aparece.</li>
-              <li>Solicitar datos de plataforma por v?a legal si hay punto KYC.</li>
+              <li>Solicitar datos de plataforma por vía legal si hay punto KYC.</li>
               <li>Evitar atribución personal solo por wallet, alias o hash.</li>
             </ul>
-          </div>
+          </Card>
         </div>
 
         <div className={`detail-panel blockchain-readiness-panel ${moduleStatus}`}>
@@ -5762,7 +5829,7 @@ export function App() {
           </div>
         </div>
 
-        <div className="detail-panel blockchain-annex-preview">
+        <Card className="detail-panel blockchain-annex-preview">
           <div className="panel-head">
             <div>
               <h3>Anexo blockchain para informe</h3>
@@ -5789,9 +5856,9 @@ export function App() {
             </div>
           </div>
           <p className="notice">El anexo no atribuye identidad personal por sí solo: documenta trazabilidad económica, fuente consultada, límites y medidas pendientes.</p>
-        </div>
+        </Card>
 
-        <div className="detail-panel blockchain-intel-panel">
+        <Card className="detail-panel blockchain-intel-panel">
           <div className="panel-head">
             <div>
               <h3>Suficiencia, puntos críticos y requerimientos</h3>
@@ -5824,9 +5891,9 @@ export function App() {
               </div>
             </div>
           </div>
-        </div>
+        </Card>
 
-        <div className="detail-panel blockchain-graph-panel">
+        <Card className="detail-panel blockchain-graph-panel">
           <div className="panel-head">
             <div>
               <h3>Grafo multi-salto del caso</h3>
@@ -5878,9 +5945,9 @@ export function App() {
           ) : (
             <EmptyState text="Registra dos o más transacciones para visualizar una ruta multi-salto." />
           )}
-        </div>
+        </Card>
 
-        <div className="detail-panel">
+        <Card className="detail-panel">
           <div className="panel-head">
             <div>
               <h3>Ruta de fondos documentada</h3>
@@ -5938,13 +6005,13 @@ export function App() {
                   </div>
                 )}
                 <div className="actions-line">
-                  <button className="secondary-button" onClick={() => editBlockchainTransaction(item)}><Save size={16} /> Editar salto</button>
-                  <button className="secondary-button" onClick={() => toggleBlockchainReportInclusion(item)}>
+                  <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => editBlockchainTransaction(item)} variant="outline" type="button"><Save size={16} /> Editar salto</Button>
+                  <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => void runCaseTask("Operación del módulo", () => (() => toggleBlockchainReportInclusion(item))())} variant="outline" type="button" disabled={!(canCase("analysis", "evidence:write")) || Boolean(caseTask)}>
                     <FileText size={16} /> {item.include_in_report ? "Excluir del informe" : "Incorporar al informe"}
-                  </button>
-                  <button className="secondary-button" onClick={() => createBlockchainFinding(item.id)}><FileCheck2 size={16} /> Crear hallazgo</button>
-                  <button onClick={() => applyBlockchainLegal(item)}><Gavel size={16} /> Aplicar normas</button>
-                  <button onClick={() => promoteBlockchainTransaction(item)}><FileCheck2 size={16} /> Hallazgo + normas</button>
+                  </Button>
+                  <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => void runCaseTask("Operación del módulo", () => (() => createBlockchainFinding(item.id))())} variant="outline" type="button" disabled={!(canCase("analysis", "evidence:write")) || Boolean(caseTask)}><FileCheck2 size={16} /> Crear hallazgo</Button>
+                  <Button onClick={() => void runCaseTask("Operación del módulo", () => (() => applyBlockchainLegal(item))())} variant="default" type="button" disabled={!(canCase("analysis", "evidence:write") && canUse("legal:write")) || Boolean(caseTask)} className="h-auto min-h-10 whitespace-normal"><Gavel size={16} /> Aplicar normas</Button>
+                  <Button onClick={() => void runCaseTask("Operación del módulo", () => (() => promoteBlockchainTransaction(item))())} variant="default" type="button" className="h-auto min-h-10 whitespace-normal"><FileCheck2 size={16} /> Hallazgo + normas</Button>
                   <a className="button-link secondary-link" href={buildBlockchainUrl(item.blockchain, "tx", item.tx_hash)} target="_blank" rel="noreferrer"><Globe2 size={16} /> Buscar hash</a>
                   <a className="button-link secondary-link" href={buildBlockchainUrl(item.blockchain, "source", item.source_wallet)} target="_blank" rel="noreferrer"><Globe2 size={16} /> Origen</a>
                   <a className="button-link secondary-link" href={buildBlockchainUrl(item.blockchain, "destination", item.destination_wallet)} target="_blank" rel="noreferrer"><Globe2 size={16} /> Destino</a>
@@ -5956,8 +6023,8 @@ export function App() {
             ))}
             {!blockchainTransactions.length && <EmptyState text="Sin transacciones blockchain registradas para el caso seleccionado." />}
           </div>
-        </div>
-      </section>
+        </Card>
+      </ModuleSurface>
     );
   }
   function renderIoTForensics() {
@@ -5967,18 +6034,18 @@ export function App() {
     const readyDevices = readiness.filter((item) => item.status === "listo").length;
     const withFindings = iotDevices.filter((item) => item.finding_id).length;
     return (
-      <section className="work-surface cyber-workbench">
+      <ModuleSurface className="cyber-workbench" moduleId="iotForensics">
         <div className="section-head">
           <div>
             <h2>IoT Forensics</h2>
             <p>Registro forense de dispositivos conectados, estado observable, evidencia, logs y límites sin ejecutar escaneos reales automáticamente.</p>
           </div>
-          <button className="secondary-button" onClick={refreshCybercrime}><RefreshCcw size={16} /> Actualizar</button>
+          <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={refreshCybercrime} variant="outline" type="button"><RefreshCcw size={16} /> Actualizar</Button>
         </div>
 
-        {iotMessage && <div className={`action-feedback ${iotState}`}>{iotMessage}</div>}
+        {iotMessage && <div className={`action-feedback ${iotState}`} role="status" aria-live="polite" aria-atomic="true">{iotMessage}</div>}
         {!selectedCaseId && (
-          <div className="action-feedback error">
+          <div className="action-feedback error" role="status" aria-live="polite" aria-atomic="true">
             Selecciona o crea un caso activo antes de registrar dispositivos IoT. Esta pantalla guarda el registro dentro del caso seleccionado.
           </div>
         )}
@@ -6007,7 +6074,7 @@ export function App() {
         </div>
 
         <div className="split iot-layout">
-          <form className="form iot-form" onSubmit={saveIoTDevice}>
+          <form className="form iot-form" onSubmit={event => { event.preventDefault(); void runCaseTask("Guardar datos del módulo", () => saveIoTDevice(event)); }}><fieldset disabled={!(canCase("analysis", "evidence:write") && canCase("evidence", "evidence:write")) || Boolean(caseTask)}><legend className="sr-only">Datos de la operación</legend>
             <div className="panel-head compact">
               <div>
                 <h3>{editingIotId ? `Editar dispositivo #${editingIotId}` : "Registrar dispositivo"}</h3>
@@ -6015,47 +6082,47 @@ export function App() {
               </div>
             </div>
             <div className="inline-grid">
-              <input placeholder="Tipo de dispositivo" value={iotForm.device_type} onChange={(e) => setIotForm({ ...iotForm, device_type: e.target.value })} />
-              <input placeholder="Fabricante" value={iotForm.manufacturer} onChange={(e) => setIotForm({ ...iotForm, manufacturer: e.target.value })} />
+              <FormField label="Tipo de dispositivo"><Input placeholder="Tipo de dispositivo" value={iotForm.device_type} onChange={(e) => setIotForm({ ...iotForm, device_type: e.target.value })} /></FormField>
+              <FormField label="Fabricante"><Input placeholder="Fabricante" value={iotForm.manufacturer} onChange={(e) => setIotForm({ ...iotForm, manufacturer: e.target.value })} /></FormField>
             </div>
             <div className="inline-grid">
-              <input placeholder="Modelo" value={iotForm.model} onChange={(e) => setIotForm({ ...iotForm, model: e.target.value })} />
-              <input placeholder="Firmware" value={iotForm.firmware} onChange={(e) => setIotForm({ ...iotForm, firmware: e.target.value })} />
+              <FormField label="Modelo"><Input placeholder="Modelo" value={iotForm.model} onChange={(e) => setIotForm({ ...iotForm, model: e.target.value })} /></FormField>
+              <FormField label="Firmware"><Input placeholder="Firmware" value={iotForm.firmware} onChange={(e) => setIotForm({ ...iotForm, firmware: e.target.value })} /></FormField>
             </div>
             <div className="inline-grid">
-              <input placeholder="IP interna" value={iotForm.internal_ip} onChange={(e) => setIotForm({ ...iotForm, internal_ip: e.target.value })} />
-              <input placeholder="IP externa" value={iotForm.external_ip} onChange={(e) => setIotForm({ ...iotForm, external_ip: e.target.value })} />
+              <FormField label="IP interna"><Input placeholder="IP interna" value={iotForm.internal_ip} onChange={(e) => setIotForm({ ...iotForm, internal_ip: e.target.value })} /></FormField>
+              <FormField label="IP externa"><Input placeholder="IP externa" value={iotForm.external_ip} onChange={(e) => setIotForm({ ...iotForm, external_ip: e.target.value })} /></FormField>
             </div>
-            <input placeholder="MAC" value={iotForm.mac} onChange={(e) => setIotForm({ ...iotForm, mac: e.target.value })} />
-            <select value={iotForm.evidence_id} onChange={(e) => setIotForm({ ...iotForm, evidence_id: e.target.value })}>
+            <FormField label="MAC"><Input placeholder="MAC" value={iotForm.mac} onChange={(e) => setIotForm({ ...iotForm, mac: e.target.value })} /></FormField>
+            <FormField label="Evidencia asociada"><select value={iotForm.evidence_id} onChange={(e) => setIotForm({ ...iotForm, evidence_id: e.target.value })}>
               <option value="">Sin evidencia vinculada</option>
               {evidence.map((item) => (
                 <option key={item.id} value={item.id}>#{item.id} - {item.description.slice(0, 60)}</option>
               ))}
-            </select>
-            <textarea placeholder="Puertos abiertos observados o declarados" value={iotForm.open_ports} onChange={(e) => setIotForm({ ...iotForm, open_ports: e.target.value })} />
-            <textarea placeholder="Vulnerabilidades conocidas" value={iotForm.known_vulnerabilities} onChange={(e) => setIotForm({ ...iotForm, known_vulnerabilities: e.target.value })} />
-            <textarea placeholder="Logs disponibles" value={iotForm.logs_available} onChange={(e) => setIotForm({ ...iotForm, logs_available: e.target.value })} />
-            <input placeholder="Herramienta o metodología usada" value={iotForm.tool_used} onChange={(e) => setIotForm({ ...iotForm, tool_used: e.target.value })} />
-            <textarea placeholder="Limitaciones" value={iotForm.limitations} onChange={(e) => setIotForm({ ...iotForm, limitations: e.target.value })} />
-            <button disabled={!selectedCaseId || iotState === "saving"}><Save size={17} /> {editingIotId ? "Actualizar ficha IoT" : selectedCaseId ? "Guardar dispositivo" : "Selecciona un caso para guardar"}</button>
+            </select></FormField>
+            <FormField label="Puertos abiertos observados o declarados"><textarea placeholder="Puertos abiertos observados o declarados" value={iotForm.open_ports} onChange={(e) => setIotForm({ ...iotForm, open_ports: e.target.value })} /></FormField>
+            <FormField label="Vulnerabilidades conocidas"><textarea placeholder="Vulnerabilidades conocidas" value={iotForm.known_vulnerabilities} onChange={(e) => setIotForm({ ...iotForm, known_vulnerabilities: e.target.value })} /></FormField>
+            <FormField label="Logs disponibles"><textarea placeholder="Logs disponibles" value={iotForm.logs_available} onChange={(e) => setIotForm({ ...iotForm, logs_available: e.target.value })} /></FormField>
+            <FormField label="Herramienta o metodología usada"><Input placeholder="Herramienta o metodología usada" value={iotForm.tool_used} onChange={(e) => setIotForm({ ...iotForm, tool_used: e.target.value })} /></FormField>
+            <FormField label="Limitaciones"><textarea placeholder="Limitaciones" value={iotForm.limitations} onChange={(e) => setIotForm({ ...iotForm, limitations: e.target.value })} /></FormField>
+            <Button disabled={!selectedCaseId || iotState === "saving"} variant="default" type="submit" className="h-auto min-h-10 whitespace-normal"><Save size={17} /> {editingIotId ? "Actualizar ficha IoT" : selectedCaseId ? "Guardar dispositivo" : "Selecciona un caso para guardar"}</Button>
             {editingIotId && (
-              <button
+              <Button
                 type="button"
-                className="secondary-button"
+                className="h-auto min-h-10 whitespace-normal secondary-button"
                 onClick={() => {
                   setEditingIotId(null);
                   setIotForm(emptyIoTForm);
                   setIotChecklistState(emptyIoTChecklist);
                   setIotMessage("Edición cancelada.");
-                }}
+                }} variant="outline"
               >
                 Cancelar edición
-              </button>
+              </Button>
             )}
-          </form>
+          </fieldset></form>
 
-          <div className="detail-panel">
+          <Card className="detail-panel">
             <div className="panel-head">
               <div>
                 <h3>Checklist IoT</h3>
@@ -6076,10 +6143,10 @@ export function App() {
               ))}
             </div>
             <p className="notice">No se recomiendan comandos peligrosos ni escaneos reales desde esta pantalla. Todo análisis activo requiere autorización y metodología documentada.</p>
-          </div>
+          </Card>
         </div>
 
-        <div className="detail-panel iot-readiness-panel">
+        <Card className="detail-panel iot-readiness-panel">
           <div className="panel-head">
             <div>
               <h3>Dispositivos registrados</h3>
@@ -6148,17 +6215,17 @@ export function App() {
                     <span>6. Informe</span>
                   </div>
                   <div className="actions-line">
-                    <button className="secondary-button" type="button" onClick={() => editIoTDevice(item)}><FileCheck2 size={16} /> Editar ficha</button>
-                    <button className="secondary-button" onClick={() => createIoTFinding(item.id)}><FileCheck2 size={16} /> Crear hallazgo</button>
-                    <button onClick={() => applyIoTLegal(item)}><Gavel size={16} /> Aplicar normas</button>
+                    <Button className="h-auto min-h-10 whitespace-normal secondary-button" type="button" onClick={() => editIoTDevice(item)} variant="outline"><FileCheck2 size={16} /> Editar ficha</Button>
+                    <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => void runCaseTask("Operación del módulo", () => (() => createIoTFinding(item.id))())} variant="outline" type="button" disabled={!(canCase("analysis", "evidence:write")) || Boolean(caseTask)}><FileCheck2 size={16} /> Crear hallazgo</Button>
+                    <Button onClick={() => void runCaseTask("Operación del módulo", () => (() => applyIoTLegal(item))())} variant="default" type="button" disabled={!(canCase("analysis", "evidence:write") && canUse("legal:write")) || Boolean(caseTask)} className="h-auto min-h-10 whitespace-normal"><Gavel size={16} /> Aplicar normas</Button>
                   </div>
                 </article>
               );
             })}
             {!iotDevices.length && <EmptyState text="Sin dispositivos IoT registrados para el caso seleccionado." />}
           </div>
-        </div>
-      </section>
+        </Card>
+      </ModuleSurface>
     );
   }
 
@@ -6201,7 +6268,7 @@ export function App() {
         area: "Deepfake / Media",
         title: "Deepfake / Media Forensics",
         text: "Autenticación de imagen, video, audio, metadatos, compresión, frames y origen del contenido.",
-        warning: "Usar para verificaci?n, autenticación, investigación legítima y preservación de evidencia. No usar para crear o difundir contenido engañoso."
+        warning: "Usar para verificación, autenticación, investigación legítima y preservación de evidencia. No usar para crear o difundir contenido engañoso."
       },
       {
         area: "Blockchain Transactions",
@@ -6223,15 +6290,15 @@ export function App() {
     };
     const toolButton = (item: InventoryCyberTool, url: string | null | undefined, label: string, className: string, action: string, icon: ReactNode) => (
       url ? (
-        <button type="button" className={className} onClick={() => openExternalLink(url, item, action)}>
+        <Button type="button" className={"h-auto min-h-10 whitespace-normal " + (className)} onClick={() => openExternalLink(url, item, action)} variant="default">
           {icon}
           {label}
-        </button>
+        </Button>
       ) : (
-        <button type="button" className="tool-link disabled" disabled>
+        <Button type="button" className="h-auto min-h-10 whitespace-normal tool-link disabled" disabled variant="default">
           <Globe2 size={15} />
           Sin ejecución online
-        </button>
+        </Button>
       )
     );
     const renderToolCard = (item: InventoryCyberTool) => (
@@ -6275,7 +6342,7 @@ export function App() {
     );
 
     return (
-      <section className="work-surface external-inventory-workbench">
+      <ModuleSurface className="external-inventory-workbench" moduleId="externalTools">
         <div className="inventory-hero">
           <div>
             <span className="tool-kicker">Cyber Forensics Open Source Inventory</span>
@@ -6304,25 +6371,25 @@ export function App() {
         <div className="inventory-search-panel">
           <div className="search-box">
             <Search size={18} />
-            <input
+            <FormField label="Buscar por herramienta, categoría, descripción, tags o uso forense"><Input
               placeholder="Buscar por herramienta, categoría, descripción, tags o uso forense"
               value={externalToolQuery}
               onChange={(event) => setExternalToolQuery(event.target.value)}
-            />
+            /></FormField>
           </div>
           <div className="inventory-filters">
-            <select value={externalToolCategory} onChange={(event) => setExternalToolCategory(event.target.value)}>
+            <FormField label="Categoría de herramienta"><select value={externalToolCategory} onChange={(event) => setExternalToolCategory(event.target.value)}>
               {categories.map((category) => <option key={category}>{category}</option>)}
-            </select>
-            <select value={externalToolOs} onChange={(event) => setExternalToolOs(event.target.value)}>
+            </select></FormField>
+            <FormField label="Sistema operativo"><select value={externalToolOs} onChange={(event) => setExternalToolOs(event.target.value)}>
               {operatingSystems.map((os) => <option key={os}>{os}</option>)}
-            </select>
-            <select value={externalToolDifficulty} onChange={(event) => setExternalToolDifficulty(event.target.value)}>
+            </select></FormField>
+            <FormField label="Dificultad"><select value={externalToolDifficulty} onChange={(event) => setExternalToolDifficulty(event.target.value)}>
               {["Todas", "Básico", "Intermedio", "Avanzado", "Experto"].map((level) => <option key={level}>{level}</option>)}
-            </select>
-            <select value={externalToolSpecialArea} onChange={(event) => setExternalToolSpecialArea(event.target.value)}>
+            </select></FormField>
+            <FormField label="Área forense"><select value={externalToolSpecialArea} onChange={(event) => setExternalToolSpecialArea(event.target.value)}>
               {specialAreas.map((area) => <option key={area}>{area}</option>)}
-            </select>
+            </select></FormField>
             <label><input type="checkbox" checked={externalToolOnlineOnly} onChange={(event) => setExternalToolOnlineOnly(event.target.checked)} /> Con uso online</label>
             <label><input type="checkbox" checked={externalToolGithubOnly} onChange={(event) => setExternalToolGithubOnly(event.target.checked)} /> Con repositorio</label>
           </div>
@@ -6332,17 +6399,17 @@ export function App() {
           {specialAreaCards.map((area) => {
             const areaCount = externalToolsCatalog.filter((item) => item.specialArea === area.area).length;
             return (
-              <button
-                className={externalToolSpecialArea === area.area ? "special-area active" : "special-area"}
+              <Button
+                className={"h-auto min-h-10 whitespace-normal " + (externalToolSpecialArea === area.area ? "special-area active grid" : "special-area grid")}
                 type="button"
                 key={area.area}
-                onClick={() => setExternalToolSpecialArea(area.area)}
+                onClick={() => setExternalToolSpecialArea(area.area)} variant="outline" aria-pressed={externalToolSpecialArea === area.area}
               >
                 <span>{area.title}</span>
                 <strong>{areaCount} herramientas</strong>
                 <small>{area.text}</small>
                 <em>{area.warning}</em>
-              </button>
+              </Button>
             );
           })}
         </div>
@@ -6350,11 +6417,11 @@ export function App() {
         <div className="inventory-layout">
           <aside className="inventory-sidebar">
             <h3>Categorías</h3>
-            <button className={externalToolCategory === "Todas" ? "active" : ""} onClick={() => setExternalToolCategory("Todas")}>Todas</button>
+            <Button className={"h-auto min-h-10 whitespace-normal " + (externalToolCategory === "Todas" ? "active" : "")} onClick={() => setExternalToolCategory("Todas")} variant="default" type="button" aria-pressed={externalToolCategory === "Todas"}>Todas</Button>
             {categories.filter((category) => category !== "Todas").map((category) => (
-              <button className={externalToolCategory === category ? "active" : ""} key={category} onClick={() => setExternalToolCategory(category)}>
+              <Button className={"h-auto min-h-10 whitespace-normal " + (externalToolCategory === category ? "active" : "")} key={category} onClick={() => setExternalToolCategory(category)} variant="default" type="button" aria-pressed={externalToolCategory === category}>
                 {category}
-              </button>
+              </Button>
             ))}
           </aside>
 
@@ -6364,8 +6431,8 @@ export function App() {
                 <h3>Inventario de herramientas</h3>
                 <p>{filteredTools.length} resultado(s). Cada acceso abre una fuente externa y no procesa evidencia dentro de OPERIA.</p>
               </div>
-              <button
-                className="secondary-button"
+              <Button
+                className="h-auto min-h-10 whitespace-normal secondary-button"
                 onClick={() => {
                   setExternalToolQuery("");
                   setExternalToolCategory("Todas");
@@ -6374,10 +6441,10 @@ export function App() {
                   setExternalToolSpecialArea("Todas");
                   setExternalToolOnlineOnly(false);
                   setExternalToolGithubOnly(false);
-                }}
+                }} variant="outline" type="button"
               >
                 <RefreshCcw size={15} /> Limpiar filtros
-              </button>
+              </Button>
             </div>
             <div className="inventory-grid">
               {filteredTools.map(renderToolCard)}
@@ -6389,16 +6456,16 @@ export function App() {
         <footer className="inventory-footer">
           Este inventario está destinado a fines de informática forense, investigación defensiva, respuesta a incidentes, auditoría autorizada, preservación de evidencia, docencia y análisis técnico-jurídico. No debe utilizarse para acceder, interferir, explotar o analizar sistemas sin autorización expresa.
         </footer>
-      </section>
+      </ModuleSurface>
     );
   }
 
   function renderAi() {
     return (
-      <section className="work-surface ai-legal-workbench">
+      <ModuleSurface className="ai-legal-workbench" moduleId="ai">
         <div className="section-head">
           <div>
-            <h2>Asistente de An?lisis y Tipificación</h2>
+            <h2>Asistente de Análisis y Tipificación</h2>
             <p>Asistencia local para vincular incidente, evidencia y biblioteca legal argentina registrada.</p>
           </div>
         </div>
@@ -6416,34 +6483,34 @@ export function App() {
           </div>
         </div>
 
-        <LocalAiGateway key={`${identitySession.user?.id || "anonymous"}:${selectedCaseId}`} caseId={selectedCaseId} allowed={canUse("ai:use")} sessionKey={authToken} />
+        <LocalAiGateway key={`${identitySession.user?.id || "anonymous"}:${selectedCaseId}`} caseId={selectedCaseId} allowed={canCase("analysis", "ai:use")} sessionKey={authToken} />
         <div className="ai-action-grid">
-          <div className="detail-panel">
+          <Card className="detail-panel">
             <div className="panel-head">
               <div>
                 <h3>1. Contexto para la asistencia</h3>
                 <p>Describe el incidente o agrega foco investigativo. La respuesta se limita a fuentes legales registradas.</p>
               </div>
             </div>
-            <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} />
+            <FormField label="Consigna para el análisis"><textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} /></FormField>
             <div className="button-row">
-              <button onClick={() => runLegalTypification(false)} disabled={!selectedCaseId}><Gavel size={17} /> Tipificar delito</button>
-              <button className="secondary-button" onClick={() => runLegalTypification(true)} disabled={!selectedCaseId || legalApplyState === "applying"}>
+              <Button onClick={() => void runCaseTask("Operación del módulo", () => (() => runLegalTypification(false))())} disabled={(!selectedCaseId) || !(canCase("analysis", "ai:use")) || Boolean(caseTask)} variant="default" type="button" className="h-auto min-h-10 whitespace-normal"><Gavel size={17} /> Tipificar delito</Button>
+              <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => void runCaseTask("Operación del módulo", () => (() => runLegalTypification(true))())} disabled={(!selectedCaseId || legalApplyState === "applying") || !(canCase("analysis", "ai:use")) || Boolean(caseTask)} variant="outline" type="button">
                 <CheckCircle2 size={17} /> {legalApplyState === "applying" ? "Guardando..." : "Guardar sugerencias"}
-              </button>
-              <button className="secondary-button" onClick={runAiAssist}><Bot size={17} /> Ampliar análisis</button>
-              <button className="secondary-button" onClick={runCaseRecommendations} disabled={!selectedCaseId}>
+              </Button>
+              <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => void runCaseTask("Operación del módulo", () => (runAiAssist)())} variant="outline" type="button" disabled={!(canCase("analysis", "ai:use")) || Boolean(caseTask)}><Bot size={17} /> Ampliar análisis</Button>
+              <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => void runCaseTask("Operación del módulo", () => (runCaseRecommendations)())} disabled={(!selectedCaseId) || !(canCase("analysis", "ai:use")) || Boolean(caseTask)} variant="outline" type="button">
                 <FileCheck2 size={17} /> Proximos pasos
-              </button>
+              </Button>
             </div>
             {legalApplyMessage && (
-              <div className={`action-feedback ${legalApplyState}`}>
+              <div className={`action-feedback ${legalApplyState}`} role="status" aria-live="polite" aria-atomic="true">
                 {legalApplyMessage}
               </div>
             )}
-          </div>
+          </Card>
 
-          <div className="detail-panel">
+          <Card className="detail-panel">
             <div className="panel-head">
               <div>
                 <h3>2. Resultado de tipificación</h3>
@@ -6464,12 +6531,12 @@ export function App() {
             ) : (
               <EmptyState text="Ejecuta 'Tipificar delito' para obtener una propuesta jurídica asistida." />
             )}
-          </div>
+          </Card>
         </div>
 
         {legalTypification && (
           <div className="ai-result-grid">
-            <div className="detail-panel">
+            <Card className="detail-panel">
               <h3>Elementos y evidencia necesaria</h3>
               <div className="summary-list">
                 <span>Elementos objetivos: {prettySpanish(legalTypification.principal_typification?.why || "sin norma principal")}</span>
@@ -6477,8 +6544,8 @@ export function App() {
                 <span>Evidencia requerida: {prettySpanish(legalTypification.principal_typification?.evidence_needed || "pendiente")}</span>
                 <span>Límites: {prettySpanish(legalTypification.principal_typification?.probatory_limits || "requiere validación humana")}</span>
               </div>
-            </div>
-            <div className="detail-panel">
+            </Card>
+            <Card className="detail-panel">
               <h3>Normas conexas</h3>
               <div className="mini-list">
                 {legalTypification.connected_typifications.slice(0, 5).map((item) => (
@@ -6486,8 +6553,8 @@ export function App() {
                 ))}
                 {!legalTypification.connected_typifications.length && <span>Sin normas conexas registradas para este perfil.</span>}
               </div>
-            </div>
-            <div className="detail-panel">
+            </Card>
+            <Card className="detail-panel">
               <h3>Estado probatorio</h3>
               <div className="case-overview">
                 <div><span>Evidencias</span><strong>{legalTypification.evidence_snapshot.evidence_count}</strong></div>
@@ -6498,39 +6565,39 @@ export function App() {
                 {legalTypification.missing_for_stronger_typification.map((item) => <li key={item}>{prettySpanish(item)}</li>)}
                 {!legalTypification.missing_for_stronger_typification.length && <li>Base minima completa para revisión del analista.</li>}
               </ul>
-            </div>
-            <div className="detail-panel">
+            </Card>
+            <Card className="detail-panel">
               <h3>Medidas recomendadas</h3>
               <ul className="compact-list">
                 {legalTypification.recommended_measures.map((item) => <li key={item}>{prettySpanish(item)}</li>)}
               </ul>
-            </div>
+            </Card>
           </div>
         )}
 
-        <div className="detail-panel">
+        <Card className="detail-panel">
           <div className="panel-head">
             <div>
-              <h3>3. An?lisis operativo del caso</h3>
-              <p>Lectura accionable del incidente, sin exponer salida t?cnica cruda.</p>
+              <h3>3. Análisis operativo del caso</h3>
+              <p>Lectura accionable del incidente, sin exponer salida técnica cruda.</p>
             </div>
           </div>
           {renderCaseAnalysisOutcome()}
-        </div>
-      </section>
+        </Card>
+      </ModuleSurface>
     );
   }
 
   function renderAiSecurity() {
     const evaluation = aiSecurityResult as AiSecurityEvaluation | null;
     return (
-      <section className="work-surface">
+      <ModuleSurface className="" moduleId="aiSecurity">
         <div className="section-head">
           <div>
             <h2>AI Security</h2>
-            <p>Auditor?a controlada de modelos IA locales antes de usarlos en casos reales.</p>
+            <p>Auditoría controlada de modelos IA locales antes de usarlos en casos reales.</p>
           </div>
-          <button onClick={runAiSecurity}><BrainCircuit size={17} /> Crear evaluacion</button>
+          <Button onClick={() => void runCaseTask("Operación del módulo", () => (runAiSecurity)())} variant="default" type="button" disabled={!(canUse("ai:use") && (!selectedCaseId || canCase("analysis", "ai:use"))) || Boolean(caseTask)} className="h-auto min-h-10 whitespace-normal"><BrainCircuit size={17} /> Crear evaluacion</Button>
         </div>
         <div className="ai-security-grid">
           <div className="ai-security-card primary">
@@ -6552,7 +6619,7 @@ export function App() {
             <ul>
               <li>Privacidad y posible fuga de información.</li>
               <li>Prompt injection, jailbreak y obediencia maliciosa.</li>
-              <li>Alucinaci?n legal y citas normativas falsas.</li>
+              <li>Alucinación legal y citas normativas falsas.</li>
               <li>Uso sin herramientas, sin red y con revisión humana.</li>
             </ul>
           </div>
@@ -6590,7 +6657,7 @@ export function App() {
         ) : (
           <EmptyState text="Todavía no hay evaluación registrada. Ejecuta una evaluación para obtener riesgo observado, recomendación y conclusión auditable." />
         )}
-      </section>
+      </ModuleSurface>
     );
   }
 
@@ -6610,13 +6677,13 @@ export function App() {
     };
     const statusLabels: Record<string, string> = { active: "Activo", inactive: "Inactivo", suspended: "Suspendido" };
     return (
-      <section className="work-surface">
+      <ModuleSurface className="" moduleId="identity">
         <div className="section-head">
           <div>
             <h2>Identidad y Permisos</h2>
             <p>Acceso local, usuario interviniente y permisos visibles por rol.</p>
           </div>
-          <button className="icon-button" onClick={refreshIdentity} title="Actualizar"><RefreshCcw size={18} /></button>
+          <Button className="h-auto min-h-10 whitespace-normal icon-button" onClick={refreshIdentity} title="Actualizar" variant="outline" type="button" aria-label="Actualizar"><RefreshCcw size={18} /></Button>
         </div>
 
         {identitySession.authenticated && identitySession.user ? (
@@ -6630,7 +6697,7 @@ export function App() {
                 <span>Organización: {identitySession.user.organization_id || "local"}</span>
                 <span>Permisos activos: {currentPermissions.length}</span>
               </div>
-              <button className="secondary" onClick={logout}>Cerrar sesión</button>
+              <Button className="h-auto min-h-10 whitespace-normal secondary" onClick={logout} variant="outline" type="button">Cerrar sesión</Button>
             </div>
             <div className="identity-permissions">
               <h3>Permisos del usuario</h3>
@@ -6646,22 +6713,22 @@ export function App() {
             <form className="form" onSubmit={login}>
               <h3>Iniciar sesión</h3>
               <p>Usa el usuario administrador o analista creado para firmar acciones sensibles.</p>
-              <input placeholder="Email" value={loginForm.email} onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })} />
-              <input placeholder="Password" type="password" value={loginForm.password} onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })} />
-              <button><Users size={17} /> Entrar</button>
-              <button type="button" className="secondary-button" onClick={recoverLocalAdmin} disabled={loading}>
+              <FormField label="Email"><Input placeholder="Email" value={loginForm.email} onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })} /></FormField>
+              <FormField label="Contraseña"><Input placeholder="Password" type="password" value={loginForm.password} onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })} autoComplete="current-password" /></FormField>
+              <Button variant="default" type="submit" className="h-auto min-h-10 whitespace-normal"><Users size={17} /> Entrar</Button>
+              <Button type="button" className="h-auto min-h-10 whitespace-normal secondary-button" onClick={recoverLocalAdmin} disabled={loading} variant="outline">
                 <Shield size={17} /> Recuperar acceso local
-              </button>
+              </Button>
               <p className="hint">Si olvidaste la clave local, esta acción restablece el administrador en esta PC y abre sesión automáticamente.</p>
             </form>
             <form className="form" onSubmit={bootstrapAdmin}>
               <h3>Crear admin inicial</h3>
               <p>Solo se usa la primera vez. Si ya existen usuarios, inicia sesión o recupera el acceso local.</p>
-              <input placeholder="Organización" value={bootstrapForm.organization_name} onChange={(e) => setBootstrapForm({ ...bootstrapForm, organization_name: e.target.value })} />
-              <input placeholder="Nombre" value={bootstrapForm.name} onChange={(e) => setBootstrapForm({ ...bootstrapForm, name: e.target.value })} />
-              <input placeholder="Email" value={bootstrapForm.email} onChange={(e) => setBootstrapForm({ ...bootstrapForm, email: e.target.value })} />
-              <input placeholder="Password" type="password" value={bootstrapForm.password} onChange={(e) => setBootstrapForm({ ...bootstrapForm, password: e.target.value })} />
-              <button className="secondary"><Shield size={17} /> Bootstrap admin</button>
+              <FormField label="Organización"><Input placeholder="Organización" value={bootstrapForm.organization_name} onChange={(e) => setBootstrapForm({ ...bootstrapForm, organization_name: e.target.value })} /></FormField>
+              <FormField label="Nombre"><Input placeholder="Nombre" value={bootstrapForm.name} onChange={(e) => setBootstrapForm({ ...bootstrapForm, name: e.target.value })} /></FormField>
+              <FormField label="Email"><Input placeholder="Email" value={bootstrapForm.email} onChange={(e) => setBootstrapForm({ ...bootstrapForm, email: e.target.value })} /></FormField>
+              <FormField label="Contraseña"><Input placeholder="Password" type="password" value={bootstrapForm.password} onChange={(e) => setBootstrapForm({ ...bootstrapForm, password: e.target.value })} autoComplete="new-password" /></FormField>
+              <Button className="h-auto min-h-10 whitespace-normal secondary" variant="outline" type="submit"><Shield size={17} /> Bootstrap admin</Button>
               <p className="hint">Disponible solo cuando todavía no existe ningún usuario. No se usa para recuperar contraseñas.</p>
             </form>
           </div>
@@ -6681,17 +6748,17 @@ export function App() {
                   <h3>Perfil profesional del analista</h3>
                   <p>Datos de autoría, auditoría, cierre de caso e informes finales.</p>
                 </div>
-                <button disabled={identityState === "working"}><Save size={17} /> Guardar perfil</button>
+                <Button disabled={identityState === "working"} variant="default" type="submit" className="h-auto min-h-10 whitespace-normal"><Save size={17} /> Guardar perfil</Button>
               </div>
               <div className="form-grid two">
-                <input placeholder="Nombre completo" value={profileForm.name} onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })} />
-                <input placeholder="Cargo o función" value={profileForm.title} onChange={(e) => setProfileForm({ ...profileForm, title: e.target.value })} />
-                <input placeholder="Organismo, equipo o estudio" value={profileForm.agency} onChange={(e) => setProfileForm({ ...profileForm, agency: e.target.value })} />
-                <input placeholder="Matrícula, legajo o identificador profesional" value={profileForm.registration_id} onChange={(e) => setProfileForm({ ...profileForm, registration_id: e.target.value })} />
-                <input placeholder="Teléfono de contacto" value={profileForm.phone} onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })} />
-                <input placeholder="Notas internas del perfil" value={profileForm.profile_notes} onChange={(e) => setProfileForm({ ...profileForm, profile_notes: e.target.value })} />
+                <FormField label="Nombre completo"><Input placeholder="Nombre completo" value={profileForm.name} onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })} /></FormField>
+                <FormField label="Cargo o función"><Input placeholder="Cargo o función" value={profileForm.title} onChange={(e) => setProfileForm({ ...profileForm, title: e.target.value })} /></FormField>
+                <FormField label="Organismo, equipo o estudio"><Input placeholder="Organismo, equipo o estudio" value={profileForm.agency} onChange={(e) => setProfileForm({ ...profileForm, agency: e.target.value })} /></FormField>
+                <FormField label="Matrícula, legajo o identificador profesional"><Input placeholder="Matrícula, legajo o identificador profesional" value={profileForm.registration_id} onChange={(e) => setProfileForm({ ...profileForm, registration_id: e.target.value })} /></FormField>
+                <FormField label="Teléfono de contacto"><Input placeholder="Teléfono de contacto" value={profileForm.phone} onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })} /></FormField>
+                <FormField label="Notas internas del perfil"><Input placeholder="Notas internas del perfil" value={profileForm.profile_notes} onChange={(e) => setProfileForm({ ...profileForm, profile_notes: e.target.value })} /></FormField>
               </div>
-              <textarea placeholder="Firma profesional o leyenda de intervención" value={profileForm.signature} onChange={(e) => setProfileForm({ ...profileForm, signature: e.target.value })} />
+              <FormField label="Firma profesional o leyenda de intervención"><textarea placeholder="Firma profesional o leyenda de intervención" value={profileForm.signature} onChange={(e) => setProfileForm({ ...profileForm, signature: e.target.value })} /></FormField>
             </form>
 
             {canReadIdentity && (
@@ -6709,21 +6776,21 @@ export function App() {
                         </div>
                         {canManageIdentity && (
                           <div className="user-actions">
-                            <select value={user.role} onChange={(e) => updateIdentityUser(user.id, { role: e.target.value })}>
+                            <FormField label="Rol del usuario"><select value={user.role} onChange={(e) => updateIdentityUser(user.id, { role: e.target.value })}>
                               {Object.keys(roleLabels).filter((role) => permissions[role]).map((role) => <option key={role} value={role}>{roleLabels[role]}</option>)}
-                            </select>
-                            <select value={user.status || "active"} onChange={(e) => updateIdentityUser(user.id, { status: e.target.value })}>
+                            </select></FormField>
+                            <FormField label="Estado del usuario"><select value={user.status || "active"} onChange={(e) => updateIdentityUser(user.id, { status: e.target.value })}>
                               <option value="active">Activo</option>
                               <option value="inactive">Inactivo</option>
                               <option value="suspended">Suspendido</option>
-                            </select>
-                            <input
+                            </select></FormField>
+                            <FormField label="Nueva clave"><Input
                               type="password"
                               placeholder="Nueva clave"
                               value={passwordDrafts[user.id] || ""}
-                              onChange={(e) => setPasswordDrafts({ ...passwordDrafts, [user.id]: e.target.value })}
-                            />
-                            <button type="button" className="secondary-button" onClick={() => resetIdentityPassword(user.id)}>Resetear clave</button>
+                              onChange={(e) => setPasswordDrafts({ ...passwordDrafts, [user.id]: e.target.value })} autoComplete="new-password"
+                            /></FormField>
+                            <Button type="button" className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => resetIdentityPassword(user.id)} variant="outline">Resetear clave</Button>
                           </div>
                         )}
                       </div>
@@ -6736,25 +6803,25 @@ export function App() {
                   <form className="identity-admin-panel" onSubmit={createIdentityUser}>
                     <h3>Crear usuario</h3>
                     <p>Alta controlada para administradores, analistas, legales, coordinadores o lectores.</p>
-                    <input placeholder="Nombre completo" value={newUserForm.name} onChange={(e) => setNewUserForm({ ...newUserForm, name: e.target.value })} />
-                    <input placeholder="Email" value={newUserForm.email} onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })} />
+                    <FormField label="Nombre completo"><Input placeholder="Nombre completo" value={newUserForm.name} onChange={(e) => setNewUserForm({ ...newUserForm, name: e.target.value })} /></FormField>
+                    <FormField label="Email"><Input placeholder="Email" value={newUserForm.email} onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })} /></FormField>
                     <div className="form-grid two">
-                      <select value={newUserForm.role} onChange={(e) => setNewUserForm({ ...newUserForm, role: e.target.value })}>
+                      <FormField label="Rol del usuario"><select value={newUserForm.role} onChange={(e) => setNewUserForm({ ...newUserForm, role: e.target.value })}>
                         <option value="analista">Analista</option>
                         <option value="legal">Legal</option>
                         <option value="coordinador">Coordinador</option>
                         <option value="lector">Lector</option>
                         <option value="admin">Administrador</option>
-                      </select>
-                      <select value={newUserForm.status} onChange={(e) => setNewUserForm({ ...newUserForm, status: e.target.value })}>
+                      </select></FormField>
+                      <FormField label="Estado del usuario"><select value={newUserForm.status} onChange={(e) => setNewUserForm({ ...newUserForm, status: e.target.value })}>
                         <option value="active">Activo</option>
                         <option value="inactive">Inactivo</option>
-                      </select>
+                      </select></FormField>
                     </div>
-                    <input placeholder="Cargo o función" value={newUserForm.title} onChange={(e) => setNewUserForm({ ...newUserForm, title: e.target.value })} />
-                    <input placeholder="Organismo o equipo" value={newUserForm.agency} onChange={(e) => setNewUserForm({ ...newUserForm, agency: e.target.value })} />
-                    <input type="password" placeholder="Clave inicial" value={newUserForm.password} onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })} />
-                    <button disabled={identityState === "working"}><Users size={17} /> Crear usuario</button>
+                    <FormField label="Cargo o función"><Input placeholder="Cargo o función" value={newUserForm.title} onChange={(e) => setNewUserForm({ ...newUserForm, title: e.target.value })} /></FormField>
+                    <FormField label="Organismo o equipo"><Input placeholder="Organismo o equipo" value={newUserForm.agency} onChange={(e) => setNewUserForm({ ...newUserForm, agency: e.target.value })} /></FormField>
+                    <FormField label="Clave inicial"><Input type="password" placeholder="Clave inicial" value={newUserForm.password} onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })} autoComplete="new-password" /></FormField>
+                    <Button disabled={identityState === "working"} variant="default" type="submit" className="h-auto min-h-10 whitespace-normal"><Users size={17} /> Crear usuario</Button>
                   </form>
                 )}
               </div>
@@ -6771,7 +6838,7 @@ export function App() {
             </div>
           ))}
         </div>
-      </section>
+      </ModuleSurface>
     );
   }
 
@@ -6785,13 +6852,13 @@ export function App() {
     const saasEntries = Object.entries(readiness.saas_readiness || {});
     const storageEntries = Object.entries(readiness.storage || {});
     return (
-      <section className="work-surface">
+      <ModuleSurface className="" moduleId="settings">
         <div className="section-head">
           <div>
             <h2>Configuración</h2>
             <p>Estado técnico de la plataforma, base de datos, almacenamiento y preparación SaaS.</p>
           </div>
-          <button className="icon-button" onClick={() => loadModule("settings")} title="Actualizar"><RefreshCcw size={18} /></button>
+          <Button className="h-auto min-h-10 whitespace-normal icon-button" onClick={() => loadModule("settings")} title="Actualizar" variant="outline" type="button" aria-label="Actualizar"><RefreshCcw size={18} /></Button>
         </div>
 
         <div className="settings-hero">
@@ -6843,7 +6910,7 @@ export function App() {
             {!(readiness.recommendations || []).length && <li>No hay recomendaciones pendientes reportadas.</li>}
           </ul>
         </div>
-      </section>
+      </ModuleSurface>
     );
   }
 
@@ -6859,23 +6926,24 @@ export function App() {
         ]
       : [];
     return (
-      <section className="work-surface presentation-workbench">
+      <ModuleSurface className="presentation-workbench" moduleId="casePresentation">
         <div className="section-head">
           <div>
             <h2>Exposición del Caso</h2>
             <p>Guion profesional para presentar el caso con diapositivas, notas orales, riesgos y exportación PDF.</p>
           </div>
           <div className="actions-row">
-            <button onClick={generateCasePresentation} disabled={!latestReport || presentationState === "working"}>
+            <Button onClick={() => void runCaseTask("Operación del módulo", () => (generateCasePresentation)())} disabled={(!latestReport || presentationState === "working") || !(canCase("reports", "reports:write")) || Boolean(caseTask)} variant="default" type="button" className="h-auto min-h-10 whitespace-normal">
               <MonitorPlay size={16} /> Generar exposición
-            </button>
-            <button className="secondary" onClick={reviewCasePresentation} disabled={!selectedPresentationId || presentationState === "working"}>
+            </Button>
+            <Button className="h-auto min-h-10 whitespace-normal secondary" onClick={() => void runCaseTask("Operación del módulo", () => (reviewCasePresentation)())} disabled={(!selectedPresentationId || presentationState === "working") || !(canCase("review", "reports:write")) || Boolean(caseTask)} variant="outline" type="button">
               <CheckCircle2 size={16} /> Revisar exposición
-            </button>
+            </Button>
             {selectedPresentation && (
-              <a className="download-button secondary" href={`${API_BASE}/reports/presentations/${selectedPresentation.id}/export/pdf`} target="_blank" rel="noreferrer">
-                <Download size={16} /> Exportar PDF
-              </a>
+              <Button variant="outline" disabled={!canCase("export", "reports:read") || Boolean(caseTask)} onClick={() => void runCaseTask("Exportar exposición", async () => {
+                if (!canCase("export", "reports:read")) throw new Error("No tenés permiso de exportación.");
+                await downloadArtifact(`/reports/presentations/${selectedPresentation.id}/export/pdf`, `operia-exposicion-${selectedPresentation.id}.pdf`);
+              })} className="h-auto min-h-10 whitespace-normal"><Download size={16} /> Exportar PDF</Button>
             )}
           </div>
         </div>
@@ -6944,8 +7012,8 @@ export function App() {
           {presentationSlides.map((slide) => (
             <article className="slide-card" key={slide.id}>
               <div className="slide-number">Slide {slide.slide_number}</div>
-              <input value={slide.title} onChange={(event) => updatePresentationSlide(slide, { title: event.target.value })} />
-              <textarea value={slide.text} onChange={(event) => updatePresentationSlide(slide, { text: event.target.value })} />
+              <FormField label="Título de la diapositiva"><Input value={slide.title} onChange={(event) => updatePresentationSlide(slide, { title: event.target.value })} /></FormField>
+              <FormField label="Contenido de la diapositiva"><textarea value={slide.text} onChange={(event) => updatePresentationSlide(slide, { text: event.target.value })} /></FormField>
               <label>
                 Notas para exposición oral
                 <textarea value={slide.speaker_notes} onChange={(event) => updatePresentationSlide(slide, { speaker_notes: event.target.value })} />
@@ -6960,7 +7028,7 @@ export function App() {
             <EmptyState text="Todavía no hay diapositivas. Usa “Generar exposición” para crear el guion del caso." />
           )}
         </div>
-      </section>
+      </ModuleSurface>
     );
   }
 
@@ -6972,20 +7040,20 @@ export function App() {
     const recentAudit = mindAudit.slice(0, 6);
     const isWorking = mindState === "working";
     return (
-      <section className="work-surface mind-workbench">
+      <ModuleSurface className="mind-workbench" moduleId="mind">
         <div className="section-head">
           <div>
             <h2>Cerebro / Memoria Forense</h2>
             <p>Memoria persistente del caso, notas Markdown, búsqueda local, snapshots, auditoría y grafo de relaciones.</p>
           </div>
           <div className="button-row">
-            <button className="secondary-button" onClick={refreshMind} disabled={isWorking}><RefreshCcw size={16} /> Actualizar memoria</button>
-            <button onClick={createMindSnapshot} disabled={!selectedCaseId || isWorking}><BrainCircuit size={16} /> Snapshot del caso</button>
+            <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={refreshMind} disabled={isWorking} variant="outline" type="button"><RefreshCcw size={16} /> Actualizar memoria</Button>
+            <Button onClick={() => void runCaseTask("Operación del módulo", () => (createMindSnapshot)())} disabled={(!selectedCaseId || isWorking) || !(canCase("analysis", "cases:write")) || Boolean(caseTask)} variant="default" type="button" className="h-auto min-h-10 whitespace-normal"><BrainCircuit size={16} /> Snapshot del caso</Button>
           </div>
         </div>
 
         {mindMessage && (
-          <div className={`inline-status ${mindState === "error" ? "danger" : mindState === "success" ? "success" : ""}`}>
+          <div className={`inline-status ${mindState === "error" ? "danger" : mindState === "success" ? "success" : ""}`} role="status" aria-live="polite" aria-atomic="true">
             {mindMessage}
           </div>
         )}
@@ -7011,14 +7079,14 @@ export function App() {
         </div>
 
         <div className="mind-action-strip">
-          <button onClick={createMindSnapshot} disabled={!selectedCaseId || isWorking}><BrainCircuit size={16} /> Guardar snapshot del caso</button>
-          <button className="secondary-button" onClick={createReportMindSnapshot} disabled={!latestReport || isWorking}><FileText size={16} /> Guardar último informe</button>
-          <button className="secondary-button" onClick={createPresentationMindSnapshot} disabled={!selectedPresentation || isWorking}><Presentation size={16} /> Guardar exposición</button>
-          <button className="secondary-button" onClick={() => setMindNoteForm({ ...mindNoteForm, note_type: "hallazgo", title: selectedCase ? `Hallazgo - ${selectedCase.case_code}` : "Hallazgo", content: "" })}><Save size={16} /> Preparar hallazgo</button>
+          <Button onClick={() => void runCaseTask("Operación del módulo", () => (createMindSnapshot)())} disabled={(!selectedCaseId || isWorking) || !(canCase("analysis", "cases:write")) || Boolean(caseTask)} variant="default" type="button" className="h-auto min-h-10 whitespace-normal"><BrainCircuit size={16} /> Guardar snapshot del caso</Button>
+          <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => void runCaseTask("Operación del módulo", () => (createReportMindSnapshot)())} disabled={(!latestReport || isWorking) || !(canCase("analysis", "reports:write")) || Boolean(caseTask)} variant="outline" type="button"><FileText size={16} /> Guardar último informe</Button>
+          <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => void runCaseTask("Operación del módulo", () => (createPresentationMindSnapshot)())} disabled={(!selectedPresentation || isWorking) || !(canCase("analysis", "reports:write")) || Boolean(caseTask)} variant="outline" type="button"><Presentation size={16} /> Guardar exposición</Button>
+          <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => setMindNoteForm({ ...mindNoteForm, note_type: "hallazgo", title: selectedCase ? `Hallazgo - ${selectedCase.case_code}` : "Hallazgo", content: "" })} variant="outline" type="button"><Save size={16} /> Preparar hallazgo</Button>
         </div>
 
         {mindBrief && (
-          <div className="panel-card mind-brief-panel">
+          <Card className="panel-card mind-brief-panel">
             <div className="mind-brief-head">
               <div>
                 <span className="eyebrow">Lectura ejecutiva local</span>
@@ -7062,17 +7130,17 @@ export function App() {
                 <span>{mindBrief.graph_summary.nodes || 0} nodos, {mindBrief.graph_summary.edges || 0} relaciones, {mindBrief.graph_summary.notes || 0} notas.</span>
               </div>
             </div>
-          </div>
+          </Card>
         )}
 
-        <form className="panel-card mind-search-panel" onSubmit={searchMind}>
+        <form className="panel-card mind-search-panel" onSubmit={event => { event.preventDefault(); void runCaseTask("Guardar datos del módulo", () => searchMind(event)); }}>
           <div>
             <h3>Consultar memoria</h3>
             <p>Busca en notas, snapshots, hallazgos, hipótesis, tags y resúmenes guardados. La búsqueda es local y no envía evidencia a servicios externos.</p>
           </div>
           <div className="search-row">
-            <input value={mindSearchQuery} onChange={(event) => setMindSearchQuery(event.target.value)} placeholder="Buscar concepto, evidencia, hipótesis, norma o decisión..." />
-            <button disabled={isWorking}><Search size={16} /> Consultar</button>
+            <FormField label="Buscar concepto, evidencia, hipótesis, norma o decisión..."><Input value={mindSearchQuery} onChange={(event) => setMindSearchQuery(event.target.value)} placeholder="Buscar concepto, evidencia, hipótesis, norma o decisión..." /></FormField>
+            <Button disabled={isWorking} variant="default" type="submit" className="h-auto min-h-10 whitespace-normal"><Search size={16} /> Consultar</Button>
           </div>
           <div className="mind-search-results">
             {mindSearchResults.map((result) => (
@@ -7091,11 +7159,11 @@ export function App() {
         </form>
 
         <div className="mind-grid">
-          <form className="panel-card mind-note-form" onSubmit={createMindNote}>
+          <form className="panel-card mind-note-form" onSubmit={event => { event.preventDefault(); void runCaseTask("Guardar datos del módulo", () => createMindNote(event)); }}><fieldset disabled={!(canCase("analysis", "cases:write")) || Boolean(caseTask)}><legend className="sr-only">Datos de la operación</legend>
             <h3>Crear nota rápida</h3>
             <p>Guarda una observación, hipótesis, hallazgo o contexto como archivo Markdown auditable.</p>
             <div className="form-grid two">
-              <select value={mindNoteForm.note_type} onChange={(event) => setMindNoteForm({ ...mindNoteForm, note_type: event.target.value })}>
+              <FormField label="Tipo de nota"><select value={mindNoteForm.note_type} onChange={(event) => setMindNoteForm({ ...mindNoteForm, note_type: event.target.value })}>
                 <option value="nota">Nota</option>
                 <option value="analisis">Análisis</option>
                 <option value="hallazgo">Hallazgo</option>
@@ -7103,15 +7171,15 @@ export function App() {
                 <option value="matriz">Matriz</option>
                 <option value="documento">Documento</option>
                 <option value="auditoria">Auditoría</option>
-              </select>
-              <input value={mindNoteForm.tags} onChange={(event) => setMindNoteForm({ ...mindNoteForm, tags: event.target.value })} placeholder="Tags separados por coma" />
+              </select></FormField>
+              <FormField label="Tags separados por coma"><Input value={mindNoteForm.tags} onChange={(event) => setMindNoteForm({ ...mindNoteForm, tags: event.target.value })} placeholder="Tags separados por coma" /></FormField>
             </div>
-            <input value={mindNoteForm.title} onChange={(event) => setMindNoteForm({ ...mindNoteForm, title: event.target.value })} placeholder="Título de la nota" />
-            <textarea value={mindNoteForm.content} onChange={(event) => setMindNoteForm({ ...mindNoteForm, content: event.target.value })} placeholder="Contenido, contexto, fuente, límite probatorio o decisión del analista" />
-            <button disabled={isWorking}><Save size={16} /> Guardar nota</button>
-          </form>
+            <FormField label="Título de la nota"><Input value={mindNoteForm.title} onChange={(event) => setMindNoteForm({ ...mindNoteForm, title: event.target.value })} placeholder="Título de la nota" /></FormField>
+            <FormField label="Contenido, contexto, fuente, límite probatorio o decisión del analista"><textarea value={mindNoteForm.content} onChange={(event) => setMindNoteForm({ ...mindNoteForm, content: event.target.value })} placeholder="Contenido, contexto, fuente, límite probatorio o decisión del analista" /></FormField>
+            <Button disabled={isWorking} variant="default" type="submit" className="h-auto min-h-10 whitespace-normal"><Save size={16} /> Guardar nota</Button>
+          </fieldset></form>
 
-          <div className="panel-card">
+          <Card className="panel-card">
             <h3>Prompts y agentes</h3>
             <p>Accesos disponibles para próximas fases de memoria asistida y redacción controlada.</p>
             <div className="mind-mini-columns">
@@ -7134,11 +7202,11 @@ export function App() {
               ))}
               {!mindAgents.length && <EmptyState text="Sin agentes cargados. Actualiza la memoria o verifica la sesión." />}
             </div>
-          </div>
+          </Card>
         </div>
 
         <div className="mind-grid">
-          <div className="panel-card">
+          <Card className="panel-card">
             <h3>Notas del caso</h3>
             <p>Memoria persistente del caso y notas generales del vault.</p>
             <div className="mind-note-list">
@@ -7155,13 +7223,13 @@ export function App() {
               ))}
               {!caseScopedNotes.length && <EmptyState text="Todavía no hay notas en memoria para este caso." />}
             </div>
-          </div>
+          </Card>
 
-          <div className="panel-card">
+          <Card className="panel-card">
             <h3>Grafo de relaciones</h3>
             <p>Relaciones entre caso, evidencia, hallazgos, fuentes legales, informes y notas.</p>
-            <form className="mind-relation-form" onSubmit={createMindRelation}>
-              <select
+            <form className="mind-relation-form" onSubmit={event => { event.preventDefault(); void runCaseTask("Guardar datos del módulo", () => createMindRelation(event)); }}><fieldset disabled={!(canCase("analysis", "cases:write")) || Boolean(caseTask)}><legend className="sr-only">Datos de la operación</legend>
+              <FormField label="Nodo de origen"><select
                 value={mindRelationForm.source_node_key}
                 onChange={(event) => setMindRelationForm({ ...mindRelationForm, source_node_key: event.target.value })}
               >
@@ -7171,8 +7239,8 @@ export function App() {
                     {prettySpanish(node.node_type)}: {node.label}
                   </option>
                 ))}
-              </select>
-              <select
+              </select></FormField>
+              <FormField label="Tipo de relación"><select
                 value={mindRelationForm.relation_type}
                 onChange={(event) => setMindRelationForm({ ...mindRelationForm, relation_type: event.target.value })}
               >
@@ -7192,8 +7260,8 @@ export function App() {
                 ]).map((relation) => (
                   <option key={relation} value={relation}>{prettySpanish(relation)}</option>
                 ))}
-              </select>
-              <select
+              </select></FormField>
+              <FormField label="Nodo de destino"><select
                 value={mindRelationForm.target_node_key}
                 onChange={(event) => setMindRelationForm({ ...mindRelationForm, target_node_key: event.target.value })}
               >
@@ -7203,22 +7271,22 @@ export function App() {
                     {prettySpanish(node.node_type)}: {node.label}
                   </option>
                 ))}
-              </select>
-              <input
+              </select></FormField>
+              <FormField label="Nota breve de la relación"><Input
                 value={mindRelationForm.label}
                 onChange={(event) => setMindRelationForm({ ...mindRelationForm, label: event.target.value })}
                 placeholder="Nota breve de la relación"
-              />
-              <select
+              /></FormField>
+              <FormField label="Confianza de la relación"><select
                 value={mindRelationForm.confidence}
                 onChange={(event) => setMindRelationForm({ ...mindRelationForm, confidence: event.target.value })}
               >
                 <option value="bajo">Confianza baja</option>
                 <option value="medio">Confianza media</option>
                 <option value="alto">Confianza alta</option>
-              </select>
-              <button disabled={isWorking || !mindGraph?.nodes.length}><Network size={16} /> Crear relación</button>
-            </form>
+              </select></FormField>
+              <Button disabled={isWorking || !mindGraph?.nodes.length} variant="default" type="submit" className="h-auto min-h-10 whitespace-normal"><Network size={16} /> Crear relación</Button>
+            </fieldset></form>
             <div className="graph-summary">
               {(mindGraph?.nodes || []).slice(0, 12).map((node) => (
                 <span key={node.node_key}>{prettySpanish(node.node_type)}: {node.label}</span>
@@ -7233,10 +7301,10 @@ export function App() {
               ))}
               {!mindGraph?.edges.length && <EmptyState text="Crea un snapshot para construir relaciones del caso." />}
             </div>
-          </div>
+          </Card>
         </div>
 
-        <div className="panel-card">
+        <Card className="panel-card">
           <h3>Prompts base</h3>
           <p>Prompts internos para resumir, extraer conceptos, crear notas, vincular memoria, auditar conclusiones y generar informe.</p>
           <div className="prompt-grid">
@@ -7249,9 +7317,9 @@ export function App() {
             ))}
             {!mindPrompts.length && <EmptyState text="Sin prompts cargados." />}
           </div>
-        </div>
+        </Card>
 
-        <div className="panel-card">
+        <Card className="panel-card">
           <h3>Auditoría reciente</h3>
           <p>Trazabilidad de creación de notas, snapshots y relaciones de grafo vinculadas al caso o a la organización.</p>
           <div className="compact-list audit-list">
@@ -7264,14 +7332,14 @@ export function App() {
             ))}
             {!recentAudit.length && <EmptyState text="Sin eventos de auditoría de memoria para mostrar." />}
           </div>
-        </div>
-      </section>
+        </Card>
+      </ModuleSurface>
     );
   }
 
   function renderModuleStatus(title: string) {
     return (
-      <section className="work-surface">
+      <ModuleSurface className="" moduleId="status">
         <div className="section-head">
           <div>
             <h2>{title}</h2>
@@ -7279,7 +7347,7 @@ export function App() {
           </div>
         </div>
         <DataPanel data={modulePayload} empty="Todavía no hay actividad registrada para este módulo." />
-      </section>
+      </ModuleSurface>
     );
   }
 
@@ -7298,8 +7366,8 @@ export function App() {
     if (active === "blockchainForensics") return renderBlockchainForensics();
     if (active === "iotForensics") return renderIoTForensics();
     if (active === "mobileForensics") return selectedCaseId && authToken
-      ? <MobileForensics key={`${selectedCaseId}:${authToken}`} caseId={Number(selectedCaseId)} />
-      : <section className="panel"><h2>Forense móvil</h2><p>Iniciá sesión y seleccioná un caso para registrar dispositivos y exámenes.</p></section>;
+      ? <ModuleSurface moduleId="mobileForensics"><MobileForensics key={`${selectedCaseId}:${authToken}`} caseId={Number(selectedCaseId)} caseCapabilities={caseAccess?.caseId === selectedCaseId && caseAccess.token === authToken ? caseAccess.capabilities : []} /></ModuleSurface>
+      : <ModuleSurface moduleId="mobileForensics"><h2>Forense móvil</h2><p>Iniciá sesión y seleccioná un caso para registrar dispositivos y exámenes.</p></ModuleSurface>;
     if (active === "externalTools") return renderExternalTools();
     if (active === "ai") return renderAi();
     if (active === "aiSecurity") return renderAiSecurity();
@@ -7317,9 +7385,9 @@ export function App() {
           <div role="alert" className={`error ${isAuthenticationErrorMessage(error) ? "auth-error" : ""}`}>
             <span>{error}</span>
             {isAuthenticationErrorMessage(error) && (
-              <button className="secondary-button" onClick={() => setActive("identity")}>
+              <Button className="h-auto min-h-10 whitespace-normal secondary-button" onClick={() => setActive("identity")} variant="outline" type="button">
                 <Users size={16} /> Ir a Usuarios
-              </button>
+              </Button>
             )}
           </div>
         )}
@@ -7327,7 +7395,7 @@ export function App() {
         {renderActive()}
         <Dialog open={Boolean(pendingNavigation)} onOpenChange={open => { if (!open) setPendingNavigation(null); }}>
           <DialogContent showCloseButton={false} className="max-w-md"><DialogHeader><DialogTitle>Hay un borrador abierto</DialogTitle><DialogDescription>Si cambiás de contexto, se descartarán los cambios sin guardar. Los registros de evidencia y custodia ya guardados se conservarán.</DialogDescription></DialogHeader>
-            <DialogFooter><Button variant="outline" onClick={() => setPendingNavigation(null)}>Seguir editando</Button><Button onClick={() => { const action = pendingNavigation; setPendingNavigation(null); setEditingParticipant(null); setEditingEvidence(null); setEditingCustody(null); setCustodyReason(""); setEvidenceForm({ description: "", responsible: "", custodian: "" }); setEvidenceFile(null); setEvidenceUploadVersion(version => version + 1); setExecutiveSummaryDraft(reportPreview?.executive_summary || ""); action?.(); }}>Descartar borrador y continuar</Button></DialogFooter>
+            <DialogFooter><Button variant="outline" onClick={() => setPendingNavigation(null)} className="h-auto min-h-10 whitespace-normal">Seguir editando</Button><Button onClick={() => { const action = pendingNavigation; setPendingNavigation(null); setEditingParticipant(null); setEditingEvidence(null); setEditingCustody(null); setCustodyReason(""); setEvidenceForm({ description: "", responsible: "", custodian: "" }); setEvidenceFile(null); setEvidenceUploadVersion(version => version + 1); setExecutiveSummaryDraft(reportPreview?.executive_summary || ""); action?.(); }} className="h-auto min-h-10 whitespace-normal">Descartar borrador y continuar</Button></DialogFooter>
           </DialogContent>
         </Dialog>
     </ApplicationShell>

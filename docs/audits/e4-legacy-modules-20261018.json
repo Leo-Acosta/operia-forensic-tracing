@@ -1,0 +1,57 @@
+{
+  "schema": "operia-e4-legacy-modules-audit/1",
+  "date": "2026-10-18",
+  "base_commit": "ca83d7e",
+  "backend_changed": false,
+  "migrations": false,
+  "preservation": {
+    "tables_unchanged": 74,
+    "schema_unchanged": true,
+    "files_unchanged_and_restored": 116,
+    "triggers": 9,
+    "integrity": "ok",
+    "backup_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7",
+    "restored_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7"
+  },
+  "validation": {
+    "backend": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "1",
+      "tests": "273",
+      "time": "3675.736",
+      "timestamp": "2026-10-17T23:51:02.126042-03:00",
+      "hostname": "LA"
+    },
+    "frontend": {
+      "passed": 45,
+      "failed": 0,
+      "build": "passed"
+    },
+    "browser": {
+      "desktop_views": 18,
+      "mobile_views": 18,
+      "widths_css": [
+        2560,
+        480
+      ],
+      "unnamed_controls": 0,
+      "measured_text_contrast_failures": 0,
+      "horizontal_page_overflow": false,
+      "navigation_focus": "main-content",
+      "synthetic_form_write": "lab session saved",
+      "read_only_checks": "write controls effectively disabled in cybercrime, deepfake, IoT, mind and mobile; no other-case title displayed"
+    },
+    "npm_audit": {
+      "total": 0
+    }
+  },
+  "limits": [
+    "JSDOM axe excludes color contrast; computed browser samples used instead.",
+    "No certification with physical devices or NVDA/JAWS.",
+    "Geo Trace, Geo Proximity and exports retain their existing status screens.",
+    "Local ACL-restricted backup is not external WORM or disaster recovery."
+  ],
+  "hours_added": 0
+}

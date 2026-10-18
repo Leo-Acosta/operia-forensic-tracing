@@ -136,6 +136,7 @@ storage/
 - [Estado E0/E1: diagnóstico, respaldo y configuración segura](docs/E0_E1_SECURITY_BASELINE.md)
 - [E4: base visual premium, permisos y validación](docs/FRONTEND_VISUAL_BASE.md)
 - [E4: evidencias, formularios, informes y accesibilidad](docs/E4_EVIDENCE_REPORTS.md)
+- [E4: módulos heredados y revisión de accesibilidad](docs/E4_LEGACY_MODULES.md)
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [API Routes](docs/API_ROUTES.md)
