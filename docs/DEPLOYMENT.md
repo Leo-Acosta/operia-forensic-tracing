@@ -111,6 +111,12 @@ Continuación E7: [OperiaSvc y ACL de solo lectura](E7_SERVICE_ACCOUNT.md) ya se
 prepararon y probaron sobre copia nueva con datos sintéticos. La cuenta queda
 deshabilitada; no representa una instalación del servicio ni un runtime listo.
 
+Tramo posterior: [runtime independiente y arranque bajo OperiaSvc](E7_SERVICE_RUNTIME.md)
+validados en ProgramData con datos sintéticos y árboles RX. La cuenta termina
+deshabilitada; la aplicación habitual conserva su configuración y datos.
+Faltan ciclo de servicio, credencial/configuración/claves efectivas, TLS y
+recuperación independiente antes de aceptar producción.
+
 Lista histórica de requisitos; permisos por expediente y procedimientos locales
 ya tienen implementaciones documentadas, pendientes de aceptación productiva.
 Antes de cualquier despliegue real del SaaS:

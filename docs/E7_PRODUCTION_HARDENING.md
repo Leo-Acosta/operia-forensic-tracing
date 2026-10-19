@@ -143,9 +143,9 @@ esquema idénticos en base habitual/restaurada, 9 triggers y 116 archivos previo
 intactos/restaurados; clave nueva recuperada con bytes idénticos.
 Ver [auditoría de esta entrega](audits/e7-production-hardening-20261019.json).
 
-1. Identidad dedicada y ACL de código preparadas con prueba real de acceso en
-   staging; faltan runtime/venv protegido, lectura de clave efectiva y arranque
-   completo bajo esa identidad; servicio/reinicio/actualizaciones.
+1. [Runtime protegido y arranque bajo OperiaSvc](E7_SERVICE_RUNTIME.md) probados
+   con datos y clave sintéticos; faltan configuración/clave efectivas preservadas,
+   servicio/reinicio/actualizaciones y aceptación operativa.
 2. Gateway TLS real, egreso por proveedor, secretos externos gestionados y MFA/
    recuperación de cuentas. El rechazo de CORS HTTP no demuestra que TLS exista.
 3. Destino cifrado independiente/offsite, programación, retención sin borrar

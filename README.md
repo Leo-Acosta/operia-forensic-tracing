@@ -160,6 +160,7 @@ storage/
 - [Deployment](docs/DEPLOYMENT.md)
 - [E7: privilegios mínimos, secretos y respaldos cifrados](docs/E7_PRODUCTION_HARDENING.md)
 - [E7: cuenta dedicada y código de solo lectura](docs/E7_SERVICE_ACCOUNT.md)
+- [E7: runtime protegido y arranque real bajo OperiaSvc](docs/E7_SERVICE_RUNTIME.md)
 - [Migration Notes](docs/MIGRATION_NOTES.md)
 - [Forense móvil: piloto, diagnóstico y límites](docs/MOBILE_FORENSICS.md)
 - [Motor móvil propio: arquitectura](docs/forensic_engine/ARCHITECTURE.md)

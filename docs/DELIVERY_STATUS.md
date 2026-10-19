@@ -12,7 +12,7 @@ anteriores permanecen como registros históricos y no se reescriben.
 | E4: NVDA, VoiceOver y TalkBack reales | Pendiente | [Matriz y criterios](ASSISTIVE_ACCESSIBILITY.md); las comprobaciones DOM/axe no son ejecución de esos lectores |
 | E5: laboratorio estático | CPython AST real, trabajos, revisión, interfaz premium e incorporación a hallazgos e informes implementados localmente | [Interfaz e incorporación revisada](STATIC_LAB_INTERFACE.md); alcance Python; otros proveedores pendientes |
 | E6: ampliación del motor propio | Cierre técnico acotado 0.7.0: 13 lectores / 11 formatos, regresión completa y demostración de perfil público externo | [Acta de cierre](forensic_engine/E6_CLOSURE_0_7_0.md), [matriz final](forensic_engine/COVERAGE_MATRIX.md); adquisiciones de dispositivos pendientes por falta de muestras confirmada por el usuario |
-| E7: operación productiva | Refuerzo parcial implementado; aceptación productiva pendiente | [Privilegios, secretos y recuperación cifrada](E7_PRODUCTION_HARDENING.md), [cuenta dedicada y ACL probadas en staging](E7_SERVICE_ACCOUNT.md); faltan activación del servicio, recuperación independiente y despliegue real |
+| E7: operación productiva | Runtime protegido, API y workers probados bajo cuenta dedicada con datos sintéticos; aceptación productiva pendiente | [Privilegios y recuperación](E7_PRODUCTION_HARDENING.md), [runtime y arranque real](E7_SERVICE_RUNTIME.md); faltan ciclo de servicio, configuración/clave efectivas, TLS y recuperación independiente |
 | E8: cierre de versión/SaaS | Pendiente | Requiere alcance final, regresión, operación y pendientes resueltos; no se declara terminado |
 
 E5 incorpora selección explícita de observaciones de la última revisión aceptada,

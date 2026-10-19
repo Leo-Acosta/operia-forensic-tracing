@@ -1,0 +1,61 @@
+{
+  "schema": "operia-e7-service-runtime-audit/1",
+  "date": "2026-10-19",
+  "baseline_commit": "f1d9b04e38479deabd3416f9079c8919a68a34a7",
+  "status": "runtime_installed_protected_real_account_trial_passed_not_production_deployed",
+  "installation": {
+    "python": "3.12.14",
+    "packages": 42,
+    "runtime_files": 3734,
+    "method": "Offline copy of installed pinned dependency closure, direct CSV RECORD/hash/size verification and separate Python/stdlib",
+    "network_downloads_or_dependency_updates": false,
+    "pip_available": false,
+    "pip_check_claimed": false,
+    "isolated_search_path": true,
+    "user_site_and_pth_hooks_disabled": true,
+    "local_import_smoke_test_passed": true,
+    "assurance_limit": "Consistency with operator-installed distributions, not upstream authenticity or vulnerability certification"
+  },
+  "trial": {
+    "account": "OperiaSvc",
+    "root": "C:/ProgramData/OPERIA-E7-Runtime-20261019-R2",
+    "data": "fresh synthetic database and files only",
+    "key": "new synthetic 32-byte key per fresh trial; effective application key untouched",
+    "launch": "Actual process with service credentials and LoadUserProfile, allowlisted environment, ephemeral loopback HTTP",
+    "persistent_service_or_autostart_installed": false,
+    "status": "passed",
+    "account_disabled_after_trial": true,
+    "actual_service_token_and_minimum_production_policy_verified": true,
+    "http_api_started": true,
+    "native_worker_completed": true,
+    "static_worker_and_appcontainer_verified": true,
+    "case_default_deny_grant_revoke_verified": true,
+    "tenant_isolation_verified": true,
+    "synthetic_report_and_prior_custody_rows_preserved": true,
+    "custody_update_delete_denied": true,
+    "database_integrity": "ok",
+    "protected_code_runtime_and_derived_files_acl_verified": 5302,
+    "service_owns_protected_files_or_can_write_delete_change_acl": false
+  },
+  "findings_corrected": [
+    "Distribution.files can omit absent files: installer now parses raw RECORD and rejects missing/changed payloads",
+    "Declared share/include resources need placement within the independent runtime prefix",
+    "Trial in personal profile rejected private-secret validation; same policy passes in ProgramData without broadening personal-profile permissions",
+    "Trial HTTP client announced JSON on an empty GET: corrected client headers, strict API validation unchanged"
+  ],
+  "validation": {
+    "unit_preparation": {"passed": 7, "warnings": 4, "report": "storage/test_runs/e7-runtime-unit.xml"},
+    "security_regression": {"passed": 114, "warnings": 4, "duration_seconds": 322.93, "report": "storage/test_runs/e7-runtime-regression.xml"},
+    "scope": "Service installation, case permissions, custody, Windows containment, security audit, signing keys/recovery, static/native jobs",
+    "entire_504_case_suite_run": false,
+    "final_preservation": {"tables_values_and_schema_preserved": 74, "triggers": 9, "original_files_unchanged_and_restored": 116, "effective_signing_key_unchanged": true, "integrity": "ok"}
+  },
+  "remaining_production_acceptance": [
+    "Managed service lifecycle, credential provisioning/rotation and logon restrictions",
+    "Real TLS/egress policy and effective configuration/key preserving existing signatures",
+    "Independent recovery, offsite/escrow/retention, RPO/RTO and host-loss recovery trial",
+    "CI/reproducible supply chain/SBOM/licenses and remaining E7 acceptance"
+  ],
+  "human_programming_hours_added": 0,
+  "production_activated": false
+}

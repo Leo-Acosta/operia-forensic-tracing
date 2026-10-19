@@ -3,6 +3,11 @@
 Validación local Windows: 2026-10-19, continuación de `4280c56`.
 **Cuenta preparada y ACL probadas; servicio productivo todavía no activado.**
 
+Continuación: [runtime independiente y arranque real](E7_SERVICE_RUNTIME.md) ya
+instalados/probados en ProgramData con datos sintéticos; la cuenta queda
+deshabilitada. Los resultados y pendientes de este documento describen el tramo
+de preparación original y se complementan con esa validación posterior.
+
 ## Resultado real
 
 Se creó `OperiaSvc`, cuenta local estándar, miembro únicamente del grupo Usuarios
