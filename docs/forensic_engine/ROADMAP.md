@@ -51,3 +51,5 @@ pendiente para registros de aplicaciones, otros formatos, asociación física y
 adquisiciones reales consistentes por versión de OS.
 
 Continuidad E6: [motor 0.6.0, JSON en selección lógica](E6_IOS_LOGICAL_JSON.md). Corpus real y lectores específicos permanecen pendientes.
+
+Continuidad E6: [motor 0.7.0, registros SQLite Safari acotados](E6_IOS_APP_SQLITE.md). Variantes reales, otros esquemas/aplicaciones y época de fechas permanecen pendientes.

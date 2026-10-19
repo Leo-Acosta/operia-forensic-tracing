@@ -1,0 +1,127 @@
+{
+  "schema": "operia-e6-ios-app-sqlite-audit/1",
+  "date": "2026-10-18",
+  "base_commit": "5d90b291dbc3a4c83b605003482c70c53b0cd235",
+  "engine_version": "0.7.0",
+  "result_schema": "operia.forensic/1",
+  "reader": {
+    "id": "operia.ios.safari-history",
+    "version": "1.0.0",
+    "format": "ios-safari-history-sqlite"
+  },
+  "reader_count": 13,
+  "distinct_format_count": 11,
+  "scope": "Explicit preserved main-image Safari History.db profile; fixed allowlisted reads from a private deserialized in-memory copy",
+  "required_columns": {
+    "history_items": {
+      "id": "INTEGER PRIMARY KEY",
+      "url": "TEXT"
+    },
+    "history_visits": {
+      "id": "INTEGER PRIMARY KEY",
+      "history_item": "INTEGER",
+      "visit_time": "REAL",
+      "title": "TEXT"
+    }
+  },
+  "limits": {
+    "source_bytes": 5242880,
+    "rows_per_table": 500,
+    "overflow_probe_limit": 501,
+    "url_and_title_characters": 2048,
+    "schema_objects": 128,
+    "vm_steps": 100000,
+    "max_artifacts": 500,
+    "output_bytes": 16777216
+  },
+  "controls": {
+    "default_manifest_catalog_authorizer_unchanged": true,
+    "safari_authorizer_columns_only": true,
+    "client_sql_or_authorizer_options": false,
+    "no_source_sqlite_path_open": true,
+    "query_only_defensive_untrusted_schema_no_extensions": true,
+    "wal_shm_auto_discovery": false,
+    "prefix_publication_on_quota_corruption_or_budget_failure": false,
+    "case_org_grants_and_revocation_preserved": true,
+    "custody_history_preserved": true
+  },
+  "timestamp_policy": "Preserve numeric/null value and type exposed by SQLite affinity; no epoch/unit/timezone guess and no timeline",
+  "explicit_exclusions": [
+    "Other columns by ordinal",
+    "Other tables",
+    "Orphan/invalid references",
+    "Invalid URL/title/time values",
+    "Items without interpretable visits",
+    "Active/unsupported schemas",
+    "WAL/SHM",
+    "Deleted data",
+    "Profiles/tags/redirects/synchronization semantics",
+    "Other applications",
+    "BLOB/attachments"
+  ],
+  "preservation": {
+    "tables_unchanged": 74,
+    "schema_unchanged": true,
+    "files_unchanged_and_restored": 116,
+    "triggers": 9,
+    "integrity": "ok",
+    "backup_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7",
+    "restored_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7"
+  },
+  "runtime": {
+    "runtime_identity": "1717d297499151af78ec5640",
+    "files_verified": 694,
+    "archive_and_restored_verified": true,
+    "previous_runtimes_retained": true
+  },
+  "validation": {
+    "focused": {
+      "tests": 42,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "affected_regression_including_local_os_pentest": {
+      "tests": 297,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0
+    },
+    "http_timeout_isolated_recheck": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "distinct_backend_tests_passed": 297,
+    "latest_results_per_test": "all passed; initial regression had one HTTP ReadTimeout, not reproduced in isolated recheck; cause not established",
+    "full_backend_suite_run": false,
+    "frontend": {
+      "passed": 52,
+      "typescript_vite_build": "passed"
+    },
+    "safari_real_worker": "passed",
+    "earlier_attempts": [
+      "Initial 34-case unit run: 22 passed, 12 failed in a positive-control query selecting only id. Kept the strict authorizer and changed that test control to the actual allowed id,url projection; no privilege widening.",
+      "Restricted command runs stopped advancing during API/worker setup and were interrupted; no definitive regression claim. Repeated outside command sandbox; worker AppContainer remained enabled."
+    ]
+  },
+  "references": [
+    {
+      "url": "https://github.com/abrignoni/iLEAPP/blob/main/scripts/artifacts/safariHistory.py",
+      "accessed": "2026-10-18",
+      "use": "Table/column names and timestamp ambiguity only; no implementation, corpus or conversions copied"
+    }
+  ],
+  "pending": [
+    "Authorized real iOS corpus and schema variants",
+    "Timestamp epoch verification",
+    "Other apps",
+    "Application-profile WAL/SHM",
+    "Physical source/backup association authentication",
+    "Physical assistive technology validation"
+  ],
+  "dependencies_added": [],
+  "database_migrations": [],
+  "human_hours_added": 0
+}

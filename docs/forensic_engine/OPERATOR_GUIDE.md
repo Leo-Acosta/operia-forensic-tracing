@@ -97,3 +97,5 @@ flags globales, modelo concedido por organizacion y caso autorizado. Los workers
 siguen sin loopback. La guia describe el servicio Ollama confiable y sus limites.
 
 Continuidad del lector lógico: [JSON estructurado, límites y exclusiones](E6_IOS_LOGICAL_JSON.md), motor 0.6.0. Preparar runtime nuevo antes de encolar trabajos; mantener resultados/versiones anteriores.
+
+Perfil nuevo 0.7.0: [Safari History.db preservado](E6_IOS_APP_SQLITE.md). Elegir explícitamente ios-safari-history-sqlite; no aportar WAL/SHM sueltos ni cambiar formatos de adquisiciones anteriores. Preparar runtime nuevo y reiniciar servicios controladamente.

@@ -41,3 +41,5 @@ de 5 MiB y hasta 256 KiB por archivo. La selección no acredita backup completo,
 ausencia de archivos omitidos ni validación por versión de OS.
 
 Motor 0.6.0: [JSON lógico estructurado](E6_IOS_LOGICAL_JSON.md), UTF-8 con raíz objeto/array, 64 KiB, 24 niveles, 1024 nodos y 128 valores/exclusiones; sin semántica de aplicaciones ni cronología inferida.
+
+Motor 0.7.0: [perfil explícito Safari History.db](E6_IOS_APP_SQLITE.md), 500 filas por tabla, solo columnas permitidas, sin época inferida, WAL/SHM ni otras aplicaciones. Validación sintética; corpus real pendiente.

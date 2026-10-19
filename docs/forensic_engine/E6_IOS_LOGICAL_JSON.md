@@ -71,3 +71,5 @@ lectores específicos de aplicaciones, descifrado, archivos grandes y formatos
 fuera de perfil. La cobertura estructural no acredita detección de spyware ni
 lectura completa del backup. La validación física de accesibilidad sigue pendiente
 según [su registro](../ASSISTIVE_ACCESSIBILITY.md).
+
+Continuidad: [motor 0.7.0 y perfil explícito de filas Safari](E6_IOS_APP_SQLITE.md). El lector lógico conserva el catálogo SQLite, sin habilitar lectura automática de filas; esta entrega y su auditoría permanecen históricas.

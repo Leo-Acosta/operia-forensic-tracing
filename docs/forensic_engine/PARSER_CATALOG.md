@@ -21,6 +21,7 @@ a 8192 caracteres. Se mantiene la cuota global de salida de 16 MiB.
 | operia.ios.sqlite-wal-set | mismo paquete preservado | procedencia y catálogo SQLite del último commit | sqlite-set/provenance y derived/sqlite_schema/... | registros arbitrarios, DDL y recuperación de borrados |
 | operia.android.sqlite-wal-set | mismo paquete preservado | procedencia y catálogo SQLite del último commit | sqlite-set/provenance y derived/sqlite_schema/... | registros arbitrarios y contenido lógico |
 | operia.ios.backup-logical-files | operia.ios-logical-set/1: manifiesto Files y selección de bytes por fileID | procedencia, hashes, escalares plist/JSON, líneas UTF-8 y catálogo SQLite | logical-set/provenance y logical/<fileID>/... | archivos omitidos, directorios, BLOB/UID, NSKeyedArchiver, binarios, filas SQLite y formatos fuera del perfil |
+| operia.ios.safari-history | imagen SQLite principal preservada con history_items e history_visits del perfil acotado | id de visita/elemento, URL/título y visit_time devueltos por SQLite | history_visits/id:N | otras columnas/tablas, BLOB, época de fechas, WAL/SHM, borrados, sincronización y otros esquemas/aplicaciones |
 
 Payloads inválidos y líneas no reconocidas conservan localizador y motivo en
 exclusiones. Las claves plist duplicadas se rechazan; profundidad/nodos son
@@ -35,10 +36,12 @@ logcat no son eventos. Los registros duplicados se enlazan y no duplican alertas
 Oráculos manuales y datos: tests/fixtures/native_mobile/README.md. No se usaron
 adquisiciones reales ni salidas de otro motor como verdad de referencia.
 
-Motor actual 0.6.0: doce lectores y diez formatos distintos. [Selección lógica](E6_IOS_LOGICAL_FILES.md),
+Tramo 0.6.0: doce lectores y diez formatos distintos. [Selección lógica](E6_IOS_LOGICAL_FILES.md),
 [contrato WAL/SHM](E6_WAL_SHM.md),
 [límites SQLite](E6_MANIFEST_SQLITE.md) y [tramo plist anterior](E6_BACKUP_METADATA.md).
 Los perfiles SQLite requieren los controles de la compilación validada, rechazan
 esquemas incompatibles y nunca abren la evidencia como una base de datos en disco.
 
 El lector lógico 1.1.0 incluye [JSON acotado](E6_IOS_LOGICAL_JSON.md), con escalares y null, sin interpretar esquemas de aplicaciones.
+
+Motor actual 0.7.0: trece lectores, once formatos. [operia.ios.safari-history 1.0.0](E6_IOS_APP_SQLITE.md), formato ios-safari-history-sqlite: visitas ligadas a history_items en una copia explícita, 500 filas por tabla, solo columnas permitidas; sin cronología, WAL/SHM ni interpretación de sincronización.

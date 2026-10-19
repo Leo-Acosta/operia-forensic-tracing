@@ -48,7 +48,7 @@ def authorize(action, first, second, database, origin):
 
 
 @contextmanager
-def preserved_copy(raw):
+def preserved_copy(raw, *, authorizer=authorize):
     check_header(raw)
     db = sqlite3.connect(":memory:", timeout=0, cached_statements=0)
     try:
@@ -86,7 +86,7 @@ def preserved_copy(raw):
         db.deserialize(raw)
         # deserialize uses internal attachment operations; install the SQL
         # allowlist immediately afterwards, before preparing any source query.
-        db.set_authorizer(authorize)
+        db.set_authorizer(authorizer)
         yield db
     finally:
         db.close()

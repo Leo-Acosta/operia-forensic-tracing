@@ -99,3 +99,5 @@ Se preservan runtimes y auditorías anteriores. El archivo restaurado del runtim
 se verifica por manifiesto/hashes sin ejecutarlo ni conceder acceso al depósito.
 
 Continuidad 0.6.0: respaldo y restauración independientes en storage/temp/e6-ios-logical-json-20261018, con ACL privada, base y archivos persistentes. JSON amplía la interpretación de adquisiciones nuevas; no requiere migración ni recalcula históricos. Runtime 0.6.0 archivado/restaurado por separado y verificado por manifiesto; versiones anteriores retenidas.
+
+Continuidad 0.7.0: respaldo independiente storage/temp/e6-ios-app-sqlite-20261018 y runtime nuevo archivado/restaurado, manteniendo los anteriores. Sin migraciones ni recálculo. El perfil Safari requiere adquisición y examen nuevos explícitos; no cambia el catálogo del lector lógico previo.

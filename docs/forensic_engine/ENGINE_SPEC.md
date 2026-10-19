@@ -34,3 +34,5 @@ datos, falta de indicadores/reglas activas, coincidencias y sin coincidencias en
 reglas aplicadas. Ninguna de ellas concluye infección automáticamente.
 
 Motor 0.6.0 / lector lógico 1.1.0: [escalares JSON y null con contexto de archivo/posición](E6_IOS_LOGICAL_JSON.md). Contrato y cuotas globales conservados; sin inferir fechas ni semántica de aplicaciones.
+
+Motor 0.7.0: [Safari SQL acotado](E6_IOS_APP_SQLITE.md), autorizador interno específico sin ampliar el de Manifest/catálogo. Formato y lector nuevos; contrato operia.forensic/1 conservado, sin eventos temporales por época desconocida.

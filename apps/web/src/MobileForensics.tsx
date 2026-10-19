@@ -189,7 +189,7 @@ export default function MobileForensics({ caseId, caseCapabilities = [] }: { cas
           ["retention_policy", "Retención y eliminación"], ["restrictions", "Restricciones de uso"], ["declared_os_version", "Versión de OS declarada o desconocida"]].map(([name, label]) =>
           <label key={name}>{label}<Input name={name} required maxLength={name === "acquisition_method" ? 160 : name === "acquisition_date_original" || name === "declared_os_version" ? 80 : 4000} /></label>)}
         <label>Archivo original · máximo 5 MiB<Input type="file" name="file" required accept=".plist,.mobileconfig,.txt,.log,.db,.sqlite,.sqlite3,.json" aria-describedby="mobile-source-help" /></label>
-        <p id="mobile-source-help" className="text-sm text-muted-foreground">Para WAL/SHM o archivos lógicos iOS, seleccioná el paquete JSON preservado del conjunto o de la selección. Los archivos sueltos no se combinan automáticamente. La selección lógica admite plist, texto, JSON estructurado y catálogo SQLite, con límites y exclusiones explícitos.</p>
+        <p id="mobile-source-help" className="text-sm text-muted-foreground">Para WAL/SHM o archivos lógicos iOS, seleccioná el paquete JSON preservado del conjunto o de la selección. Los archivos sueltos no se combinan automáticamente. La selección lógica admite plist, texto, JSON estructurado y catálogo SQLite, con límites y exclusiones explícitos. Para registros de Safari, elegí ios-safari-history-sqlite y una copia preservada de History.db; este perfil no combina WAL/SHM ni interpreta fechas.</p>
         <Button disabled={!deviceId} variant="default" type="submit" className="h-auto min-h-10 whitespace-normal">Preservar bytes originales</Button>
       </fieldset></form>
     </fieldset>

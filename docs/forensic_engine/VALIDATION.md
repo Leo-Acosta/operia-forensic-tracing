@@ -1,5 +1,53 @@
 # Validación verificable
 
+## E6: registros SQLite Safari iOS, 2026-10-18
+
+Motor **0.7.0**, lector `operia.ios.safari-history` **1.0.0**, formato
+`ios-safari-history-sqlite`: [contrato, límites y exclusiones](E6_IOS_APP_SQLITE.md).
+Trece lectores y once formatos. Consultas fijas de columnas permitidas en
+history_items/history_visits sobre copia privada deserializada, hasta 500 filas
+por tabla, sin época de fechas inferida ni eventos de cronología. El formato de
+catálogo previo sigue sin leer filas de aplicaciones.
+
+**42 pruebas específicas aprobadas**, incluido un worker real AppContainer/Job:
+oráculo de dos visitas, referencia huérfana, elemento sin visita, BLOB/columnas/tabla
+privados no publicados, fechas desconocidas, IDs separados para valores iguales,
+límite 500/501, controles/tipos/URLs inválidos, esquemas activos, presupuesto VM,
+CLI `-S` sin descubrimiento de WAL señuelo, autorizador y copia intacta.
+Original/evidencia íntegros, evento de custodia, informe/exportación estables tras
+otra revisión, solo lectura, falta de concesión, revocación, otro expediente y
+organización ajena. El autorizador de Manifest/catálogo no obtuvo permisos Safari.
+
+Regresión de módulos afectados y pentest local: **296 aprobadas y 1 timeout HTTP**
+al crear un caso sintético por loopback; esa prueba **aprobó aislada**, sin cambiar
+código, permisos, timeout ni aserciones. Su causa no quedó determinada; no se
+reprodujo en esa repetición. Por tanto, **297 pruebas backend distintas con último
+resultado aprobado**, no una ejecución completa sin fallos. Las 42 específicas
+están incluidas; no se suman otra vez. Incluye motor, lectores anteriores,
+incorporaciones/proyecciones, permisos, custodia y controles de aislamiento OS.
+**No se ejecutó toda la suite backend** en este tramo. Cuatro advertencias de
+deprecación conocidas. Frontend: **52 aprobadas** y compilación TypeScript/Vite
+correcta, con ayuda accesible del perfil nuevo.
+
+Intentos previos: el primer unitario tuvo 22 aprobadas y 12 fallos en el control
+positivo del test que consultaba solo id; se cambió por la proyección permitida
+id,url, conservando el autorizador estricto. Las ejecuciones dentro del sandbox
+del comando dejaron de avanzar durante el recorrido API/worker y se interrumpieron;
+se repitieron fuera de ese sandbox, manteniendo AppContainer en los workers.
+No se declaran esos intentos como regresiones definitivas aprobadas.
+
+Comparación posterior a las pruebas: **74 tablas y todos sus valores, esquema,
+9 triggers y 116 archivos persistentes intactos**, SQLite integrity_check correcto,
+respaldo/restauración con SHA-256 idéntico. Sin migraciones ni recálculo de históricos.
+Runtime `1717d297499151af78ec5640`: **694 archivos** verificados en runtime operativo,
+archivo privado y copia restaurada; anteriores retenidos. Se ejecutó el runtime
+preparado con AppContainer, no el archivo privado restaurado.
+
+[Auditoría de entrega](../audits/e6-ios-app-sqlite-20261018.json).
+Validación sintética; pendientes corpus real autorizado por OS/esquema, asociación
+física, época de fechas, WAL/SHM del perfil, otras aplicaciones y validación física
+de accesibilidad. Los registros de entregas anteriores se conservan abajo.
+
 ## E6: JSON en archivos lógicos iOS preservados, 2026-10-18
 
 Motor **0.6.0**, lector lógico **1.1.0**: [cobertura y exclusiones](E6_IOS_LOGICAL_JSON.md).

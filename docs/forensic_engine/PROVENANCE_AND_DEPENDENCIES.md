@@ -60,3 +60,5 @@ No hay feeds por defecto. Cada conjunto aportado exige fuente y condiciones
 declaradas; la evaluación independiente de esas condiciones sigue a cargo del operador.
 
 Continuidad 0.6.0: lector estructural JSON propio con json de la biblioteca estándar y validación estricta reutilizada de canonical.read_json. Fixtures sintéticos originales; sin dependencias ni código externos nuevos.
+
+Continuidad 0.7.0: [lector Safari y referencias](E6_IOS_APP_SQLITE.md), implementación y fixtures propios con sqlite3 estándar, sin nuevas dependencias. iLEAPP safariHistory.py se consultó para nombres de formato y variantes, sin copiar implementación/corpus ni usar sus salidas como oráculo.

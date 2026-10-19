@@ -157,10 +157,12 @@ from operia.forensic_engine.backup_plists import BackupInfoReader, BackupManifes
 from operia.forensic_engine.sqlite_readers import ManifestDatabaseReader, SQLiteCatalogReader
 from operia.forensic_engine.wal_readers import SQLiteSetReader
 from operia.forensic_engine.logical_files import LogicalBackupReader
+from operia.forensic_engine.ios_app_sqlite import SafariHistoryReader
 
 READERS = (ProfilePlistReader(), PackageInventoryReader(), EpochLogReader(), BackupInfoReader(), BackupManifestReader(),
            ManifestDatabaseReader(), SQLiteCatalogReader("ios"), SQLiteCatalogReader("android"),
-           SQLiteSetReader("ios", manifest=True), SQLiteSetReader("ios"), SQLiteSetReader("android"), LogicalBackupReader())
+           SQLiteSetReader("ios", manifest=True), SQLiteSetReader("ios"), SQLiteSetReader("android"), LogicalBackupReader(),
+           SafariHistoryReader())
 
 
 def reader_order(readers=READERS):

@@ -11,7 +11,7 @@ anteriores permanecen como registros históricos y no se reescriben.
 | E4: experiencia premium | Implementado con validación sintética | [Migración de módulos](E4_LEGACY_MODULES.md); falta validación física de tecnologías de asistencia |
 | E4: NVDA, VoiceOver y TalkBack reales | Pendiente | [Matriz y criterios](ASSISTIVE_ACCESSIBILITY.md); las comprobaciones DOM/axe no son ejecución de esos lectores |
 | E5: laboratorio estático | CPython AST real, trabajos, revisión, interfaz premium e incorporación a hallazgos e informes implementados localmente | [Interfaz e incorporación revisada](STATIC_LAB_INTERFACE.md); alcance Python; otros proveedores pendientes |
-| E6: ampliación del motor propio | Motor 0.6.0: metadatos plist, SQLite/WAL/SHM y selección lógica iOS con JSON estructurado acotado y muestras sintéticas | [Contrato, cobertura y límites](forensic_engine/E6_IOS_LOGICAL_JSON.md); registros específicos de aplicaciones, formatos fuera del perfil y muestras reales pendientes |
+| E6: ampliación del motor propio | Motor 0.7.0: metadatos, SQLite/WAL/SHM, selección lógica iOS y perfil explícito de filas Safari, con muestras sintéticas | [Contrato, cobertura y límites](forensic_engine/E6_IOS_APP_SQLITE.md); variantes reales, otras aplicaciones y formatos fuera de perfil pendientes |
 | E7: operación productiva | Pendiente de aceptación completa | Existen [capas de seguridad](SECURITY_LAYERS.md); faltan los requisitos productivos del prompt maestro |
 | E8: cierre de versión/SaaS | Pendiente | Requiere alcance final, regresión, operación y pendientes resueltos; no se declara terminado |
 
