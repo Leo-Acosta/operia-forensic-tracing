@@ -272,6 +272,11 @@ def test_worker_cli_in_fresh_process_loads_shared_model_graph(client, admin_head
     environment["OPERIA_DATABASE_URL"] = database_url
     environment["OPERIA_STORAGE_DIR"] = str(tmp_path)
     (tmp_path / "temp").mkdir(exist_ok=True)
+    # External storage now owns its runtime. Provision it explicitly rather than
+    # relying on the development checkout's global prepared runtime.
+    prepared = subprocess.run([sys.executable, "-c", "from operia.security.sandbox_runtime import prepare; prepare()"],
+        env=environment, capture_output=True, timeout=60)
+    assert prepared.returncode == 0, prepared.stderr
     completed = subprocess.run([sys.executable, "-m", "operia.forensic_jobs.worker", "--once"],
         env=environment, capture_output=True, timeout=30)
     assert completed.returncode == 0, completed.stderr

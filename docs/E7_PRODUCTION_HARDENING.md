@@ -130,6 +130,10 @@ en disco y cierre explícito. No se repararon ni modificaron bases originales.
 
 ## Pendientes productivos: E7 continúa
 
+Continuación del 2026-10-19: [cuenta dedicada y ACL de código](E7_SERVICE_ACCOUNT.md)
+preparadas/probadas sobre staging sintético; cuenta deshabilitada. Los resultados
+de esta sección corresponden al tramo inicial, no sustituyen la nueva auditoría.
+
 Validación final 2026-10-19: **496 pruebas aprobadas, 1 omitida** (integración
 Ollama real opt-in) y 4 avisos de deprecación, 734,15 segundos. Incluye las 21
 pruebas nuevas de política, ACL, DPAPI y restauración adversarial. Sin cambios de
@@ -139,8 +143,9 @@ esquema idénticos en base habitual/restaurada, 9 triggers y 116 archivos previo
 intactos/restaurados; clave nueva recuperada con bytes idénticos.
 Ver [auditoría de esta entrega](audits/e7-production-hardening-20261019.json).
 
-1. Provisionar identidad dedicada y probar código/venv/migraciones readonly, ACL de
-   datos y lectura de clave bajo esa identidad; servicio/reinicio/actualizaciones.
+1. Identidad dedicada y ACL de código preparadas con prueba real de acceso en
+   staging; faltan runtime/venv protegido, lectura de clave efectiva y arranque
+   completo bajo esa identidad; servicio/reinicio/actualizaciones.
 2. Gateway TLS real, egreso por proveedor, secretos externos gestionados y MFA/
    recuperación de cuentas. El rechazo de CORS HTTP no demuestra que TLS exista.
 3. Destino cifrado independiente/offsite, programación, retención sin borrar

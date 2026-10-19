@@ -8,9 +8,10 @@ import subprocess
 import sys
 
 from operia.security.windows_sandbox import SandboxUnavailable, launch
+from operia.core.config import settings
 
 PROJECT = Path(__file__).resolve().parents[2]
-DEFAULT_ROOT = PROJECT / "storage" / "static-lab-runtime"
+DEFAULT_ROOT = settings.storage_dir.absolute() / "static-lab-runtime"
 MODULES = ("operia/__init__.py", "operia/security/__init__.py", "operia/security/child_guard.py",
     "operia/static_lab/__init__.py", "operia/static_lab/provider_entry.py")
 

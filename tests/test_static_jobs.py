@@ -151,6 +151,10 @@ def test_fresh_worker_process_consumes_durable_queue_and_attributes_custody(clie
         database_url=str(db.bind.url)
     environment={**os.environ,'OPERIA_DATABASE_URL':database_url,'OPERIA_STORAGE_DIR':str(settings.storage_dir.resolve()),
         'OPERIA_LOCAL_AI_ENABLED':'false','OPERIA_LOCAL_AI_GATEWAY_ENABLED':'false','OPERIA_CONNECTOR_ALLOWED_HOSTS':'[]'}
+    # A new configured storage needs its own explicitly provisioned runtime.
+    prepared=subprocess.run([sys.executable,'-c','from operia.static_lab.runtime import prepare; prepare()'],
+        env=environment,capture_output=True,timeout=60)
+    assert prepared.returncode==0,prepared.stderr
     process=subprocess.run([sys.executable,'-m','operia.static_lab.worker'],cwd=Path(__file__).resolve().parents[1],
         env=environment,capture_output=True,timeout=40)
     assert process.returncode==0,process.stderr.decode('utf-8',errors='replace')[-1000:]

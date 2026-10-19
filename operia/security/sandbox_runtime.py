@@ -8,9 +8,10 @@ import subprocess
 import sys
 
 from operia.security.windows_sandbox import SandboxUnavailable, launch
+from operia.core.config import settings
 
 PROJECT = Path(__file__).resolve().parents[2]
-DEFAULT_ROOT = PROJECT / "storage" / "sandbox-runtime"
+DEFAULT_ROOT = settings.storage_dir.absolute() / "sandbox-runtime"
 MODULES = ("operia/__init__.py", "operia/security/__init__.py",
     "operia/security/connector_worker.py", "operia/security/transport.py", "operia/security/errors.py",
     "operia/security/child_guard.py", "operia/security/ai_gateway_worker.py", "scripts/sandbox_probe.py")
