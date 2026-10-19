@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     mobile_storage_quota_bytes: int = Field(default=128 * 1024 * 1024, ge=5 * 1024 * 1024, le=2 * 1024 * 1024 * 1024)
     connector_allowed_hosts: list[str] = []
     auth_signing_key: SecretStr | None = None
+    auth_signing_key_file: Path | None = None
     local_ai_enabled: bool = False
     local_ai_gateway_enabled: bool = False
     local_ai_allowed_models: list[str] = ["mistral"]

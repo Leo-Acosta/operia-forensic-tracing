@@ -158,6 +158,7 @@ storage/
 - [Pasarela segura para IA local](docs/LOCAL_AI_GATEWAY.md)
 - [Testing](docs/TESTING.md)
 - [Deployment](docs/DEPLOYMENT.md)
+- [E7: privilegios mínimos, secretos y respaldos cifrados](docs/E7_PRODUCTION_HARDENING.md)
 - [Migration Notes](docs/MIGRATION_NOTES.md)
 - [Forense móvil: piloto, diagnóstico y límites](docs/MOBILE_FORENSICS.md)
 - [Motor móvil propio: arquitectura](docs/forensic_engine/ARCHITECTURE.md)

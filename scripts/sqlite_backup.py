@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 
@@ -22,7 +23,7 @@ def verify(path):
     manifest = json.loads(path.with_suffix(path.suffix + ".manifest.json").read_text(encoding="utf-8"))
     if manifest["sha256"] != sha256(path):
         raise ValueError("El hash del respaldo no coincide")
-    with sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True) as database:
+    with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)) as database:
         if database.execute("PRAGMA integrity_check").fetchall() != [("ok",)]:
             raise ValueError("SQLite detectó errores de integridad")
     return manifest
@@ -38,7 +39,7 @@ def copy_database(source, destination):
     destination.parent.mkdir(parents=True, exist_ok=True)
     with destination.open("xb"):
         pass
-    with sqlite3.connect(source.resolve().as_uri() + "?mode=ro", uri=True) as src, sqlite3.connect(destination) as dst:
+    with closing(sqlite3.connect(source.resolve().as_uri() + "?mode=ro", uri=True)) as src, closing(sqlite3.connect(destination)) as dst:
         src.backup(dst)
     manifest = {"schema": "operia-sqlite-backup/1", "sha256": sha256(destination),
                 "size_bytes": destination.stat().st_size,

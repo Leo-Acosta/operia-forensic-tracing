@@ -1,0 +1,71 @@
+{
+  "schema": "operia-e7-production-audit/1",
+  "date": "2026-10-19",
+  "baseline_commit": "d300817d2426f339b73bc72d84310f5d420ec7bc",
+  "status": "partial_hardening_not_production_ready",
+  "implemented": [
+    "Production startup rejects privileged Windows identities and unsafe secret configuration before schema initialization",
+    "Explicit private 32-byte signing-key file with no inline conflict or production fallback",
+    "Private ACL on new local keys before writing bytes",
+    "Offline bounded DPAPI user-scope encrypted recovery bundle with authenticated decryption, internal manifest and hashes",
+    "Restore validates complete bundle and SQLite before creating a new staging destination",
+    "SQLite backup connections explicitly closed",
+    "Docker local nonroot, readonly root, dropped capabilities, loopback port and build-context allowlist"
+  ],
+  "current_environment_findings": [
+    "production_mode_not_selected",
+    "supervisor_privileged_token",
+    "production_secret_file_required",
+    "production_https_origins_required"
+  ],
+  "preservation": {
+    "original_files_unchanged_and_restored": 116,
+    "live_and_restored_tables_with_identical_values_and_schema": 74,
+    "triggers_preserved": 9,
+    "integrity": "ok",
+    "migrations_or_dependency_changes": false,
+    "new_private_local_key_initialized": true,
+    "existing_key_replaced_or_rotated": false,
+    "effective_key_bytes_restored_identically": true,
+    "case_acl_custody_or_historical_records_rewritten": false
+  },
+  "recovery_rehearsal": {
+    "source": "Frozen private baseline copies from 2026-10-18 plus newly initialized local signing key; not a claim of live-service writer quiescence",
+    "files_verified_and_restored": 118,
+    "encryption": "windows-dpapi-current-user",
+    "ciphertext_sha256": "e6ae5680f52606dc0d26ddff0e58df4d640a05e2620699b31ccda45b69e888f8",
+    "restore": "New private staging tree; all original file hashes, SQLite schema and values, triggers and key bytes compared",
+    "limitations": [
+      "User/profile and normally host bound; not portable disaster recovery or offsite escrow",
+      "Explicit stopped-writers acknowledgement does not stop writers or guarantee atomic snapshots",
+      "128 MiB payload/ZIP, 5000 files, 32 MiB per file/database",
+      "Only enumerated data trees, SQLite, project config and explicit signing key",
+      "No original NTFS ACL, owner, timestamps, ADS or volume image",
+      "Absolute paths remain unchanged; no automatic activation",
+      "Private plaintext temporaries can remain after crash"
+    ]
+  },
+  "validation": {
+    "focused_tests": {"passed": 21, "report": "storage/test_runs/e7-focused.xml"},
+    "final_full_regression": {"status": "passed", "passed": 496, "skipped": 1, "warnings": 4, "duration_seconds": 734.15, "report": "storage/test_runs/e7-full-final.xml", "skip": "Optional real Ollama integration not enabled"},
+    "preliminary_full_run": "Interrupted intentionally for final private-parent hardening; not counted as complete",
+    "initial_test_findings_fixed": ["SQLite in-memory/disk header mismatch in comparison", "SQLite context managers did not close Windows file handles"],
+    "docker_compose_config": "passed",
+    "docker_image_build_and_runtime": "not tested: Docker daemon pipe unavailable",
+    "frontend": "unchanged; no new frontend test execution claimed",
+    "production_audit_exit": 1,
+    "production_rejection_expected": true
+  },
+  "remaining_acceptance": [
+    "Dedicated nonadministrator Windows identity with readonly code/venv/migrations and scoped data writes, service lifecycle trial",
+    "Managed external key provisioning and coordinated rotation",
+    "Real TLS gateway, provider egress controls, MFA and account recovery",
+    "Independent encrypted backup target, escrow, schedule, retention, RPO/RTO and operational host-loss restoration",
+    "Monitoring, alerts, shared quotas, PostgreSQL/multiinstance migrations and CI/SBOM/licenses",
+    "Docker build/runtime and equivalent Linux isolation before enabling analysis there",
+    "Physical assistive-technology validation and authorized real-device acquisitions remain pending"
+  ],
+  "deployment_or_publication_performed": false,
+  "human_programming_hours_recorded": 0,
+  "hours_added_from_ai_or_test_runtime": 0
+}

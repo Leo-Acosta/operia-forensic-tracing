@@ -266,6 +266,8 @@ def run_once(session_factory=None, timeout=None):
 
 
 def main():
+    from operia.security.production import enforce_production
+    enforce_production(settings)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args()

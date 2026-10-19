@@ -121,5 +121,7 @@ def run_once(factory=None, timeout=10):
         return True
 
 if __name__=='__main__':
+    from operia.security.production import enforce_production
+    enforce_production(settings)
     from operia.core import bootstrap as registry
     run_once()

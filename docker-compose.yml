@@ -3,14 +3,23 @@ services:
     build: .
     container_name: operia-forensic-tracing-api
     ports:
-      - "8020:8020"
+      - "127.0.0.1:8020:8020"
     environment:
       OPERIA_APP_NAME: "OPERIA Forensic Tracing"
       OPERIA_ENV: "docker-local"
       OPERIA_API_PREFIX: "/api"
       OPERIA_DATABASE_URL: "sqlite:///./storage/operia_forensic_tracing.db"
       OPERIA_STORAGE_DIR: "./storage"
-      OPERIA_CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173"
+      OPERIA_CORS_ORIGINS: '["http://localhost:5173","http://127.0.0.1:5173"]'
     volumes:
       - ./storage:/app/storage
+      - ./memory_vault:/app/memory_vault
+    user: "10001:10001"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=67108864,uid=10001,gid=10001,mode=0700
 

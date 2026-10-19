@@ -37,6 +37,8 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     def on_startup() -> None:
+        from operia.security.production import enforce_production
+        enforce_production(settings)
         from operia.identity.security import _secret
         _secret()  # Create/validate the signing key before serving concurrent requests.
         init_platform_schema()

@@ -10,10 +10,16 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY apps ./apps
 COPY operia ./operia
-COPY storage/.gitkeep ./storage/.gitkeep
+COPY migrations ./migrations
+COPY alembic.ini ./alembic.ini
 COPY .env.example ./.env.example
 
-RUN mkdir -p storage/evidence storage/uploads storage/exports storage/maps storage/temp
+RUN groupadd --gid 10001 operia \
+    && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin operia \
+    && mkdir -p storage/evidence storage/uploads storage/exports storage/maps storage/temp memory_vault \
+    && chown -R 10001:10001 storage memory_vault
+
+USER 10001:10001
 
 EXPOSE 8020
 

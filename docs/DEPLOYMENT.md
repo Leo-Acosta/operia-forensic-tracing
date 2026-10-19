@@ -90,7 +90,26 @@ Notes:
 
 ## Production Hardening Checklist
 
-Before any real SaaS deployment:
+Actualización E7, 2026-10-19: consultar [controles implementados, operación y
+pendientes](E7_PRODUCTION_HARDENING.md). El perfil Docker es local: Compose valida,
+pero build/runtime no se probaron porque el daemon no está disponible. No aporta
+aislamiento Linux equivalente al backend Windows.
+
+Para el perfil Windows, usar `.env.production.example` como referencia sin claves
+inline, una clave binaria externa de 32 bytes con ACL privada y una identidad
+dedicada sin Administradores. `scripts/production_audit.py` rechaza configuración
+insegura; `scripts/start-api-production.ps1` audita antes de iniciar. Esto no
+provisiona TLS, identidad ni servicio. La cuenta actual no cumple la política.
+
+El respaldo cifrado y su restauración a staging se operan mediante
+`scripts/recovery_bundle.py` según la guía E7. Requiere escritores detenidos y
+DPAPI del usuario: no sustituye copia independiente, escrow y ensayo de desastre.
+`scripts/sqlite_backup.py` continúa siendo una utilidad SQLite en claro, no un
+respaldo completo cifrado del expediente.
+
+Lista histórica de requisitos; permisos por expediente y procedimientos locales
+ya tienen implementaciones documentadas, pendientes de aceptación productiva.
+Antes de cualquier despliegue real del SaaS:
 
 - replace SQLite with PostgreSQL;
 - use Alembic migrations;

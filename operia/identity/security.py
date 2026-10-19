@@ -44,7 +44,8 @@ def verify_password(password: str, encoded: str) -> bool:
 
 @lru_cache(maxsize=128)
 def _stored_secret(path_string: str) -> bytes:
-    path = Path(path_string)
+    from operia.security.private_files import no_links, protect
+    path = no_links(path_string)
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
         descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -52,6 +53,7 @@ def _stored_secret(path_string: str) -> bytes:
         pass
     else:
         with os.fdopen(descriptor, "wb") as handle:
+            protect(path)  # Apply the private ACL before writing any secret bytes.
             handle.write(secrets.token_bytes(32))
             handle.flush()
             os.fsync(handle.fileno())
@@ -65,6 +67,13 @@ def _stored_secret(path_string: str) -> bytes:
 
 
 def _secret() -> bytes:
+    if settings.auth_signing_key_file is not None:
+        if settings.auth_signing_key is not None:
+            raise RuntimeError("auth_key_sources_conflict")
+        from operia.security.private_files import read_key
+        return read_key(settings.auth_signing_key_file)
+    if settings.env.lower() == "production":
+        raise RuntimeError("production_secret_file_required")
     if settings.auth_signing_key is not None:
         value = settings.auth_signing_key.get_secret_value().encode("utf-8")
         if len(value) < 32:
