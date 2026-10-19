@@ -39,3 +39,5 @@ no convierte los lectores de imagen principal anteriores en lectores de sidecars
 Motor 0.5.0: [selección lógica preservada](E6_IOS_LOGICAL_FILES.md), paquete total
 de 5 MiB y hasta 256 KiB por archivo. La selección no acredita backup completo,
 ausencia de archivos omitidos ni validación por versión de OS.
+
+Motor 0.6.0: [JSON lógico estructurado](E6_IOS_LOGICAL_JSON.md), UTF-8 con raíz objeto/array, 64 KiB, 24 niveles, 1024 nodos y 128 valores/exclusiones; sin semántica de aplicaciones ni cronología inferida.

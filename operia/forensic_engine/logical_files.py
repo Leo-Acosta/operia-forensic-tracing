@@ -88,6 +88,8 @@ def plist_values(raw):
 
 def read_content(raw, path):
     suffix = PurePosixPath(path).suffix.lower()
+    if suffix == ".json":
+        return json_values(raw)
     if suffix == ".plist":
         return plist_values(raw)
     if suffix in (".txt", ".log"):
@@ -108,9 +110,47 @@ def read_content(raw, path):
     raise UnsupportedSQLite("Extensión fuera de cobertura; solo hash y declaración de archivo")
 
 
+def json_values(raw):
+    """Structural observations only; no URL fetching, date parsing or app inference."""
+    tree = read_json(raw, limit=65536)
+    if not isinstance(tree, (dict, list)):
+        raise UnsupportedSQLite("JSON requiere raíz objeto o array")
+    records, excluded = [], []
+    budget = 0
+
+    def walk(value, locator):
+        nonlocal budget
+        budget += 1
+        if budget > 1024:
+            raise UnsupportedSQLite("JSON supera 1024 nodos")
+        if isinstance(value, (dict, list)) and not value:
+            excluded.append({"locator": locator, "reason": "Contenedor JSON vacío; sin valores escalares"})
+            if len(records) + len(excluded) > MAX_CONTENT_RECORDS:
+                raise UnsupportedSQLite("JSON supera 128 valores/exclusiones")
+        if isinstance(value, dict):
+            for key in sorted(value):
+                if len(key) > 128 or any(ord(c) < 32 or ord(c) == 127 for c in key):
+                    raise UnsupportedSQLite("Clave JSON fuera de límites")
+                walk(value[key], locator + "/" + key.replace("~", "~0").replace("/", "~1"))
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                walk(child, locator + "/" + str(index))
+        else:
+            if isinstance(value, str) and (len(value) > 2048 or any(
+                    (ord(c) < 32 and c not in "\t\r\n") or ord(c) == 127 for c in value)):
+                raise UnsupportedSQLite("Valor JSON supera límites de texto")
+            if len(records) + len(excluded) >= MAX_CONTENT_RECORDS:
+                raise UnsupportedSQLite("JSON supera 128 valores/exclusiones")
+            records.append((locator, "logical_json_scalar",
+                            {"value_type": "null" if value is None else type(value).__name__, "value": value}))
+
+    walk(tree, "json")
+    return records, excluded
+
+
 class LogicalBackupReader:
     identifier = "operia.ios.backup-logical-files"
-    version = "1.0.0"
+    version = "1.1.0"
     platform = "ios"
     format = "apple-backup-logical-set"
     dependencies = ()

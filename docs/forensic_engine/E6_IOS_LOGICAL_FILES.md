@@ -130,3 +130,5 @@ no equivale a leer backups completos ni a detectar spyware de forma certificada.
 Referencia primaria: [tipos y límites funcionales de plistlib](https://docs.python.org/3.12/library/plistlib.html).
 Se reutilizan los lectores propios [Manifest/SQLite](E6_MANIFEST_SQLITE.md) y
 [WAL/SHM](E6_WAL_SHM.md), sin copiar implementación ni corpus externos.
+
+Continuidad: [motor 0.6.0 y JSON estructurado](E6_IOS_LOGICAL_JSON.md). La entrega 0.5.0 y sus resultados anteriores se conservan como histórico.

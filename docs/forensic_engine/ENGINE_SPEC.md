@@ -32,3 +32,5 @@ Integridad se verifica al encolar, en worker y antes de revisar/exportar. Una
 coincidencia siempre es pendiente de corroboración. Detección distingue falta de
 datos, falta de indicadores/reglas activas, coincidencias y sin coincidencias en
 reglas aplicadas. Ninguna de ellas concluye infección automáticamente.
+
+Motor 0.6.0 / lector lógico 1.1.0: [escalares JSON y null con contexto de archivo/posición](E6_IOS_LOGICAL_JSON.md). Contrato y cuotas globales conservados; sin inferir fechas ni semántica de aplicaciones.

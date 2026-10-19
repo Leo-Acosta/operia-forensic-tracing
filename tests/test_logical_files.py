@@ -133,7 +133,7 @@ def test_invalid_package_or_association_rejects_all_artifacts(mutation):
     assert not result['artifacts'] and result['detection_status']=='sin_datos_analizables'
 
 
-def wal_manifest(tmp_path):
+def wal_manifest(tmp_path, first_path=PATHS[0]):
     path=tmp_path/'manifest-source.db'; db=sqlite3.connect(path)
     try:
         db.execute(SCHEMA)
@@ -141,7 +141,7 @@ def wal_manifest(tmp_path):
         db.executemany('INSERT INTO Files VALUES(?,?,?,?,?)',rows); db.commit()
         db.execute('PRAGMA journal_mode=WAL'); db.execute('PRAGMA wal_autocheckpoint=0')
         db.execute('PRAGMA wal_checkpoint(TRUNCATE)')
-        db.execute('UPDATE Files SET relativePath=? WHERE fileID=?',(PATHS[0],IDS[0])); db.commit()
+        db.execute('UPDATE Files SET relativePath=? WHERE fileID=?',(first_path,IDS[0])); db.commit()
         return pack_set(path.read_bytes(),Path(str(path)+'-wal').read_bytes(),Path(str(path)+'-shm').read_bytes())
     finally: db.close()
 
@@ -191,13 +191,19 @@ def test_cli_explicit_files_preserves_copies_and_never_discovers_omitted_files(t
 
 
 @pytest.mark.parametrize('with_wal',[False,True])
-def test_real_logical_worker_permissions_custody_and_historical_reports(tmp_path,client,admin_headers,with_wal):
+@pytest.mark.parametrize('with_json',[False,True])
+def test_real_logical_worker_permissions_custody_and_historical_reports(tmp_path,client,admin_headers,with_wal,with_json):
     from test_native_mobile_workflow import setup,enqueue,database_factory,native_review
     from test_case_access import analyst,grant
     from test_security_audit import second_tenant
     from operia.forensic_jobs import worker
     manifest,files=fixtures()
-    if with_wal: manifest=wal_manifest(tmp_path)
+    first_path = 'Library/sample.json' if with_json else PATHS[0]
+    if with_json:
+        rows = list(ROWS); rows[0] = (IDS[0], 'HomeDomain', first_path, 1, b'private')
+        manifest = image(rows=rows)
+        files[0] = (IDS[0], canonical_bytes({'flag': True, 'count': 2, 'nested': {'id': 'benign'}}))
+    if with_wal: manifest=wal_manifest(tmp_path, first_path)
     raw=pack_logical(manifest,files,MANIFEST_FORMATS[int(with_wal)])
     root,acquisition,_=setup(client,admin_headers,platform='ios',filename='logical-set.json',format='apple-backup-logical-set',raw=raw)
     job=enqueue(client,admin_headers,root,acquisition)
@@ -205,6 +211,8 @@ def test_real_logical_worker_permissions_custody_and_historical_reports(tmp_path
     path=root+f"/jobs/{job['id']}"; detail=client.get(path,headers=admin_headers).json()
     assert detail['job']['state']=='completado_con_limitaciones',detail
     assert len(detail['result']['artifacts'])==11
+    if with_json:
+        assert len([a for a in detail['result']['artifacts'] if a['kind'] == 'logical_json_scalar']) == 3
     ids=[a['id'] for a in detail['result']['artifacts']]
     review=client.post(path+'/reviews',headers=admin_headers,json=native_review(ids)).json()
     exported=client.post(path+'/exports',headers=admin_headers,json={'format':'json'}).json()

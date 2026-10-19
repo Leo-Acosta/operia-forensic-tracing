@@ -97,3 +97,5 @@ El formato lógico agrega una adquisición nueva con bytes de manifiesto y selec
 no modifica fuentes ni informes existentes y no requiere migración de tablas.
 Se preservan runtimes y auditorías anteriores. El archivo restaurado del runtime
 se verifica por manifiesto/hashes sin ejecutarlo ni conceder acceso al depósito.
+
+Continuidad 0.6.0: respaldo y restauración independientes en storage/temp/e6-ios-logical-json-20261018, con ACL privada, base y archivos persistentes. JSON amplía la interpretación de adquisiciones nuevas; no requiere migración ni recalcula históricos. Runtime 0.6.0 archivado/restaurado por separado y verificado por manifiesto; versiones anteriores retenidas.

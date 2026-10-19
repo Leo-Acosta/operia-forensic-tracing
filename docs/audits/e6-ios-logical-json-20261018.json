@@ -1,0 +1,96 @@
+{
+  "schema": "operia-e6-ios-logical-json-audit/1",
+  "date": "2026-10-18",
+  "base_commit": "10f4b75207c1a425b44679fc0ae4f5ac964235c9",
+  "engine_version": "0.6.0",
+  "result_schema": "operia.forensic/1",
+  "reader": {
+    "id": "operia.ios.backup-logical-files",
+    "version": "1.1.0"
+  },
+  "readers": 12,
+  "formats": 10,
+  "scope": "Bounded structural JSON from explicitly selected preserved logical iOS file copies, linked to Files declarations in main or WAL manifest",
+  "limits": {
+    "json_bytes": 65536,
+    "depth": 24,
+    "value_and_container_nodes": 1024,
+    "scalars_and_exclusions": 128,
+    "key_characters": 128,
+    "string_characters": 2048
+  },
+  "coverage": {
+    "types": [
+      "string",
+      "bool",
+      "int",
+      "finite float",
+      "null"
+    ],
+    "root": [
+      "object",
+      "array"
+    ],
+    "encoding": "UTF-8, optional BOM",
+    "file_id_hash_and_escaped_position": true,
+    "empty_containers": "localized exclusions",
+    "on_invalid_or_over_budget_content": "Entire file content excluded; file declaration and hash retained"
+  },
+  "not_implemented": [
+    "App-specific schemas",
+    "JSONL/NDJSON",
+    "Decryption",
+    "Physical association authentication",
+    "Timeline inference from JSON strings",
+    "Remote URL resolution",
+    "Automatic AI ingestion",
+    "Real authorized device corpus",
+    "Physical assistive technology validation"
+  ],
+  "preservation": {
+    "tables_unchanged": 74,
+    "schema_unchanged": true,
+    "files_unchanged_and_restored": 116,
+    "triggers": 9,
+    "integrity": "ok",
+    "backup_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7",
+    "restored_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7"
+  },
+  "runtime": {
+    "runtime_identity": "38aabf7ea9926a525201a6a5",
+    "files_verified": 693,
+    "archive_and_restored_verified": true,
+    "previous_runtimes_retained": true
+  },
+  "validation": {
+    "focused": {
+      "tests": 58,
+      "skipped": 0,
+      "failures": 0,
+      "errors": 0
+    },
+    "affected_module_regression": {
+      "tests": 200,
+      "skipped": 0,
+      "failures": 0,
+      "errors": 0
+    },
+    "distinct_backend_tests_passed": 239,
+    "full_backend_suite_run": false,
+    "frontend": {
+      "passed": 52,
+      "build": "TypeScript/Vite passed"
+    },
+    "real_logical_workers": 4,
+    "new_json_workers": 2,
+    "case_read_grant_revoke_foreign_org": "passed",
+    "old_report_and_export_after_new_review": "unchanged",
+    "initial_attempt": "52 passed, 6 temporary-directory setup errors inside command sandbox; rerun outside command sandbox passed; AppContainer isolation remained enabled"
+  },
+  "dependencies_added": [],
+  "database_migrations": [],
+  "work_hours": {
+    "human_hours_added": 0,
+    "reason": "No new human work-hour source; AI runtime not charged"
+  }
+}

@@ -1,6 +1,6 @@
 # Catálogo de lectores implementados
 
-Lectores versión 1.0.0, de implementación propia. Los perfiles WAL reutilizan los
+Lectores de implementación propia: versión 1.0.0 salvo el lector lógico iOS 1.1.0. Los perfiles WAL reutilizan los
 lectores SQLite sobre su imagen derivada; no dependen de resultados de otros jobs.
 Fuente global de hasta 5 MiB; los metadatos de backup se limitan a 1 MiB.
 Hasta 5000 registros interpretados; los perfiles de conjunto WAL añaden un artefacto
@@ -20,7 +20,7 @@ a 8192 caracteres. Se mantiene la cuota global de salida de 16 MiB.
 | operia.ios.manifest-wal-set | paquete operia.sqlite-set/1 | procedencia de componentes/derivada y Files del último commit WAL | sqlite-set/provenance y derived/Files/fileID:<id> | BLOB, archivos físicos, fechas y transacciones intermedias |
 | operia.ios.sqlite-wal-set | mismo paquete preservado | procedencia y catálogo SQLite del último commit | sqlite-set/provenance y derived/sqlite_schema/... | registros arbitrarios, DDL y recuperación de borrados |
 | operia.android.sqlite-wal-set | mismo paquete preservado | procedencia y catálogo SQLite del último commit | sqlite-set/provenance y derived/sqlite_schema/... | registros arbitrarios y contenido lógico |
-| operia.ios.backup-logical-files | operia.ios-logical-set/1: manifiesto Files y selección de bytes por fileID | procedencia, hashes, escalares plist, líneas UTF-8 y catálogo SQLite | logical-set/provenance y logical/<fileID>/... | archivos omitidos, directorios, BLOB/UID, NSKeyedArchiver, binarios, filas SQLite y formatos fuera del perfil |
+| operia.ios.backup-logical-files | operia.ios-logical-set/1: manifiesto Files y selección de bytes por fileID | procedencia, hashes, escalares plist/JSON, líneas UTF-8 y catálogo SQLite | logical-set/provenance y logical/<fileID>/... | archivos omitidos, directorios, BLOB/UID, NSKeyedArchiver, binarios, filas SQLite y formatos fuera del perfil |
 
 Payloads inválidos y líneas no reconocidas conservan localizador y motivo en
 exclusiones. Las claves plist duplicadas se rechazan; profundidad/nodos son
@@ -35,8 +35,10 @@ logcat no son eventos. Los registros duplicados se enlazan y no duplican alertas
 Oráculos manuales y datos: tests/fixtures/native_mobile/README.md. No se usaron
 adquisiciones reales ni salidas de otro motor como verdad de referencia.
 
-Motor actual 0.5.0: doce lectores y diez formatos distintos. [Selección lógica](E6_IOS_LOGICAL_FILES.md),
+Motor actual 0.6.0: doce lectores y diez formatos distintos. [Selección lógica](E6_IOS_LOGICAL_FILES.md),
 [contrato WAL/SHM](E6_WAL_SHM.md),
 [límites SQLite](E6_MANIFEST_SQLITE.md) y [tramo plist anterior](E6_BACKUP_METADATA.md).
 Los perfiles SQLite requieren los controles de la compilación validada, rechazan
 esquemas incompatibles y nunca abren la evidencia como una base de datos en disco.
+
+El lector lógico 1.1.0 incluye [JSON acotado](E6_IOS_LOGICAL_JSON.md), con escalares y null, sin interpretar esquemas de aplicaciones.

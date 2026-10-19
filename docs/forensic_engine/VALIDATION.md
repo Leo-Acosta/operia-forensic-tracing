@@ -1,5 +1,48 @@
 # Validación verificable
 
+## E6: JSON en archivos lógicos iOS preservados, 2026-10-18
+
+Motor **0.6.0**, lector lógico **1.1.0**: [cobertura y exclusiones](E6_IOS_LOGICAL_JSON.md).
+Agrega escalares JSON/null con tipo, fileID, SHA-256 y posición escapada, sin
+interpretar esquemas de aplicaciones ni producir cronología. Contenedores vacíos
+como exclusiones localizadas. Rechazo completo de contenido inválido o excesivo,
+con declaración/hash de archivo preservados; sin publicación de prefijos.
+
+**239 pruebas backend distintas aprobadas**, sin fallos, errores ni omisiones:
+58 específicas iniciales (incluyen cuatro workers reales, dos con JSON), y 200 de
+regresión de módulos afectados. Se superponen 19 pruebas JSON; no sumar recuentos
+como si fueran pruebas diferentes. La regresión incluye las dos comprobaciones
+JSON finales de nodos y límites exactos, para 21 pruebas JSON en total. Incluye
+motor, plist, Manifest/SQLite/WAL, flujo nativo, incorporaciones/proyecciones,
+permisos por expediente y custodia. **No se ejecutó toda la suite backend** en
+este tramo. Cuatro advertencias de deprecación conocidas. Frontend: **52 aprobadas**
+y compilación TypeScript/Vite correcta, incluida la ayuda accesible actualizada.
+
+Oráculos sintéticos: tipos JSON, BOM, null, posiciones iguales, claves escapadas,
+contenedores vacíos, fecha/URL tratadas como texto. Negativos de claves duplicadas,
+números no finitos, Unicode/controles, encoding, raíz, profundidad, nodos, bytes,
+claves/strings y cantidad de valores. Workers AppContainer/Job para Files principal
+y WAL: permisos solo lectura, revocación y organización ajena; original preservado,
+informe y exportación sin cambios tras otra revisión.
+
+El primer intento tuvo 52 aprobadas y 6 errores de setup al crear temporales de
+pytest dentro del sandbox del comando. La repetición fuera de ese sandbox, con
+temporales explícitos, aprobó las 58. El aislamiento AppContainer de los workers
+se mantuvo activo. No se interpreta ese intento como fallo del lector ni como
+validación definitiva.
+
+Respaldo/restauración privados nuevos: **74 tablas con todos sus valores, esquema,
+9 triggers y 116 archivos persistentes intactos**, integridad SQLite correcta y
+hash idéntico de respaldo/restauración. Sin migraciones ni recálculo de históricos.
+Runtime `38aabf7ea9926a525201a6a5`: **693 archivos** verificados en runtime preparado,
+archivo privado y copia restaurada, con runtimes anteriores retenidos. Se ejecutó
+el runtime preparado mediante workers reales; no el archivo privado restaurado.
+
+[Auditoría de entrega](../audits/e6-ios-logical-json-20261018.json).
+Pendientes: corpus autorizado real por OS/método, lectores de aplicaciones,
+asociación física, cifrado y validación física de tecnologías de asistencia.
+Los apartados siguientes conservan los resultados históricos anteriores.
+
 ## E6: selección lógica iOS preservada, 2026-10-18
 
 Motor **0.5.0**, [contrato, cobertura y límites](E6_IOS_LOGICAL_FILES.md): manifiesto

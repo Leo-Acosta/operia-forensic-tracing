@@ -49,3 +49,5 @@ explícitas, sin recorrer rutas extraídas. Lectura escalar plist, texto y catá
 SQLite probados con datos sintéticos; hashes y omisiones identificados. P6 sigue
 pendiente para registros de aplicaciones, otros formatos, asociación física y
 adquisiciones reales consistentes por versión de OS.
+
+Continuidad E6: [motor 0.6.0, JSON en selección lógica](E6_IOS_LOGICAL_JSON.md). Corpus real y lectores específicos permanecen pendientes.

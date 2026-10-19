@@ -95,3 +95,5 @@ Actualizacion 2026-10-17: la [pasarela de IA local](../LOCAL_AI_GATEWAY.md) ya e
 implementada, deshabilitada por defecto. Requiere preparacion del runtime, dos
 flags globales, modelo concedido por organizacion y caso autorizado. Los workers
 siguen sin loopback. La guia describe el servicio Ollama confiable y sus limites.
+
+Continuidad del lector lógico: [JSON estructurado, límites y exclusiones](E6_IOS_LOGICAL_JSON.md), motor 0.6.0. Preparar runtime nuevo antes de encolar trabajos; mantener resultados/versiones anteriores.

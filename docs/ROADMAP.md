@@ -33,8 +33,8 @@ instantánea derivada del último commit y cabeceras SHM contrastadas sobre conj
 preservados. Continúan pendientes formatos fuera del perfil, registros lógicos,
 capturas consistentes autorizadas por versión y validación en dispositivos reales.
 
-Continuidad actual: [motor 0.5.0, archivos lógicos iOS](forensic_engine/E6_IOS_LOGICAL_FILES.md),
-selección explícita vinculada por fileID declarado, valores plist, líneas de texto,
+Continuidad actual: [motor 0.6.0, archivos lógicos iOS](forensic_engine/E6_IOS_LOGICAL_JSON.md),
+selección explícita vinculada por fileID declarado, valores plist/JSON, líneas de texto,
 catálogo SQLite y hashes; omisiones/exclusiones preservadas. Pendientes lectores
 específicos de aplicaciones, asociación física y corpus real autorizado por OS.
 

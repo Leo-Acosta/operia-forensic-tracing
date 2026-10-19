@@ -58,3 +58,5 @@ Recrear el inventario al cambiar dependencias. No incorpora datos de casos ni se
 No se usan marcas/logos ajenos ni se sugiere respaldo, certificación o equivalencia.
 No hay feeds por defecto. Cada conjunto aportado exige fuente y condiciones
 declaradas; la evaluación independiente de esas condiciones sigue a cargo del operador.
+
+Continuidad 0.6.0: lector estructural JSON propio con json de la biblioteca estándar y validación estricta reutilizada de canonical.read_json. Fixtures sintéticos originales; sin dependencias ni código externos nuevos.
