@@ -165,7 +165,7 @@ storage/
 - [E6: metadatos de backups iOS, motor 0.2.0](docs/forensic_engine/E6_BACKUP_METADATA.md)
 - [E6: Manifest.db y catálogo SQLite acotados, motor 0.3.0](docs/forensic_engine/E6_MANIFEST_SQLITE.md)
 - [E6: WAL/SHM sobre conjuntos preservados, motor 0.4.0](docs/forensic_engine/E6_WAL_SHM.md)
-- [E6 actual: registros SQLite de Safari iOS, motor 0.7.0](docs/forensic_engine/E6_IOS_APP_SQLITE.md)
+- [E6: cierre acotado 0.7.0, regresión completa y demostración pública](docs/forensic_engine/E6_CLOSURE_0_7_0.md)
 
 ## Disclaimer
 

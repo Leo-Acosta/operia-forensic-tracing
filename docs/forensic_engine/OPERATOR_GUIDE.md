@@ -99,3 +99,5 @@ siguen sin loopback. La guia describe el servicio Ollama confiable y sus limites
 Continuidad del lector lógico: [JSON estructurado, límites y exclusiones](E6_IOS_LOGICAL_JSON.md), motor 0.6.0. Preparar runtime nuevo antes de encolar trabajos; mantener resultados/versiones anteriores.
 
 Perfil nuevo 0.7.0: [Safari History.db preservado](E6_IOS_APP_SQLITE.md). Elegir explícitamente ios-safari-history-sqlite; no aportar WAL/SHM sueltos ni cambiar formatos de adquisiciones anteriores. Preparar runtime nuevo y reiniciar servicios controladamente.
+
+Cierre acotado 0.7.0: [acta y demostración pública](E6_CLOSURE_0_7_0.md), [matriz final](COVERAGE_MATRIX.md). La carpeta Muestras para Validacion está junto a new_unified_app; leer LEEME_DEMOSTRACION.md. El perfil es solo para lectura, no instalación; la reproducción usa base desechable y no el servicio habitual. Las adquisiciones reales siguen pendientes.

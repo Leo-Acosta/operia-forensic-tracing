@@ -1,5 +1,11 @@
 # Entrega y dependencias
 
+Estado actual: [cierre técnico acotado E6 0.7.0](E6_CLOSURE_0_7_0.md).
+El catálogo queda congelado en 13 lectores / 11 formatos. La validación de
+adquisiciones reales permanece pendiente por falta de muestras. El alcance más
+amplio P6 de la tabla histórica siguiente es evolución posterior, no obligación
+de agregar lectores indefinidamente antes de E7.
+
 Fecha: 2026-10-16. Ningún documento sustituye validación de código.
 
 | Tarea | Depende | Aceptación | Estado |

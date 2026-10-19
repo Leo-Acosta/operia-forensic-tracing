@@ -1,0 +1,264 @@
+{
+  "schema": "operia-e6-closure-audit/1",
+  "date": "2026-10-18",
+  "base_commit": "1ddf43d62b390c7eb52ca25e34bb63da2fe49a7a",
+  "engine_version": "0.7.0",
+  "result_schema": "operia.forensic/1",
+  "bounded_scope_status": "Technical closure for existing 0.7.0 catalog; real device acquisition validation pending",
+  "catalog": {
+    "readers": [
+      {
+        "id": "operia.android.logcat-epoch",
+        "version": "1.0.0",
+        "platform": "android",
+        "format": "android-logcat-epoch"
+      },
+      {
+        "id": "operia.android.package-inventory",
+        "version": "1.0.0",
+        "platform": "android",
+        "format": "android-pm-packages"
+      },
+      {
+        "id": "operia.android.sqlite-catalog",
+        "version": "1.0.0",
+        "platform": "android",
+        "format": "sqlite-schema-catalog"
+      },
+      {
+        "id": "operia.android.sqlite-wal-set",
+        "version": "1.0.0",
+        "platform": "android",
+        "format": "sqlite-wal-catalog-set"
+      },
+      {
+        "id": "operia.ios.backup-info",
+        "version": "1.0.0",
+        "platform": "ios",
+        "format": "apple-backup-info-plist"
+      },
+      {
+        "id": "operia.ios.backup-logical-files",
+        "version": "1.1.0",
+        "platform": "ios",
+        "format": "apple-backup-logical-set"
+      },
+      {
+        "id": "operia.ios.backup-manifest",
+        "version": "1.0.0",
+        "platform": "ios",
+        "format": "apple-backup-manifest-plist"
+      },
+      {
+        "id": "operia.ios.backup-manifest-db",
+        "version": "1.0.0",
+        "platform": "ios",
+        "format": "apple-backup-manifest-sqlite"
+      },
+      {
+        "id": "operia.ios.configuration-profile",
+        "version": "1.0.0",
+        "platform": "ios",
+        "format": "apple-profile-plist"
+      },
+      {
+        "id": "operia.ios.manifest-wal-set",
+        "version": "1.0.0",
+        "platform": "ios",
+        "format": "apple-backup-manifest-wal-set"
+      },
+      {
+        "id": "operia.ios.safari-history",
+        "version": "1.0.0",
+        "platform": "ios",
+        "format": "ios-safari-history-sqlite"
+      },
+      {
+        "id": "operia.ios.sqlite-catalog",
+        "version": "1.0.0",
+        "platform": "ios",
+        "format": "sqlite-schema-catalog"
+      },
+      {
+        "id": "operia.ios.sqlite-wal-set",
+        "version": "1.0.0",
+        "platform": "ios",
+        "format": "sqlite-wal-catalog-set"
+      }
+    ],
+    "distinct_formats": 11,
+    "matrix_all_entries_verified": true,
+    "matrix_sha256": "8403290ca2cc6980b62bc4e3c5888db8e21202a527c5678151eacab59a4bddf5",
+    "prior_matrix_preserved_sha256": "5729e3fb94864e8de3d6cf1488f6415dc9f5188eaca4bcafdcfafdf494f87dcd"
+  },
+  "full_regression": {
+    "counts": {
+      "tests": 476,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1
+    },
+    "passed": 475,
+    "http_pentest_in_full_suite": "passed",
+    "http_test_total_seconds_including_fixture": 2.255,
+    "skipped": [
+      {
+        "name": "test_real_ollama_case_and_tenant_isolation",
+        "reason": "Real Ollama requires explicit operator opt-in"
+      }
+    ],
+    "frontend_passed": 52,
+    "typescript_vite_build": "passed",
+    "public_demo_files_preserved_and_restored": 15
+  },
+  "http_investigation": {
+    "original_client_timeout_seconds": 5,
+    "production_or_test_timeout_changed": false,
+    "confirmed_repetitions": [
+      {
+        "run": "e6-closure-http-confirm-1.xml",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "suite_seconds": 4.211
+      },
+      {
+        "run": "e6-closure-http-confirm-2.xml",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "suite_seconds": 4.424
+      },
+      {
+        "run": "e6-closure-http-confirm-3.xml",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "suite_seconds": 3.827
+      },
+      {
+        "run": "e6-closure-http-confirm-4.xml",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "suite_seconds": 4.005
+      },
+      {
+        "run": "e6-closure-http-confirm-5.xml",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "suite_seconds": 4.455
+      }
+    ],
+    "full_suite_http_test_passed": true,
+    "root_cause": "Not established; previous ReadTimeout not reproduced; no unverified fix claimed",
+    "diagnostic_note": "4-second faulthandler covers whole test including fixtures, not individual HTTP request latency. Initial attempt retained two passing XML files before diagnostic command ended; definitive series has five complete passing XML files."
+  },
+  "preservation": {
+    "tables_unchanged": 74,
+    "schema_unchanged": true,
+    "files_unchanged_and_restored": 116,
+    "triggers": 9,
+    "integrity": "ok",
+    "backup_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7",
+    "restored_sha256": "95cc9394deff4c424247e29c0417aa530b20384ef334de109439cbde6320eaf7"
+  },
+  "runtime": {
+    "runtime_identity": "1717d297499151af78ec5640",
+    "files_verified": 694,
+    "archive_and_restored_verified": true,
+    "previous_runtimes_retained": true
+  },
+  "sample_inventory": {
+    "scope": "Project workspace, native mobile acquisition registry in usual database, declared native-mobile fixtures; no arbitrary device folders scanned",
+    "native_acquisition_counts_by_format": [],
+    "registered_mobile_devices": 0,
+    "fixture_files": [
+      "tests/fixtures/native_mobile/README.md",
+      "tests/fixtures/native_mobile/backup-info.plist",
+      "tests/fixtures/native_mobile/backup-manifest.plist",
+      "tests/fixtures/native_mobile/indicators.json",
+      "tests/fixtures/native_mobile/logcat-epoch.txt",
+      "tests/fixtures/native_mobile/packages.txt",
+      "tests/fixtures/native_mobile/profile.plist"
+    ],
+    "fixture_origin": "README explicitly declares original synthetic corpus",
+    "real_authorized_acquisition_identified": false,
+    "actual_evidence_content_opened_or_sent": false
+  },
+  "user_confirmation": "No real authorized acquisitions available; explicitly requested public repository sample in Muestras para Validacion",
+  "external_public_artifact_demo": {
+    "schema": "operia-public-profile-demo/1",
+    "engine_version": "0.7.0",
+    "source_sha256": "16d21588869c2dea74a78033f50c57ed25c7745b726237b816f14eb9bb77fb59",
+    "external_repository_commit": "af713462bfc9b2f2ac26734e64cdb72571c7b782",
+    "acquisition_metadata_origin": "Explicit external repository, commit, license and user authorization; not generic fixture provenance",
+    "classification": "Public configuration artifact; not a device acquisition or malware",
+    "worker": "Real AppContainer/Job Object, no network",
+    "artifacts": 1,
+    "alerts": 0,
+    "timeline_events": 0,
+    "manual_oracle": "PayloadContent/0 type and identifier match preserved XML",
+    "cli_and_worker_results_identical": true,
+    "evidence_integrity_and_custody_entry_verified": true,
+    "grant_read_only_revocation_foreign_org": true,
+    "old_report_export_after_new_review": "unchanged",
+    "database": "Disposable test database under storage/test_runs; usual database not used",
+    "device_installation_dns_changes_or_remote_resolution": false,
+    "manual_dns_review": {
+      "protocol": "HTTPS",
+      "server_url_as_declared": "https://dns.quad9.net/dns-query",
+      "engine_interprets_dnssettings": false,
+      "live_resolver_checked": false
+    },
+    "output_folder": "C:\\Users\\LiberaTion\\Desktop\\Proyectos Ciber\\Operia Forensic Tracing\\Muestras para Validacion\\demostracion_aislada\\verificada-b0070c9c"
+  },
+  "public_sample_provenance": {
+    "schema": "operia-public-demo-source/1",
+    "repository": "https://github.com/paulmillr/encrypted-dns",
+    "commit": "af713462bfc9b2f2ac26734e64cdb72571c7b782",
+    "retrieved_utc": "2026-10-19T02:26:47.065676+00:00",
+    "license": "Unlicense (preserved original text)",
+    "authorization": "User requested public repository sample for local passive demonstration",
+    "classification": "Public benign configuration artifact; not malware, not acquired from a device",
+    "no_installation_or_execution": true,
+    "files": [
+      {
+        "filename": "LICENSE.encrypted-dns.txt",
+        "source_path": "LICENSE",
+        "source_url": "https://raw.githubusercontent.com/paulmillr/encrypted-dns/af713462bfc9b2f2ac26734e64cdb72571c7b782/LICENSE",
+        "sha256": "6b0382b16279f26ff69014300541967a356a666eb0b91b422f6862f6b7dad17e",
+        "size_bytes": 1211
+      },
+      {
+        "filename": "quad9-default-https.mobileconfig",
+        "source_path": "profiles/quad9-default-https.mobileconfig",
+        "source_url": "https://raw.githubusercontent.com/paulmillr/encrypted-dns/af713462bfc9b2f2ac26734e64cdb72571c7b782/profiles/quad9-default-https.mobileconfig",
+        "sha256": "16d21588869c2dea74a78033f50c57ed25c7745b726237b816f14eb9bb77fb59",
+        "size_bytes": 1805
+      }
+    ]
+  },
+  "public_demo_final_files_preserved_and_restored": 15,
+  "validation_states": {
+    "synthetic_positive_negative_and_corrupt": "All 13 readers",
+    "public_external_artifact": "operia.ios.configuration-profile only; one benign real public configuration profile, no installation",
+    "authorized_real_device_acquisition": "Pending for all readers; none available or fabricated"
+  },
+  "demo_preliminary_attempts": "Preserved; initial comparison used API counts projection instead of complete worker result; final comparison uses stored core bytes. New final acquisition has explicit external provenance; overlong date metadata was rejected and shortened. No prior records edited.",
+  "scope_frozen": true,
+  "readers_added": 0,
+  "dependencies_added": [],
+  "database_migrations": [],
+  "hours": {
+    "recorded_human_hours": 0,
+    "added": 0,
+    "reason": "No human hour source; AI runtime and test durations not charged"
+  },
+  "remaining": {
+    "external_dependency": "Authorized real device corpus, OS/method, hashes, authorization and manual oracle",
+    "later_engine_versions": "Other app schemas, Safari WAL/SHM, timestamp epoch/physical association, Android bugreport variants",
+    "later_project_stages": "Physical accessibility validation E4; productive operation E7; final SaaS acceptance E8"
+  }
+}

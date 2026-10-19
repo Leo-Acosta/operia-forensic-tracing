@@ -33,11 +33,12 @@ instantánea derivada del último commit y cabeceras SHM contrastadas sobre conj
 preservados. Continúan pendientes formatos fuera del perfil, registros lógicos,
 capturas consistentes autorizadas por versión y validación en dispositivos reales.
 
-Continuidad actual: [motor 0.7.0, registros Safari iOS](forensic_engine/E6_IOS_APP_SQLITE.md),
-selección explícita vinculada por fileID declarado, valores plist/JSON, líneas de texto,
-catálogo SQLite y hashes; agrega un perfil explícito de filas Safari sin época de
-fecha inferida. Omisiones/exclusiones preservadas. Pendientes otras aplicaciones,
-asociación física y corpus real autorizado por OS.
+Continuidad actual: [cierre técnico acotado de E6, motor 0.7.0](forensic_engine/E6_CLOSURE_0_7_0.md),
+13 lectores / 11 formatos, regresión completa y demostración de perfil público
+externo. Adquisiciones de dispositivos y corpus por OS pendientes por falta de
+muestras. La siguiente etapa del prompt maestro es E7, operación productiva.
+Las listas de scaffold siguientes se conservan como roadmap histórico; el estado
+vigente por etapa está en [DELIVERY_STATUS](DELIVERY_STATUS.md).
 
 ## Near Term
 

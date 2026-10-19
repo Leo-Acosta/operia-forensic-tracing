@@ -1,5 +1,50 @@
 # Validación verificable
 
+## Cierre técnico acotado E6 0.7.0, 2026-10-18
+
+**Regresión backend completa: 475 aprobadas, 1 omitida, 0 fallos/errores**,
+476 casos, 763.35 segundos, cuatro deprecaciones conocidas. La omisión de Ollama
+real exige opt-in explícito; no se confunde un proveedor real con una adquisición
+de dispositivo. Frontend: **52 aprobadas** y TypeScript/Vite correcto.
+
+El pentest HTTP que había dado ReadTimeout pasó dentro de esa regresión, en
+2.255 segundos incluyendo fixture. Cinco repeticiones adicionales confirmadas
+pasaron con el timeout original de 5 segundos. No se reprodujo el incidente;
+causa raíz no determinada, sin aumentar límites ni cambiar aserciones/permisos.
+Tiempos, diagnóstico de 4 segundos y ensayos previos en el acta, sin presentarlos
+como prueba de una reparación que no se hizo.
+
+[La matriz final](COVERAGE_MATRIX.md) fue contrastada con el catálogo: **13 lectores,
+11 formatos**, versiones y exclusiones explícitas; matriz anterior preservada
+íntegra en history. Sin lectores, dependencias o migraciones nuevos.
+
+El usuario confirmó que no dispone de adquisiciones reales autorizadas. Cero
+adquisiciones nativas y cero dispositivos registrados en la base habitual, leída
+solo para inventario. El corpus de fixtures es sintético. Por pedido adicional se
+preservó un perfil Quad9 público externo y su licencia Unlicense desde una revisión
+fija de paulmillr/encrypted-dns, con hashes y procedencia.
+
+Demostración externa del lector de perfiles: un payload DNS administrado,
+metadatos contrastados con XML, resultado CLI/worker idéntico, worker AppContainer,
+evidencia y custodia, informe/exportación estables tras otra revisión, solo lectura,
+revocación y organización ajena. Base de demostración desechable y procedencia
+externa explícita. Perfil no instalado; sin DNS remoto, malware ejecutado ni
+cambios del equipo. Los detalles DNSSettings son revisión manual, no extracción
+automática del lector. No acredita adquisición de dispositivo ni valida otros
+formatos, versiones de OS o detección de malware.
+
+**74 tablas y todos sus valores, esquema, 9 triggers y 116 archivos persistentes
+intactos**, integridad y respaldo/restauración idénticos. Runtime
+1717d297499151af78ec5640: **694 archivos** verificados en operativo, archivo y
+restauración privados, con anteriores retenidos. Los **15 archivos** finales de
+la carpeta pública de demostración se archivaron/restauraron y verificaron por
+hash; ensayos anteriores conservados.
+
+[Acta de cierre, limitaciones y recuperación](E6_CLOSURE_0_7_0.md).
+[Auditoría](../audits/e6-closure-20261018.json). Cierre del alcance técnico 0.7.0;
+validación con dispositivos pendiente, con E7/E8 y accesibilidad física E4 aparte.
+Las entregas y resultados históricos siguientes no se reescriben.
+
 ## E6: registros SQLite Safari iOS, 2026-10-18
 
 Motor **0.7.0**, lector `operia.ios.safari-history` **1.0.0**, formato

@@ -62,3 +62,5 @@ declaradas; la evaluación independiente de esas condiciones sigue a cargo del o
 Continuidad 0.6.0: lector estructural JSON propio con json de la biblioteca estándar y validación estricta reutilizada de canonical.read_json. Fixtures sintéticos originales; sin dependencias ni código externos nuevos.
 
 Continuidad 0.7.0: [lector Safari y referencias](E6_IOS_APP_SQLITE.md), implementación y fixtures propios con sqlite3 estándar, sin nuevas dependencias. iLEAPP safariHistory.py se consultó para nombres de formato y variantes, sin copiar implementación/corpus ni usar sus salidas como oráculo.
+
+Cierre E6 0.7.0: [artefacto público Quad9 y licencia Unlicense](E6_CLOSURE_0_7_0.md), repositorio paulmillr/encrypted-dns fijado a af713462bfc9b2f2ac26734e64cdb72571c7b782. Solo perfil XML y licencia en la carpeta externa solicitada, sin código ni dependencia nuevos. Validación de artefacto externo, no dispositivo adquirido ni malware. Auditorías y corpus sintéticos originales se conservan.
