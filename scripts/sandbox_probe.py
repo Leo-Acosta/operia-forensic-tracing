@@ -60,12 +60,34 @@ def main():
             child = subprocess.Popen([sys.executable, "-I", "-S", "-B", "-c", "pass"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             child.wait(timeout=2)
+        user = C.WinDLL('user32', use_last_error=True)
+        user.OpenClipboard.argtypes=[W.HANDLE]; user.OpenClipboard.restype=W.BOOL
+        user.CloseClipboard.argtypes=[]
+        user.OpenDesktopW.argtypes=[W.LPCWSTR,W.DWORD,W.BOOL,W.DWORD]; user.OpenDesktopW.restype=W.HANDLE
+        user.CloseDesktop.argtypes=[W.HANDLE]
+        k.GlobalAddAtomW.argtypes=[W.LPCWSTR]; k.GlobalAddAtomW.restype=W.WORD
+        k.GlobalFindAtomW.argtypes=[W.LPCWSTR]; k.GlobalFindAtomW.restype=W.WORD
+        k.GlobalDeleteAtom.argtypes=[W.WORD]
+        def atom():
+            value=k.GlobalAddAtomW('OperiaSyntheticProbe-'+str(os.getpid())+'-'+str(time.time_ns()))
+            if not value: raise C.WinError(C.get_last_error())
+            k.GlobalDeleteAtom(value)
+        def clipboard():
+            if not user.OpenClipboard(None): raise C.WinError(C.get_last_error())
+            user.CloseClipboard()  # Never inspect clipboard contents.
+        def default_desktop():
+            handle=user.OpenDesktopW('Default',0,False,1)
+            if not handle: raise C.WinError(C.get_last_error())
+            user.CloseDesktop(handle)  # Never switch or inspect the desktop.
         result = {"appcontainer": bool(contained.value),
             "read_private_canary": attempt(lambda: Path(data["private_canary"]).read_bytes()),
             "write_private_canary": attempt(lambda: Path(data["private_canary"]).write_bytes(b"probe")),
             "write_runtime": attempt(lambda: Path(data["runtime_canary"]).write_bytes(b"probe")),
             "spawn_descendant": attempt(spawn), "parent_memory": attempt(parent_memory),
             "loopback": attempt(network),
+            "global_atom": attempt(atom), "clipboard": attempt(clipboard),
+            "parent_atom_isolated": bool(data.get('parent_atom')) and not bool(k.GlobalFindAtomW(data.get('parent_atom',''))),
+            "default_desktop": attempt(default_desktop),
             "secrets_absent": not any(key in os.environ for key in ("OPERIA_AUTH_SIGNING_KEY", "HTTP_PROXY", "HTTPS_PROXY", "PYTHONPATH")),
             "site_packages_absent": not any("site-packages" in path.lower() for path in sys.path)}
         print(json.dumps(result))

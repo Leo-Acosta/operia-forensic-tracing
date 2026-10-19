@@ -1,0 +1,116 @@
+{
+  "schema": "operia-e7-windows-service-audit/1",
+  "date": "2026-10-19",
+  "baseline_commit": "5181014a65f69663923e75e0b58d6daccb45763b",
+  "status": "installed_synthetic_service_partial_integration_final_acceptance_pending_uac_cancelled",
+  "e7_complete": false,
+  "production_deployed": false,
+  "deployment": {
+    "root": "C:/ProgramData/OPERIA-E7-Service-20261019",
+    "service": "OperiaE7Validation",
+    "account": "OperiaSvc",
+    "account_sid": "S-1-5-21-1583293382-2426271138-3818441678-1004",
+    "active_release": "9d55a523ff52f27438b29a15",
+    "active_release_is_final_working_source": false,
+    "prepared_final_source": "storage/temp/e7-scm-final-source-20261019; 225 code files; runtime not copied; no live data or key",
+    "data": "Synthetic DB, evidence, signing key and DPAPI canaries only; habitual application not migrated",
+    "runtime": "Previously verified offline CPython 3.12.14 / 42 packages / 3734 files; no new downloads",
+    "host": "Local .NET Framework ServiceBase host; suspended Python assigned to kill-on-close Job before resume",
+    "bind": "127.0.0.1:29876; no TLS gateway deployed"
+  },
+  "verified": {
+    "host_and_native_helper_compilation": true,
+    "windows_credential_manager_roundtrip_and_cleanup": true,
+    "service_registered_under_expected_account": true,
+    "required_privileges_queried_from_scm": ["SeChangeNotifyPrivilege"],
+    "actual_service_token": {
+      "elevated": false,
+      "administrator_member": false,
+      "system": false,
+      "integrity_rid": 8192
+    },
+    "api_loopback_started_under_scm": true,
+    "protected_file_write_denials_in_service_startup": true,
+    "operator_credential_not_visible_in_service_profile": true,
+    "fixed_benign_ast_probe_completed_in_appcontainer_session_zero": true,
+    "version_update_with_verified_encrypted_backup": true,
+    "startup_failure_rolled_back_code_without_database_restore": true,
+    "encrypted_update_bundles_retained": 7,
+    "account_group_sids": ["S-1-5-32-545"],
+    "failure_actions_read_back_ms": [5000, 15000, 30000],
+    "failure_counter_reset_seconds": 86400,
+    "failure_reboot_or_command": false,
+    "service_dacl_management_principals": ["SYSTEM", "Administrators"],
+    "unprivileged_operator_management_denied": true,
+    "fault_injection_requires_explicit_switch": true,
+    "interactive_station_and_all_packages_negative_controls_passed": true
+  },
+  "implementation": {
+    "credential_transport": "SecureString + zeroed native buffers into CredWrite/CreateService/ChangeServiceConfig; no password argv/env/config/log",
+    "credential_rotation": "NetUserChangePassword with old password, not administrative reset; pending/active vault entries and non-secret journal",
+    "recovery": "Explicit pending credential/update recovery; never silently rewind evidence DB",
+    "service_logon": "Dedicated SID granted service logon; interactive, remote interactive and network logon denied",
+    "desktop": "Session 0 Service-* non-visible station only; fresh package SID rights 0x20123, private low-integrity desktop, cross-process ACL mutex, revoke on close; Job UI mask remains 0xff",
+    "atom_policy": "Job owns a separate atom table; final source verifies inability to find a known parent atom, not denial of own atom creation",
+    "source_layout": "Versioned protected code/runtime, shared synthetic data and signing key, atomic active-release file",
+    "update_backup_limits": {"total_bytes": 134217728, "file_bytes": 33554432, "files": 5000},
+    "backup_secret_handling": "Synthetic key copied only to operator-private temporary scratch for existing validator, encrypted bundle includes key; scratch removed",
+    "final_acceptance_script": "scripts/validate-windows-service.ps1; elevated synthetic-only explicit fault-injection invocation; PID scoped to executable/command/SCM parent/SID"
+  },
+  "pending_actual_scm_validation": [
+    "Publish final source snapshot and validate corrected effective-boundary startup probe",
+    "Complete native and static application jobs, case permissions, custody and synthetic report preservation under corrected service release",
+    "Restart generation and old PID/tree cleanup, deliberate supervisor death and automatic SCM recovery",
+    "Rotate SAM/SCM credential and prove existing service DPAPI canary decrypts afterward",
+    "Recover pending credentials after SAM changed but SCM cache did not",
+    "Reject tampered candidate before stopping running service",
+    "Exercise interrupted-update recovery and JWT/revocation preservation through all lifecycle operations"
+  ],
+  "trial_findings": [
+    "First SCM token rejected by unchanged production guard; fixed SCM required-privileges list, subsequently measured non-elevated token and medium integrity",
+    "Private recovery folder lacked operator's explicit ACE required by existing validator; fixed operator-only/admin/system ACL without service access",
+    "Session-0 AppContainer _ctypes/USER32 DLL initialization failed; fixed per-package station initialization rights and private desktop while retaining Job UI restrictions; AST selftest passed",
+    "First application static job failed before USER32 fix; retained as failed historical synthetic job, not relabeled successful",
+    "Acceptance retry encountered duplicate synthetic organization name; source now includes unique nonce, no prior rows deleted",
+    "Initial atom test expected all creation denied; corrected to documented per-job table isolation with positive parent control; corrected SCM run was not executed",
+    "Regression after isolation policy hash changed lacked prepared runtime for three case-worker tests; prepared new versions and retested; final selective regression passed"
+  ],
+  "tests": {
+    "selective_regression_passed": 161,
+    "selective_regression_seconds": 266.56,
+    "final_service_module_passed": 12,
+    "final_service_module_seconds": 2.96,
+    "service_module_tests_overlapping_regression": 10,
+    "warnings": 4,
+    "full_repository_suite_executed": false,
+    "powershell_source_parse": "passed",
+    "git_diff_check": "passed",
+    "raw_junit": ["storage/test_runs/e7-scm-closure.xml", "storage/test_runs/e7-scm-operator-boundaries.xml"]
+  },
+  "preservation": {
+    "habitual_database_tables_values_and_schema_identical": 74,
+    "triggers_preserved": 9,
+    "original_files_unchanged_and_previously_restored": 116,
+    "habitual_signing_key_matches_restored_backup": true,
+    "habitual_signing_key_replaced": false,
+    "sqlite_integrity": "ok",
+    "existing_encrypted_backup_sha256": "e6ae5680f52606dc0d26ddff0e58df4d640a05e2620699b31ccda45b69e888f8",
+    "old_release_and_trial_records_deleted": false,
+    "human_hours_added_without_records": 0
+  },
+  "final_readonly_state": {
+    "service": "Stopped",
+    "service_pid": 0,
+    "start_mode": "Manual",
+    "account_disabled": true,
+    "active_operator_credential_present": true,
+    "pending_operator_credential_present": false,
+    "pending_update": false,
+    "elevation_result": "Windows returned user-cancelled operation for final UAC launch; no further elevation requested or service mutation performed"
+  },
+  "remaining_production_work": [
+    "Finish SCM acceptance, then controlled migration of effective configuration and exact signing-key bytes",
+    "TLS, provider egress, monitoring, retention and independent/offsite/escrow recovery, operating acceptance",
+    "Real-device acquisition and physical assistive-technology validation remain separate existing pending items"
+  ]
+}

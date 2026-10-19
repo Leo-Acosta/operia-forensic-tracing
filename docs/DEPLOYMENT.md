@@ -153,3 +153,14 @@ Actualizacion 2026-10-17: la [pasarela de IA local](LOCAL_AI_GATEWAY.md) ya esta
 implementada, deshabilitada por defecto. Requiere preparacion del runtime, dos
 flags globales, modelo concedido por organizacion y caso autorizado. Los workers
 siguen sin loopback. La guia describe el servicio Ollama confiable y sus limites.
+
+## Servicio Windows: continuidad E7
+
+El [procedimiento de servicio](E7_WINDOWS_SERVICE.md) prepara una instalación
+sintética nueva en ProgramData, con cuenta OperiaSvc, host SCM, versiones de
+código separadas de datos, reinicios y credenciales mediante APIs de Windows.
+Incluye actualización con respaldo cifrado y recuperación explícita sin restaurar
+automáticamente la DB. Consultar la auditoría del tramo antes de activar: la
+compilación o instalación del servicio no acreditan por sí solas que los workers
+funcionen bajo SCM, ni reemplazan TLS, recuperación independiente o aceptación
+productiva. La instalación habitual y sus históricos no se migran con este ensayo.

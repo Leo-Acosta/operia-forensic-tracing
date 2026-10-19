@@ -1,0 +1,166 @@
+{
+  "schema": "operia-e7-dpapi-recovery-audit/1",
+  "date": "2026-10-19",
+  "baseline_commit": "5181014a65f69663923e75e0b58d6daccb45763b",
+  "status": "controlled_local_dpapi_rotation_and_recovery_accepted",
+  "local_slice_complete": true,
+  "e7_complete": false,
+  "production_deployed": false,
+  "fix": {
+    "explicit_sid": "CryptUpdateProtectedState receives the actual service token SID, rather than NULL. On this host only the explicit SID restored actual canary decryption. Migration counters alone never grant readiness.",
+    "identity": "Actual OperiaSvc SCM process, medium integrity, no administrator/SYSTEM membership. User-scope DPAPI retained; no machine-scope fallback.",
+    "credential_transaction": "Known old/new change, 52-character CSPRNG credentials, sealed previous/pending until same ciphertext canary decrypts and readiness succeeds. Recovery reports whether pending committed or previous credential was restored.",
+    "failure_rollback": "A separately published integrity-checked candidate forces migration failure. The verified prior credential and identical DPAPI canary are recovered before clearing pending/previous. No database rollback.",
+    "local_channel": "One-instance local admin-owned named pipe verifies client service SID; no plaintext secret files, argv or environment.",
+    "scm_probe": "Synthetic crash uses isolated failure reset=0; finally restores 86400 seconds and the bounded restart sequence. Admin handle requests only CHANGE_CONFIG|START, as required for restart actions."
+  },
+  "scm_lifecycle": {
+    "status": "passed",
+    "account_disabled": true,
+    "service_stopped": true,
+    "schema": "operia-scm-lifecycle/1",
+    "stage": "final",
+    "scenario": "Full",
+    "checks": {
+      "graceful_restart_and_tree_cleanup": true,
+      "tampered_update_rejected_before_stop": true,
+      "scm_automatic_crash_recovery": true,
+      "failed_startup_rollback_preserves_database": true,
+      "api_case_custody_workers": true,
+      "failed_migration_previous_credential_and_same_dpapi_recovered": true,
+      "pending_credential_recovery": true,
+      "version_update_with_verified_backup": true,
+      "interrupted_update_recovery": true,
+      "credential_rotation_and_dpapi_preservation": true
+    }
+  },
+  "dpapi_canaries": {
+    "v1": {
+      "ciphertext_sha256": "b445ab27c085ea26f8d1d554b363860a1c16a0342a32517aacb5c0144c7e54d1",
+      "decrypts_as_service": false
+    },
+    "v2": {
+      "ciphertext_sha256": "3cdc75a298cb323c039071b90fd94105a908c9b4c385019ab1b7fbd77cedd4ec",
+      "decrypts_as_service": true
+    },
+    "v3": {
+      "ciphertext_sha256": "7f900d9b07e76025b8714fbb215b6f542c46db7b4833e1419539d8280fd13d3d",
+      "same_ciphertext_preserved_across_normal_rotation_interruption_and_rollback": true,
+      "decrypts_as_service": true
+    }
+  },
+  "legacy_limit": "V1 is a fixed synthetic canary from an earlier failed prototype. Ciphertext remains unchanged; original credential is unavailable and decryption is not recovered. It contains no evidence, reports, signing keys or passwords.",
+  "encrypted_service_backup_and_new_tree_restore": {
+    "schema": "operia-recovery-verification/1",
+    "files_verified": 28,
+    "encrypted": true,
+    "encryption": "windows-dpapi-current-user",
+    "sha256": "6977fe1c0fef00ed0dc9a27eb35bff25aaba4ffee066475c578439987b0f1d94",
+    "database_integrity": "ok",
+    "restored_to_new_tree": true,
+    "files_restored": 28,
+    "all_table_rows_and_schema_identical": 79,
+    "custody_triggers_identical": 19,
+    "signing_key_identical": true,
+    "live_database_not_restored": true,
+    "backup_name": "update-042941cbd2d6490e965a4b9d5a3784b2.dpapi",
+    "restored_tree": "C:\\ProgramData\\OPERIA-E7-Service-20261019\\management\\recovery-verified-8f7d675be6f64058bd49263fe1280a60"
+  },
+  "final_state": {
+    "service": {
+      "State": "Stopped",
+      "ProcessId": 0,
+      "StartMode": "Manual",
+      "StartName": ".\\OperiaSvc"
+    },
+    "account_disabled": true,
+    "active_release": "ebd1cdf6615241f794630198",
+    "active_credential_present": true,
+    "pending_present": false,
+    "previous_present": false,
+    "update_pending": false,
+    "required_privileges_readback": "[SC] QueryServiceConfig2 CORRECTO\r\n\r\nNOMBRE_DE_SERVICIO: OperiaE7Validation\r\n        PRIVILEGIOS       : SeChangeNotifyPrivilege",
+    "scm_recovery_readback": "[SC] QueryServiceConfig2 CORRECTO\r\n\r\nNOMBRE_SERVICIO: OperiaE7Validation\r\n        PERÍODO_REINICIO (en segundos): 86400\r\n        MENSAJE_REINICIO              : \r\n        LÍNEA_COMANDOS                : \r\n        ACCIONES_ERROR                 : REINICIAR - Retraso= 5000 ms\r\n                                         REINICIAR - Retraso= 15000 ms\r\n                                         REINICIAR - Retraso= 30000 ms",
+    "service_dacl_readback": "D:P(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;AU)S:(AU;FA;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;WD)"
+  },
+  "token_readback": {
+    "administrator_member": false,
+    "elevated": false,
+    "integrity_rid": 8192,
+    "sid": "S-1-5-21-1583293382-2426271138-3818441678-1004",
+    "system": false
+  },
+  "sandbox_effective_boundaries": {
+    "appcontainer": true,
+    "clipboard": {
+      "denied": "PermissionError",
+      "winerror": 5
+    },
+    "default_desktop": {
+      "denied": "PermissionError",
+      "winerror": 5
+    },
+    "generation": "42508f242d504966a78f42b9d67810de",
+    "global_atom": "allowed",
+    "loopback": {
+      "denied": "TimeoutError",
+      "winerror": null
+    },
+    "parent_atom_isolated": true,
+    "parent_memory": {
+      "denied": "PermissionError",
+      "winerror": 5
+    },
+    "read_private_canary": {
+      "denied": "PermissionError",
+      "winerror": null
+    },
+    "secrets_absent": true,
+    "site_packages_absent": true,
+    "spawn_descendant": {
+      "denied": "OSError",
+      "winerror": 1816
+    },
+    "write_private_canary": {
+      "denied": "PermissionError",
+      "winerror": null
+    },
+    "write_runtime": {
+      "denied": "PermissionError",
+      "winerror": null
+    }
+  },
+  "tests": {
+    "selected_regression": {
+      "passed": 164,
+      "errors": 0,
+      "failures": 0,
+      "junit": "storage/test_runs/e7-dpapi-final-regression.xml"
+    },
+    "final_windows_module": {
+      "passed": 13,
+      "errors": 0,
+      "failures": 0,
+      "junit": "storage/test_runs/e7-dpapi-recovery-unit.xml"
+    },
+    "scope": "Relevant selected regression and actual SCM integration, not the entire repository suite; Windows module overlaps regression."
+  },
+  "habitual_data_preservation": {
+    "original_files_unchanged_and_restored": 116,
+    "tables_values_and_schema_preserved_live_and_restored": 74,
+    "triggers_preserved": 9,
+    "integrity": "ok",
+    "new_private_key_matches_restored": true,
+    "existing_key_replaced": false,
+    "encrypted_bundle_sha256": "e6ae5680f52606dc0d26ddff0e58df4d640a05e2620699b31ccda45b69e888f8"
+  },
+  "remaining_production_scope": [
+    "TLS/reverse proxy and effective production secrets configuration",
+    "Recovery independent of original host/operator DPAPI and off-host retention",
+    "Remaining production hardening acceptance; physical accessibility and real-device acquisitions retain their previous pending status"
+  ],
+  "work_hours": {
+    "recorded_human_hours": 0,
+    "new_inferred_hours": 0
+  }
+}

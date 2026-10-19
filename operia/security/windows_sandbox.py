@@ -102,11 +102,12 @@ def _check(value):
 
 
 class SandboxedProcess:
-    def __init__(self, kernel, handle, job, pid, stdin, stdout, stderr, userenv, profile):
+    def __init__(self, kernel, handle, job, pid, stdin, stdout, stderr, userenv, profile, desktop=None):
         self._kernel, self._handle, self._job = kernel, handle, job
         self.pid, self.stdin, self.stdout, self.stderr = pid, stdin, stdout, stderr
         self.returncode = None
         self._userenv, self._profile = userenv, profile
+        self._desktop = desktop
 
     def poll(self):
         if self.returncode is None:
@@ -175,6 +176,8 @@ class SandboxedProcess:
             if stream and not stream.closed:
                 try: stream.close()
                 except OSError: pass  # A killed child may have broken its stdin pipe.
+        if self._desktop:
+            self._desktop.close(); self._desktop = None
         if self._profile:
             result = self._userenv.DeleteAppContainerProfile(self._profile)
             self._profile = None
@@ -182,7 +185,7 @@ class SandboxedProcess:
                 raise SandboxUnavailable("sandbox_profile_cleanup_failed")
 
 
-def launch(root: Path, module: str, *, internet=False, memory_mb=256, cpu_seconds=10):
+def launch(root: Path, module: str, *, internet=False, memory_mb=256, cpu_seconds=10, diagnostic_stderr=False):
     """Trusted internal launcher; callers choose a fixed module, never user code."""
     k, u, a = _apis()
     import msvcrt
@@ -191,11 +194,14 @@ def launch(root: Path, module: str, *, internet=False, memory_mb=256, cpu_second
     sid, capability = C.c_void_p(), C.c_void_p()
     job, attributes, process, pipes = None, None, PROCESS_INFORMATION(), []
     transferred, initialized, profile_created = False, False, False
+    desktop = None
     profile = "Operia.Ephemeral." + uuid.uuid4().hex
     try:
         if u.CreateAppContainerProfile(profile, profile, "Disposable OPERIA worker", None, 0, C.byref(sid)) != 0:
             raise SandboxUnavailable("sandbox_identity_failed")
         profile_created = True
+        from operia.security.private_desktop import create
+        desktop = create(sid)
         capabilities = None
         if internet:
             _check(a.ConvertStringSidToSidW("S-1-15-3-1", C.byref(capability)))  # internetClient only
@@ -225,8 +231,13 @@ def launch(root: Path, module: str, *, internet=False, memory_mb=256, cpu_second
         _check(k.UpdateProcThreadAttribute(attributes, 0, 0x20002, handles, C.sizeof(handles), None, None))
         _check(k.UpdateProcThreadAttribute(attributes, 0, 0x20009, C.byref(security), C.sizeof(security), None, None))
         startup = STARTUPINFOEX(); startup.StartupInfo.cb = C.sizeof(startup)
+        if desktop: startup.StartupInfo.lpDesktop = desktop.name
         startup.StartupInfo.dwFlags = 0x100
         startup.StartupInfo.hStdInput, startup.StartupInfo.hStdOutput, startup.StartupInfo.hStdError = handles
+        if diagnostic_stderr:
+            # Internal fixed benign startup probe only; normal workers discard
+            # stderr, keeping untrusted evidence out of operational logs.
+            startup.StartupInfo.hStdError = handles[1]
         startup.lpAttributeList = C.cast(attributes, C.c_void_p)
         command = C.create_unicode_buffer(subprocess.list2cmdline([str(executable), "-I", "-S", "-B", "-m", module]))
         system_root = os.environ.get("SystemRoot", r"C:\Windows")
@@ -243,7 +254,7 @@ def launch(root: Path, module: str, *, internet=False, memory_mb=256, cpu_second
             raise SandboxUnavailable("sandbox_resume_failed")
         for fd in child_fds: os.close(fd); pipes.remove(fd)
         child = SandboxedProcess(k, process.hProcess, job, process.dwProcessId,
-            os.fdopen(input_write, "wb"), os.fdopen(output_read, "rb", buffering=0), None, u, profile)
+            os.fdopen(input_write, "wb"), os.fdopen(output_read, "rb", buffering=0), None, u, profile, desktop)
         pipes.remove(input_write); pipes.remove(output_read)
         transferred = True
         return child
@@ -255,6 +266,7 @@ def launch(root: Path, module: str, *, internet=False, memory_mb=256, cpu_second
                 k.TerminateProcess(process.hProcess, 137); k.WaitForSingleObject(process.hProcess, 3000)
             if process.hProcess: k.CloseHandle(process.hProcess)
             if job: k.CloseHandle(job)
+            if desktop: desktop.close()
             if profile_created: u.DeleteAppContainerProfile(profile)
         for fd in pipes: os.close(fd)
         if initialized: k.DeleteProcThreadAttributeList(attributes)

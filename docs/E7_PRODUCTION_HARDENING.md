@@ -161,3 +161,22 @@ Referencias primarias: [DPAPI de usuario y límites de recuperación](https://le
 [DACL Windows](https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setnamedsecurityinfow).
 No certifica resistencia frente a un administrador del host ni disponibilidad de
 un despliegue que todavía no se ha probado.
+
+Continuidad del 2026-10-19: se preparó e instaló el [servicio SCM de ensayo](E7_WINDOWS_SERVICE.md),
+con autoprueba AST real, token mínimo y actualización/rollback parcialmente
+probados. La aceptación completa de reinicio, rotación y recuperación quedó
+pendiente al cancelarse la última elevación UAC. Se conserva el servicio manual,
+detenido y con la cuenta deshabilitada; no se migró la instalación habitual.
+Este registro posterior no sustituye los resultados históricos de arriba.
+
+Aceptación integral retomada el 2026-10-19: trabajos, permisos, custodia, reinicio
+y recuperación automática SCM comprobados. Se detectó fallo de preservación DPAPI
+al rotar credenciales. La [auditoría de continuidad](audits/e7-windows-service-acceptance-20261019.json)
+registra los canarios sintéticos fallidos, las credenciales de recuperación
+conservadas y la corrección preparada sin aceptación final. La última UAC fue
+cancelada; servicio detenido, cuenta deshabilitada y pending/previous presentes.
+E7 sigue pendiente y no se habilitó producción. La regresión seleccionada pasó
+164 pruebas; el módulo Windows final pasó 13. Los datos habituales siguen intactos.
+
+
+Continuidad DPAPI del 2026-10-19: [rotación y recuperación aceptadas localmente](audits/e7-dpapi-recovery-20261019.json), con SID explícito, mismo ciphertext, recuperación de v2, rollback de credencial fallida y restauración cifrada en árbol nuevo. V1 sintético sigue sin descifrado y queda documentado. Servicio detenido y cuenta deshabilitada, sin pending/previous/update-pending. Esta aceptación local no habilita producción ni sustituye TLS o recuperación independiente.

@@ -23,7 +23,7 @@ def sources():
 
 def identity():
     digest = hashlib.sha256(b"operia-appcontainer-runtime/2\0" + sys.version.encode())
-    policy = [Path(__file__), PROJECT / "operia/security/windows_sandbox.py"]
+    policy = [Path(__file__), PROJECT / "operia/security/windows_sandbox.py", PROJECT / "operia/security/private_desktop.py"]
     for file in sorted(sources() + policy):
         digest.update(file.relative_to(PROJECT).as_posix().encode()); digest.update(file.read_bytes())
     return digest.hexdigest()[:24]

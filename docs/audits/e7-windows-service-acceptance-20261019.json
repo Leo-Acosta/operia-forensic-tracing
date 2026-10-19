@@ -1,0 +1,116 @@
+{
+  "schema": "operia-e7-windows-service-acceptance/1",
+  "date": "2026-10-19",
+  "baseline_commit": "5181014a65f69663923e75e0b58d6daccb45763b",
+  "status": "partial_acceptance_dpapi_rotation_failed_final_uac_cancelled",
+  "e7_complete": false,
+  "production_deployed": false,
+  "verified": {
+    "api_synthetic_native_and_static_jobs": true,
+    "case_default_deny_grant_revocation": true,
+    "tenant_isolation": true,
+    "custody_update_delete_denied": true,
+    "reports_and_custody_history": true,
+    "graceful_restart_old_process_cleanup": true,
+    "scm_automatic_crash_recovery": true,
+    "appcontainer_effective_boundaries": true,
+    "code_runtime_config_key_readonly": true,
+    "nonprivileged_service_token_medium_integrity": true,
+    "operator_credential_vault_hidden_from_service": true
+  },
+  "not_accepted": {
+    "dpapi_preservation_across_service_password_rotation": false,
+    "pending_credential_recovery_with_same_canary": false,
+    "complete_update_tamper_and_rollback_lifecycle_this_continuation": "not_reached",
+    "new_service_backup_restore_acceptance": "not_run_lifecycle_guard_failed"
+  },
+  "findings": [
+    {
+      "id": "E7-SCM-01",
+      "finding": "NetUserChangePassword rejected 68-character credentials with error 1325",
+      "change": "New CSPRNG credentials are 52 characters; regular compatible changes use NetAPI. SSPI bridge exists only for pre-existing long credentials.",
+      "validation": "Compilation/vault/length tests passed; final SCM acceptance of bounded path did not run after UAC cancellation."
+    },
+    {
+      "id": "E7-SCM-02",
+      "finding": "Successful SAM/SCM password change did not preserve decryption of synthetic service DPAPI canaries. CryptUpdateProtectedState reported 1 migrated / 7 stale master keys but actual canary decryption failed.",
+      "change": "Retain previous and pending credentials until actual SCM readiness and unchanged canary hash prove preservation. Local one-instance admin-owned pipe authenticates service SID; client rejects unprivileged owner; current-user migration runs inside SCM. Start remains blocked on failed preservation.",
+      "validation": "Negative pipe test and compilation passed. Actual migration path reached SCM but did not recover v2. Repair/new v3 acceptance is prepared, NOT executed."
+    }
+  ],
+  "synthetic_canary_history": {
+    "credential-canary.dpapi": {
+      "ciphertext_preserved": true,
+      "sha256": "b445ab27c085ea26f8d1d554b363860a1c16a0342a32517aacb5c0144c7e54d1",
+      "decryption_preserved": false,
+      "content": "Fixed synthetic canary only; no evidence, passwords or signing keys"
+    },
+    "credential-canary-v2.dpapi": {
+      "ciphertext_preserved": true,
+      "sha256": "3cdc75a298cb323c039071b90fd94105a908c9b4c385019ab1b7fbd77cedd4ec",
+      "decryption_preserved": false,
+      "content": "Fixed synthetic canary only; no evidence, passwords or signing keys"
+    }
+  },
+  "final_state": {
+    "service": "OperiaE7Validation",
+    "root": "C:\\ProgramData\\OPERIA-E7-Service-20261019",
+    "account": "OperiaSvc",
+    "account_sid": "S-1-5-21-1583293382-2426271138-3818441678-1004",
+    "state": "Stopped",
+    "start_mode": "Manual",
+    "pid": 0,
+    "account_disabled": true,
+    "required_privileges": [
+      "SeChangeNotifyPrivilege"
+    ],
+    "active_release": "8363bcbbea5158a98a330695",
+    "active_release_is_final_source": false,
+    "active_release_ready": false,
+    "credential_slots_present": [
+      "active",
+      "pending",
+      "previous"
+    ],
+    "pending_credential_recovery_required": true,
+    "update_pending": false,
+    "no_new_uac_after_cancellation": true
+  },
+  "tests": {
+    "selected_regression": {
+      "passed": 164,
+      "warnings": 4,
+      "junit": "storage/test_runs/e7-scm-final-regression.xml",
+      "scope": "Case access, custody, production recovery, configuration, local pentest, security boundary, mobile workflow, static jobs, Windows service, runtime and staging; not full repository suite"
+    },
+    "final_windows_module": {
+      "passed": 13,
+      "warnings": 4,
+      "junit": "storage/test_runs/e7-scm-final-unit.xml",
+      "includes": "CSPRNG compatible length, native vault roundtrip, host/native/pipe compilation and rejection of unprivileged pipe owner"
+    }
+  },
+  "habitual_data_preservation": {
+    "original_files_unchanged_and_restored": 116,
+    "tables_values_and_schema_preserved_live_and_restored": 74,
+    "triggers_preserved": 9,
+    "integrity": "ok",
+    "new_private_key_matches_restored": true,
+    "existing_key_replaced": false,
+    "encrypted_bundle_sha256": "e6ae5680f52606dc0d26ddff0e58df4d640a05e2620699b31ccda45b69e888f8"
+  },
+  "continuation": {
+    "snapshot": "storage/temp/e7-scm-next-source-20261019",
+    "code_files": 227,
+    "live_data_or_secrets_copied": false,
+    "prepared_controlled_repair": "storage/test_runs/e7-scm-v3-acceptance.ps1",
+    "repair_executed": false,
+    "repair_requires_review_of_pending_credential_and_orphan_canary_history": true,
+    "remaining": "Publish verified current source; controlled synthetic credential transition retaining prior secrets and canaries; complete same-canary rotation, pending recovery, update/tamper/rollback/interruption acceptance; create and restore service backup into new tree.",
+    "snapshot_manifest_sha256": "ef294796fea335e6225b3fb861b496bd5af5bfe5fd444822fcba4cad6bc0dc77"
+  },
+  "work_hours": {
+    "recorded_human_hours": 0,
+    "unchanged": true
+  }
+}

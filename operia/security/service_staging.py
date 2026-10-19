@@ -21,7 +21,7 @@ def stage(source, destination):
         directory = no_links(source / tree)
         for path in directory.rglob('*'):
             no_links(path)
-            if path.is_file() and path.suffix in ('.py', '.ps1') and '__pycache__' not in path.parts:
+            if path.is_file() and path.suffix in ('.py', '.ps1', '.cs') and '__pycache__' not in path.parts:
                 selected.append(path)
     selected.extend(source / name for name in FILES if (source / name).is_file())
     # Complete validation before creating an output tree.
