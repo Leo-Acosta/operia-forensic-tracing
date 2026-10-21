@@ -1,4 +1,4 @@
-﻿export const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8020/api";
+﻿export const API_BASE = import.meta.env.VITE_API_BASE ?? (import.meta.env.PROD ? "/api" : "http://127.0.0.1:8020/api");
 const TOKEN_KEY = "operia_access_token";
 
 export function getAuthToken() {

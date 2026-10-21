@@ -33,6 +33,12 @@ def create_app() -> FastAPI:
 
     app.add_middleware(SecurityBoundary)
 
+    if settings.env.lower() == 'production':
+        from urllib.parse import urlsplit
+        from starlette.middleware.trustedhost import TrustedHostMiddleware
+        hosts = sorted({urlsplit(origin).hostname for origin in settings.cors_origins} - {None})
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=['127.0.0.1', 'localhost', *hosts], www_redirect=False)
+
     app.include_router(api_router, prefix=settings.api_prefix)
 
     @app.on_event("startup")

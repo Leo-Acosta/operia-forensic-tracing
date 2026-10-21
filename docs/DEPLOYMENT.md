@@ -164,3 +164,7 @@ automáticamente la DB. Consultar la auditoría del tramo antes de activar: la
 compilación o instalación del servicio no acreditan por sí solas que los workers
 funcionen bajo SCM, ni reemplazan TLS, recuperación independiente o aceptación
 productiva. La instalación habitual y sus históricos no se migran con este ensayo.
+
+## Gateway HTTPS E7 (2026-10-21)
+
+Usar [E7_HTTPS_GATEWAY.md](E7_HTTPS_GATEWAY.md) para generar y validar el gateway Caddy con destino fijo loopback. El frontend de producción usa `/api`. No publicar Vite, el puerto API ni pollers. La validación local con certificado temporal no acredita despliegue productivo ni renovación de certificados.

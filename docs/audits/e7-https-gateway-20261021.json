@@ -1,0 +1,81 @@
+{
+  "schema": "operia-e7-https-audit/1",
+  "date": "2026-10-21",
+  "baseline_commit": "19ee9d057157833cdef321d3d8aef9962b9e20c2",
+  "status": "local_https_gateway_accepted",
+  "e7_complete": false,
+  "production_deployed": false,
+  "proxy": {
+    "provider": "Caddy",
+    "version": "2.11.7",
+    "source": "https://github.com/caddyserver/caddy/releases/tag/v2.11.7",
+    "archive_sha256": "0a1edc0b799512051c57071ce0e798d3f2cf67dc98171366f1d2b326072e3b06",
+    "executable_sha256": "5f93a9bd555f3aac9d33af2756ba14b3519d8cca4ffd55256bdaeab444c9db2a",
+    "admin_listener": false,
+    "automatic_https": false,
+    "certificate": "temporary self-signed one-day test certificate; no system trust installation",
+    "listener_scope": "127.0.0.1, temporary test ports",
+    "upstream": "fixed numeric loopback",
+    "forwarded_headers_trusted_by_api": false,
+    "access_logs_enabled": false,
+    "config_autosave_enabled": false
+  },
+  "tests": {
+    "e7-https": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "storage/test_runs/e7-https.xml",
+      "sha256": "3e115481f51ac9c5a013966201d17017ef5c65c28d5f00bd40ba1e3e1811eea9"
+    },
+    "e7-https-regression": {
+      "tests": 124,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "storage/test_runs/e7-https-regression.xml",
+      "sha256": "5870c0611e2fd204e916c58173b306733ee2e00e4e759f7126f175e9c3a97597"
+    }
+  },
+  "frontend": {
+    "production_build": "passed",
+    "tests_passed": 52,
+    "tests_failed": 0,
+    "compiled_development_api_reference": false,
+    "spa_gateway_routing": "passed with synthetic compiled SPA; actual React build validated separately"
+  },
+  "preservation": {
+    "files_unchanged": 116,
+    "tables_rows_and_schema_unchanged": 74,
+    "triggers_unchanged": 9,
+    "sqlite_integrity": "ok",
+    "signing_key_preserved": true,
+    "existing_baseline_restoration_still_matches": true,
+    "live_database_restored": false
+  },
+  "network": {
+    "api_lan_connection_rejected_in_real_integration": true,
+    "tls12_positive_control": true,
+    "tls11_attempt_rejected": true,
+    "untrusted_certificate_rejected": true,
+    "http_plaintext_not_served": true,
+    "host_spoof_rejected": true,
+    "unauthenticated_forwarding_bypass_rejected": true,
+    "frontend_source_and_storage_not_published": true,
+    "machine_firewall_changed": false,
+    "permanent_service_changed": false,
+    "permanent_worker_os_listener_audit": "pending: previous OperiaSvc service left stopped; new read-only audit script provided",
+    "scope": "Existing local/SCM API launchers remain loopback. Pollers have no HTTP server; existing AppContainer policies unchanged. Host-local processes can still reach authenticated API; loopback is not per-process authentication."
+  },
+  "pending": [
+    "production hostname/IP and trusted certificate, renewal procedure",
+    "separate least-privilege gateway account and permanent SCM deployment",
+    "deployed configuration/key/frontend ACL acceptance",
+    "firewall rule for approved HTTPS networks only; second-host network validation",
+    "repeat published release SCM lifecycle and OS worker listener audit with gateway",
+    "independent off-host encrypted disaster recovery"
+  ],
+  "historical_audits_rewritten": false,
+  "human_hours_added": 0
+}

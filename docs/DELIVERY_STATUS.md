@@ -23,3 +23,7 @@ permanece pendiente y puede realizarse sin reducir permisos ni aislamiento.
 
 El contador de horas mantiene su fuente independiente en [work_hours.json](work_hours.json).
 No se convierte duraciÃƒÂ³n de pruebas o trabajo de IA en horas humanas.
+
+## Continuidad E7 — 2026-10-21
+
+HTTPS y proxy Caddy implementados y probados localmente con certificado temporal y API sintética aislada. Frontend compilado usa el mismo origen `/api`; API mantiene loopback y sin confianza en forwarding. Ver [guía y límites](E7_HTTPS_GATEWAY.md). La instalación permanente del proxy bajo SCM, el dominio/certificado productivos y la validación desde otro equipo siguen pendientes. Los registros anteriores se conservan como históricos.
